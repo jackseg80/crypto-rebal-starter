@@ -1,457 +1,298 @@
-# Crypto Rebal Starter — Cockpit Patrimoine Modulaire
+# Crypto Rebal Starter
 
-Plateforme de gestion de patrimoine cross‑asset (Crypto, Bourse, Banque, Divers) avec IA et gestion unifiée des risques. Navigation simplifiée autour de 6 pages canoniques: Portfolio, Analytics, Risk, Rebalance, Execution, Settings.
+Plateforme de gestion de patrimoine cross-asset (Crypto, Bourse, Banque) avec IA, ML avancé et gestion unifiée des risques. Architecture modulaire autour de 6 pages canoniques optimisées pour la prise de décision en temps réel.
 
-## Fonctionnalités Principales
-- **Rebalancing intelligent** avec allocations dynamiques basées sur le contexte réel (cycle, régime, concentration wallet)
-- **Simulateur Pipeline Complet** (static/simulations.html) : test en temps réel du pipeline complet Decision Inputs → Risk Budget → Targets → Phase Tilts → Governance → Execution avec 10 presets de scénarios
-- **Decision Engine** avec gouvernance (approbations AI/manuelles)
-- **Phase Engine** : détection proactive de phases market avec tilts automatiques (ETH expansion, altseason, risk-off)
-- **ML avancé** (LSTM, Transformers), signaux temps réel
-- **Analytics**: Sharpe/Calmar, drawdown, VaR/CVaR
-- **Risk management v2**: corrélations, stress testing, alertes, circuit breakers, GRI (Group Risk Index)
-- **Risk Scoring centralisé** : Dual score system (quantitatif + structurel) avec architecture anti-duplication
-- **🆕 Dual-Window Metrics** : Système dual-view (long-term + full intersection) pour métriques stables même avec assets récents
-- **🆕 P&L Today** : Calcul Profit & Loss en temps réel avec anchor points (midnight, session), support ETag, multi-tenant strict
-- **Strategy API v3**: calculs dynamiques remplaçant les presets hardcodés
-- **Classification unifiée** des assets via taxonomy_aliases.json (source unique de vérité)
-- **Synchronisation parfaite** Analytics ↔ Rebalance via u.targets_by_group
-- **35+ dashboards**, navigation unifiée, deep links
-- **Multi‑sources**: CoinTracking CSV/API, données temps réel
-- **Système multi-utilisateurs** avec isolation complète des données
-- **🔄 Système de Contradiction Unifié**: Source unique, poids adaptatifs, caps risque, classification auto (Low/Medium/High)
+## 🎯 Features Principales
 
-## 🔄 Système de Contradiction Unifié
+- **Decision Engine** avec gouvernance intelligente (approvals AI/manuels, freeze semantics)
+- **Rebalancing dynamique** basé sur cycle marché, régime, concentration wallet
+- **Phase Engine** : détection proactive de phases (ETH expansion, altseason, risk-off) avec tilts automatiques
+- **ML avancé** : LSTM, Transformers, sentiment analysis, signaux temps réel
+- **Risk management v2** : VaR/CVaR, stress testing, circuit breakers, dual-window metrics
+- **P&L Today** : calcul Profit & Loss en temps réel avec anchor points (midnight/session)
+- **Simulateur Pipeline** : test complet Decision → Risk Budget → Targets → Governance → Execution
+- **Multi-tenant** : isolation complète des données par utilisateur et source
 
-Le système centralise la gestion des signaux contradictoires avec:
+## 🚀 Quick Start
 
-- **Source unique**: `governance.contradiction_index` (0-1 normalisé)
-- **Poids adaptatifs**: Renormalisation automatique (-35%/-15%/+50% baseline)
-- **Caps de risque**: Réduction memecoins (15%→5%) et small_caps (25%→12%)
-- **Classification**: Low/Medium/High avec recommandations contextuelles
-- **Page test**: `/static/test-contradiction-unified.html`
-- **Documentation**: `docs/contradiction-system.md`
+### Prérequis
+- Python 3.10+
+- pip, virtualenv
+- (Optionnel) Redis pour cache avancé et streaming temps réel
 
-**Architecture**: Sélecteurs centralisés, politique unifiée, validation automatique, intégration badges/simulateur.
+### Installation
 
-## 🔒 Sécurité
-
-Le projet implémente des mesures de sécurité robustes :
-
-- ✅ **Gestion des secrets** : `.env.example` template, `.env` ignoré, pre-commit hooks avec `detect-secrets` + `gitleaks`
-- ✅ **Frontend sécurisé** : 464 `console.log` migrés vers `debugLogger` conditionnel, ESLint avec `no-console` et `no-eval`
-- ✅ **Headers HTTP** : CSP, X-Content-Type-Options, X-Frame-Options, rate limiting
-- ✅ **Tests automatisés** : Tests de sécurité des headers, validation automatique
-- 📄 **Documentation** : Voir [SECURITY.md](SECURITY.md) pour les détails complets
-
-> **⚠️ Règle Canonique — Sémantique Risk (Option A)**
->
-> Le **Risk Score** est un indicateur **positif** de robustesse, borné **[0..100]**.
->
-> **Convention** : Plus haut = plus robuste (risque perçu plus faible).
->
-> **Dual Score System** :
-> - `risk_score` (autoritaire) : VaR + Sharpe + Drawdown + Volatilité → UI, Decision Index
-> - `risk_score_structural` (structurel) : + GRI + Concentration + Structure → Garde-fou allocation
->
-> **🆕 Dual-Window Metrics** (Oct 2025) :
-> - **Long-Term Window** : Cohorte stable (≥180j, ≥80% valeur) → Score autoritaire
-> - **Full Intersection** : Vue complète (tous assets) → Détection divergences
-> - **Cascade Fallback** : 365j/80% → 180j/70% → 120j/60% → 90j/50%
-> - **Usage** : Métriques stables même avec assets récents (évite Sharpe négatifs sur 55j)
->
-> **Conséquence** : Dans le Decision Index (DI), Risk contribue **positivement** :
-> ```
-> DI = wCycle·scoreCycle + wOnchain·scoreOnchain + wRisk·scoreRisk
-> ```
->
-> **❌ Interdit** : Ne jamais inverser avec `100 - scoreRisk`, ne jamais dupliquer la logique scoring.
->
-> **Architecture** : Module central `services/risk_scoring.py` (Single Source of Truth)
->
-> 📖 Sources : [docs/RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md) | [docs/RISK_SCORING_MODULE.md](docs/RISK_SCORING_MODULE.md)
->
-> 🧪 Tests : `pytest tests/unit/test_risk_scoring.py` (scoring) + `pytest tests/unit/test_dual_window_metrics.py` (dual-window)
-
-**Audit de sécurité** :
-```bash
-python tools/security-check.py  # Validation complète
+**Windows (PowerShell):**
+```powershell
+py -m venv .venv
+.\\.venv\\Scripts\\Activate
+pip install -r requirements.txt
+copy .env.example .env
+# Éditer .env avec vos clés API (CoinGecko, CoinTracking, FRED)
 ```
 
-## 🎭 Crypto-Toolbox Integration
-
-Scraping temps réel d'indicateurs de risque crypto (MVRV, BMO, Puell Multiple, etc.) depuis [crypto-toolbox.vercel.app](https://crypto-toolbox.vercel.app/signaux).
-
-- **Technologie** : Playwright (async browser automation) intégré nativement dans FastAPI
-- **Endpoint** : `GET /api/crypto-toolbox` (cache 30 min, <50ms cached, <5s fresh)
-- **Status** : ✅ Production (migration Flask → FastAPI complétée Oct 2025)
-- **Compatibilité** : Python 3.13+ Windows/Linux (hot reload désactivé sur Windows pour compatibilité asyncio)
-
-**Documentation** : [docs/CRYPTO_TOOLBOX.md](docs/CRYPTO_TOOLBOX.md)
-
-## Démarrage rapide
-Prérequis: Python 3.10+, pip, virtualenv
-
-1) Installer dépendances
-
-Linux/macOS:
+**Linux/macOS:**
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env  # Éditer avec vos clés API
+cp .env.example .env
+# Éditer .env avec vos clés API
 ```
 
-Windows (PowerShell):
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate
-pip install -r requirements.txt
-copy env.example .env
-```
-
-2) Installer Playwright (optionnel, pour crypto-toolbox scraping)
-
+**Playwright (optionnel, pour crypto-toolbox scraping):**
 ```bash
 pip install playwright
 playwright install chromium
 ```
 
-3) Lancer l'API
+### Lancement
 
-**Méthode recommandée** (scripts avec paramètres) :
+**Windows:**
+```powershell
+.\\.venv\\Scripts\\Activate
+.\\start_dev.ps1
+# Avec scheduler (P&L snapshots, OHLCV updates): .\\start_dev.ps1 -EnableScheduler
+```
 
-Linux/macOS:
+**Linux/macOS:**
 ```bash
-# Dev standard (hot reload, pas de scheduler)
+source .venv/bin/activate
 ./start_dev.sh
-
-# Avec scheduler activé (pas de hot reload)
-./start_dev.sh --enable-scheduler
+# Avec scheduler: ./start_dev.sh --enable-scheduler
 ```
 
-Windows (PowerShell):
-```powershell
-# Dev standard (Playwright, pas de scheduler, pas de hot reload)
-.\start_dev.ps1
+**Accès Web:**
+- **Settings** : http://localhost:8000/static/settings.html (configuration initiale)
+- **Dashboard** : http://localhost:8000/static/dashboard.html
+- **API Docs** : http://localhost:8000/docs
 
-# Avec scheduler activé (P&L snapshots, OHLCV updates automatiques)
-.\start_dev.ps1 -EnableScheduler
+## 📊 Pages Principales
 
-# Mode Flask legacy avec hot reload
-.\start_dev.ps1 -CryptoToolboxMode 0 -Reload
+| Page | Description | URL |
+|------|-------------|-----|
+| **Dashboard** | Vue globale portfolio + P&L Today | `/static/dashboard.html` |
+| **Analytics** | ML temps réel + Decision Index | `/static/analytics-unified.html` |
+| **Risk** | Risk management + Governance + Alertes | `/static/risk-dashboard.html` |
+| **Rebalance** | Plans de rééquilibrage dynamiques | `/static/rebalance.html` |
+| **Execution** | Exécution temps réel avec validation | `/static/execution.html` |
+| **Simulations** | Simulateur pipeline complet | `/static/simulations.html` |
+| **Saxo Dashboard** | Bourse (stocks, ETFs, fonds) avec stop-loss intelligent | `/static/saxo-dashboard.html` |
 
-# Port personnalisé
-.\start_dev.ps1 -Port 8001
+## 🏗️ Architecture
+
+### Backend (FastAPI)
+```
+api/
+├── main.py                          # App principale + routers
+├── deps.py                          # Dependency injection (multi-tenant)
+├── execution/                       # Decision Engine + Governance
+├── *_endpoints.py                   # 30+ routers modulaires
+services/
+├── balance_service.py               # Résolution données multi-source
+├── execution/governance.py          # Decision Engine + Freeze semantics
+├── ml/orchestrator.py              # ML orchestration
+├── risk_scoring.py                  # Risk Score central (dual system)
+├── portfolio.py                     # P&L tracking
 ```
 
-**Méthode manuelle** :
-
-Linux/macOS:
-```bash
-uvicorn api.main:app --reload --port 8000
-```
-
-Windows (PowerShell):
-```powershell
-.venv\Scripts\python -m uvicorn api.main:app --port 8000
-# Note: --reload désactivé sur Windows pour compatibilité Playwright
-```
-3) Ouvrir l’UI (servie par FastAPI)
-```
-http://localhost:8000/static/settings.html
-```
-Dans Settings:
-- **Sélectionner un utilisateur** (demo, jack, donato, elda, roberto, clea) dans la barre de navigation
-- Choisir la source de données (fichiers CSV de l'utilisateur, CoinTracking API si configuré)
-- (Optionnel) Configurer les clés API par utilisateur (CoinGecko, CoinTracking, FRED)
-- Tester: « 🧪 Tester les APIs » et « 🧪 Tester la Source »
-
-Dashboards principaux:
-```
-http://localhost:8000/static/dashboard.html        # Portfolio overview
-http://localhost:8000/static/analytics-unified.html # Analytics unifiés + lien vers simulateur
-http://localhost:8000/static/risk-dashboard.html   # Risk management
-http://localhost:8000/static/rebalance.html        # Rebalancing
-http://localhost:8000/static/simulations.html      # Simulateur Pipeline (NOUVEAU)
-```
-
-Docs API: `http://localhost:8000/docs` • OpenAPI: `/openapi.json`
-
-## Système Multi-Utilisateurs
-
-La plateforme supporte 6 utilisateurs avec isolation complète des données:
-
-### Utilisateurs Configurés
-- **demo** : Utilisateur de démonstration avec données d'exemple
-- **jack, donato, elda, roberto, clea** : Utilisateurs individuels avec configurations isolées
-
-### Fonctionnalités
-- **Sélecteur utilisateur** : dans la barre de navigation (indépendant du menu Admin)
-- **Isolation des données** : chaque utilisateur a ses propres :
-  - Fichiers CSV dans `data/users/{user}/csv/`
-  - Configuration dans `data/users/{user}/config.json`
-  - Clés API CoinTracking individuelles
-- **Sources dynamiques** : l'interface affiche automatiquement :
-  - Les fichiers CSV réels de l'utilisateur
-  - L'option API CoinTracking seulement si des clés sont configurées
-- **Settings par utilisateur** : sauvegardés côté serveur avec rechargement automatique
-
-### Endpoints Multi-Utilisateurs
-```
-GET  /api/users/sources     # Sources disponibles pour l'utilisateur
-GET  /api/users/settings    # Configuration utilisateur
-PUT  /api/users/settings    # Sauvegarde configuration utilisateur
-```
-
-## 🚀 Nouvelles Fonctionnalités (v3.0)
-
-### 🏦 Intégration Bourse (Saxo) - Phase 2.5 Complétée (Oct 2025) ✅
-- **Registry Instruments** : Lazy-loading optimisé (1 seul I/O pour 100 appels), enrichissement noms lisibles (ex: "iShares Core MSCI World UCITS ETF" au lieu de "IE00B4L5Y983")
-- **Risk Dashboard Bourse** : Endpoint `/api/risk/bourse/dashboard` avec métriques complètes (VaR, CVaR, Sharpe, Sortino, DD, Volatilité), score canonique 0-100
-- **Onglet Risk & Analytics** : Lazy-load dans `saxo-dashboard.html` avec affichage score jauge + tableaux métriques
-- **Global Overview** : Nouvelle tuile dashboard (🌐) agrège crypto + saxo + banks avec breakdown visuel
-- **Multi-tenant strict** : user_id obligatoire partout, isolation complète
-- **Tests**: 6/6 tests registry passent, structure tests intégration créée
-- **📖 Docs complètes** : [docs/SAXO_INTEGRATION_SUMMARY.md](docs/SAXO_INTEGRATION_SUMMARY.md)
-
-### 🔧 Production Stabilization
-- **Hystérésis & EMA Anti-Flickering** : Deadband ±2%, persistence 3 ticks pour prévenir les oscillations
-- **Staleness Gating** : Freeze des poids adaptatifs mais préservation des caps défensifs (>30min)
-- **Token Bucket Rate Limiting** : 6 req/s avec burst 12, TTL adaptatif (10s-300s)
-- **Suite Tests Complète** : 16 scénarios de validation avec tests temps réel
-
-### 🛠️ Sources System Reliability (Sep 2025)
-- **Race Condition Fix** : Résolution du bug $0 dans "Objectifs Théoriques" après migration Sources
-- **Store Fallback Robuste** : Priorité Store → API → loadBalanceData avec retry pattern (3×500ms)
-- **Cache Invalidation** : Évite retour de données `grand = 0` depuis `_allocCache`
-- **Dynamic Cache Bust** : Import modules avec `?v=${timestamp}` pour forcer rechargement
-- **Logs Détaillés** : Debug complet du timing d'injection des données dans le store
-
-### 📂 Sources System v2 - Interface Unifiée (FINALISÉ)
-- **sources_resolver.py** : SOT unique pour résolution snapshots → imports → legacy → API
-- **Upload Manager** : Interface drag & drop avec validation par module (CSV/JSON/XLSX)
-- **Active Selection** : Sélection dynamique de sources avec sauvegarde automatique
-- **Test Integration** : Validation temps réel des sources avec feedback détaillé
-- **Legacy Migration** : Migration UI complète, ancien système supprimé
-- **Real-time Staleness** : Monitoring 60s avec indicateurs visuels (vert/jaune/rouge)
-- **Extended Legacy Support** : Détection automatique csv/CoinTracking*.csv, csv/saxo*.csv
-- **Production Ready** : Interface propre, navigation unifiée, zéro confusion utilisateur
-
-### Système d'Allocation Dynamique
-- **Élimination des presets hardcodés** : Plus de templates figés (BTC 40%, ETH 30%, etc.)
-- **Calculs contextuels** : Allocations basées sur cycle de marché, régime, concentration wallet
-- **Source canonique unique** : `u.targets_by_group` remplace les presets dispersés
-- **Synchronisation parfaite** : Analytics ↔ Rebalance automatiquement cohérents
-
-### Implémentation Technique
-```javascript
-// Ancien système (éliminé)
-if (blended >= 70) {
-  stablesTarget = 20; btcTarget = 35; // Preset figé
-}
-
-// Nouveau système (dynamique)
-function computeMacroTargetsDynamic(ctx, rb, walletStats) {
-  const stables = rb.target_stables_pct;  // Source de vérité risk budget
-  const riskyPool = 100 - stables;
-  // Modulateurs intelligents selon contexte...
-}
-```
-
-### Bénéfices Utilisateur
-- **Cohérence garantie** : Plus jamais de "Others 31%" incohérent
-- **Adaptabilité** : Objectifs s'ajustent automatiquement au profil réel
-- **Transparence** : Une seule source de données entre toutes les pages
-- **Performance** : Allocations optimisées selon concentration du wallet
-
-### Mode Priority Rebalancing
-- **Allocation intelligente** : Choix automatique des meilleurs assets dans chaque groupe
-- **Support univers limité** : Fallback gracieux vers mode proportionnel si données limitées
-- **Gestion des locations** : Attribution automatique des vraies exchanges (Kraken, Binance, etc.) depuis les données CSV
-- **Interface unifiée** : Toggle simple dans l'interface de rebalancing pour basculer entre modes proportionnel et priority
-
-## UI Components
-
-### Flyout Panel (Composant Réutilisable)
-Panneau latéral détachable avec système hover/pin, inspiré de simulations.html.
-
-**Activation** :
-```javascript
-localStorage.setItem('__ui.flyout.enabled', '1')
-```
-
-**Fonctionnalités** :
-- 📍 **Auto-hide** : 48px visible, expansion au hover
-- 📌 **Épinglable** : Reste ouvert, pousse le contenu à droite
-- 🎯 **Poignée visible** : Texte personnalisable avec opacité ajustable
-- 🔄 **Données live** : Contenu déplacé (pas cloné), mises à jour en temps réel
-- 📐 **Layout adaptatif** : Décalage configurable (défaut: 40px base + 340px épinglé)
-- ♻️ **Persistance** : État épinglé sauvegardé dans localStorage
-- ⚙️ **Configuration flexible** : Conteneurs à pousser, décalages, titre personnalisables
-
-**Fichiers** :
-- `static/components/flyout-panel.css` - Styles réutilisables
-- `static/components/flyout-panel.js` - Logique flyout avec API ES6
-- `static/components/risk-sidebar.js` - Composant Risk Sidebar réutilisable (génère HTML + mises à jour live)
-
-**Utilisation** :
-```javascript
-import { createFlyoutPanel } from '/static/components/flyout-panel.js';
-import { createRiskSidebar } from '/static/components/risk-sidebar.js';
-
-// Créer un conteneur pour la Risk Sidebar
-const sidebarContainer = document.createElement('div');
-sidebarContainer.className = 'sidebar risk-sidebar-source';
-sidebarContainer.style.display = 'none';
-document.body.appendChild(sidebarContainer);
-
-// Générer le contenu de la Risk Sidebar (scores, régime, governance, alertes)
-createRiskSidebar(sidebarContainer);
-
-// Initialiser le flyout
-createFlyoutPanel({
-  sourceSelector: '.risk-sidebar-source',  // Sélecteur CSS du conteneur
-  title: '🎯 Risk Snapshot',               // Titre du panneau
-  handleText: '🎯 Risk',                   // Texte poignée
-  persistKey: 'page_name',                 // Clé localStorage unique
-  removeToggleButton: true,                // Supprimer bouton toggle
-  pushContainers: ['.wrap', '.controls'],  // Éléments à décaler
-  baseOffset: 40,                          // Décalage base (px)
-  pinnedOffset: 340                        // Décalage épinglé (px)
-});
-```
-
-**Pages utilisant le flyout** :
-- ✅ `risk-dashboard.html` - Risk Snapshot (scores, régime, governance, alertes)
-- ✅ `analytics-unified.html` - Risk Snapshot (accès rapide sans changer de page)
-- ✅ `rebalance.html` - Risk Snapshot (suivi risque pendant rebalancing)
-- ✅ `execution.html` - Risk Snapshot (monitoring risque pendant exécution)
-
-## Documentation
-- Guide agent: `CLAUDE.md`
-- Index docs: `docs/index.md`
-- Quickstart: `docs/quickstart.md`
-- Configuration: `docs/configuration.md`
-- Navigation: `docs/navigation.md`
-- Architecture: `docs/architecture.md`
-- Governance: `docs/governance.md`
-- Risk Dashboard: `docs/risk-dashboard.md`
-- **Performance Monitoring**: `docs/PERFORMANCE_MONITORING.md` ⭐ NEW
-- **P&L Today**: `docs/P&L_TODAY_USAGE.md` ⭐ NEW (Oct 2025)
-- Télémétrie: `docs/telemetry.md`
-- Runbooks: `docs/runbooks.md`
-- Intégrations: `docs/integrations.md`
-- Refactoring & migration: `docs/refactoring.md`
-
-Endpoints utiles:
-```
-GET  /healthz
-GET  /balances/current?source=cointracking        # CSV
-GET  /balances/current?source=cointracking_api    # API CT
-GET  /debug/ctapi                                 # Sonde CoinTracking API
-GET  /api/performance/summary                     # P&L Today (anchor: midnight/session)
-POST /portfolio/snapshot                          # Créer snapshot pour P&L
-```
-
-Changelog: `CHANGELOG.md`
-
-## Simulateur Pipeline Complet
-
-**URL**: `http://localhost:8000/static/simulations.html`
-
-Le simulateur permet de tester en temps réel le pipeline complet sans impact sur les données :
-```
-Decision Inputs → Risk Budget → Targets → Phase Tilts → Governance → Execution
-```
-
-**Fonctionnalités** :
-- **10 presets** : Fin Bull Run, Capitulation, ETH Expansion, Altseason, etc.
-- **Contrôles temps réel** : scores, confidences, hystérésis, circuit breakers, caps
-- **Position réelle** : utilise le portefeuille source réel pour calculer les deltas
-- **Phase Engine unifié** : tilts identiques à la production
-- **Market overlays** : volatilité Z-score, drawdown 90j, breadth pour circuit breakers
-- **Reproductibilité** : état déterministe, plus de hasard
-- **URL hash** : état partageable via URL
-- **Mode Live/Simulation** : comparaison avec données réelles
-
-**Architecture technique** :
-
-**Alignement Cap d'exécution** :
-- La policy active ctive_policy.cap_daily (fraction 0–1) est injectée dans le simulateur.
-- planOrdersSimulated() clampe chaque delta à ±cap (en points de %), puis applique les seuils bucket/global et le min trade.
-- L'UI expose esult.ui.capPercent et esult.ui.capPct01 pour l'affichage cohérent.
-
-
-- Engine principal : `static/modules/simulation-engine.js`
-- Contrôles UI : `static/components/SimControls.js`
-- Inspecteur : `static/components/SimInspector.js`
-- Presets : `static/presets/sim_presets.json`
-
-## Notes
-- Les documents détaillés et historiques sont archivés sous `docs/_legacy/`.
-- Les endpoints ML/Risk/Alerts ont été consolidés; voir `docs/refactoring.md` pour la migration.
-- Classification des assets: `data/taxonomy_aliases.json` est la source unique de vérité pour tous les groupes d'assets. Les dashboards utilisent automatiquement cette classification via l'API `/taxonomy` et le module `static/shared-asset-groups.js`.
-
-## 🏆 **Achievements Récents (Sep 2025)**
-
-### ✅ **Sources System v2 - Migration Complète**
-L'écosystème Sources est maintenant **100% unifié et production-ready** :
-
-**Architecture Finale** :
-- **Resolution Chain** : snapshots → imports → legacy → API → stub (priorité Sources First)
-- **Legacy Support** : Détection automatique des patterns historiques (`csv/CoinTracking*.csv`)
-- **Real-time Monitoring** : Staleness avec polling 60s et indicateurs visuels
-- **Interface Propre** : Un seul onglet Sources, ancien système complètement supprimé
-
-**Impact Utilisateur** :
-- **Zéro Confusion** : Plus de doublons d'interface (ancien "Source" vs nouveau "Sources")
-- **Feedback Immédiat** : Bandeaux temps réel sur fraîcheur des données
-- **Migration Transparente** : Fichiers existants automatiquement détectés
-- **Navigation Cohérente** : Tous les liens pointent vers `settings.html#tab-sources`
-
-**Validation Technique** :
-- ✅ API `/sources/list` expose `effective_read`/`effective_path`
-- ✅ Patterns legacy détectés avec `is_legacy=true`
-- ✅ Race condition $0 résolue (store fallback + retry pattern)
-- ✅ Cache invalidation pour données invalides (`grand = 0`)
-- ✅ Tests multi-utilisateurs passés
-
-### ✅ **Risk Dashboard Refactoring - Architecture Modulaire** (Oct 2025)
-
-Le Risk Dashboard a été refactorisé pour une meilleure maintenabilité :
-
-**Réduction de Taille** :
-- **-2020 lignes** dans `risk-dashboard.html` (-23.5%)
-- **CSS externalisé** : `css/risk-dashboard.css` (~1900 lignes)
-- **Modules JavaScript** : 7 fichiers séparés (~1500 lignes total)
-
-**Architecture Finale** :
+### Frontend (Vanilla JS + ES6 Modules)
 ```
 static/
-├── risk-dashboard.html (6581 lignes)
-├── css/risk-dashboard.css (styles)
-└── modules/
-    ├── risk-utils.js (helpers communs)
-    ├── risk-dashboard-main.js (orchestrateur)
-    ├── alerts-tab.js (onglet complet ✅)
-    └── *-tab.js (stubs pour migration progressive)
+├── *.html                           # Pages principales
+├── core/
+│   ├── allocation-engine.js         # Allocation topdown hierarchical
+│   └── unified-insights-v2.js       # Phase Engine
+├── components/
+│   ├── nav.js                       # Navigation unifiée
+│   ├── decision-index-panel.js      # Decision Index UI
+│   └── flyout-panel.js              # Risk Sidebar réutilisable
+├── global-config.js                 # Config frontend centralisée
 ```
 
-**Avantages** :
-- ✅ **Maintenabilité** : Code organisé par responsabilité
-- ✅ **Performance** : Lazy-loading des onglets, meilleur cache navigateur
-- ✅ **Évolutivité** : Migration progressive possible, tests futurs facilités
-- ✅ **Lisibilité** : Séparation claire HTML / CSS / JS avec imports ES6
+### Données
+```
+data/
+└── users/{user_id}/
+    ├── cointracking/data/           # CSV crypto (versioning auto)
+    ├── saxobank/data/               # CSV bourse
+    ├── config/config.json           # Config utilisateur
+    └── config/sources.json          # Modules actifs
+```
 
-📖 **Documentation** : [REFACTORING_SUMMARY.md](REFACTORING_SUMMARY.md) | [static/MIGRATION_RISK_DASHBOARD.md](static/MIGRATION_RISK_DASHBOARD.md)
+## 🔒 Sécurité
 
-### Governance UI (Cap d'exécution)
+- ✅ **Secrets management** : `.env` template, pre-commit hooks (detect-secrets + gitleaks)
+- ✅ **Frontend sécurisé** : 464 console.log → debugLogger, ESLint (no-console, no-eval)
+- ✅ **HTTP headers** : CSP, X-Content-Type-Options, X-Frame-Options, rate limiting
+- ✅ **Tests automatisés** : validation headers + sécurité
 
-- Source de vérité frontend: `GET /execution/governance/state.active_policy.cap_daily`.
-- Utiliser `selectCapPercent(state)` du module `static/selectors/governance.js` pour tout affichage/calcul en %.
-- Si la policy est absente, fallback sur engine cap (affiché en second comme "SMART {x}%").
-- Convergence: `ceil(maxDelta / (capPct/100))`. Exemple: maxΔ=23 pts, cap=1% → 23 itérations; cap=10% → 3.
-- Badge serré: afficher "🧊 Freeze/Cap serré (±X%)" pour Freeze ou cap ≤ 2%.
+📖 Détails complets : [SECURITY.md](SECURITY.md)
 
+## 📚 Documentation
 
+### Essentiels
+- **[CLAUDE.md](CLAUDE.md)** - Guide pour agents IA (règles critiques, patterns, quick checks)
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Architecture détaillée
+- **[Quick Start](docs/quickstart.md)** - Guide démarrage pas à pas
+- **[API Reference](docs/API_REFERENCE.md)** - Endpoints et schemas
+- **[User Guide](docs/user-guide.md)** - Guide utilisateur complet
+
+### Features & Systèmes
+- **Allocation** : [ALLOCATION_ENGINE_V2.md](docs/ALLOCATION_ENGINE_V2.md) - Topdown hierarchical, floors, incumbency
+- **Decision Index** : [DECISION_INDEX_V2.md](docs/DECISION_INDEX_V2.md) - Dual scoring (DI vs Régime)
+- **Risk Management** : [RISK_SEMANTICS.md](docs/RISK_SEMANTICS.md), [RISK_SCORE_V2_IMPLEMENTATION.md](docs/RISK_SCORE_V2_IMPLEMENTATION.md)
+- **Governance** : [GOVERNANCE_FIXES_OCT_2025.md](docs/GOVERNANCE_FIXES_OCT_2025.md) - Freeze semantics, TTL vs Cooldown
+- **Phase Engine** : [PHASE_ENGINE.md](docs/PHASE_ENGINE.md) - Détection phases marché
+- **Simulateur** : [SIMULATION_ENGINE.md](docs/SIMULATION_ENGINE.md) - Pipeline complet
+- **Sources System** : [SOURCES_SYSTEM.md](docs/SOURCES_SYSTEM.md) - Multi-source unifiée
+- **Stop Loss Intelligent** : [STOP_LOSS_SYSTEM.md](docs/STOP_LOSS_SYSTEM.md) - 5 méthodes adaptatives
+- **P&L Today** : [P&L_TODAY_USAGE.md](docs/P&L_TODAY_USAGE.md) - Tracking temps réel
+- **Redis** : [REDIS_SETUP.md](docs/REDIS_SETUP.md) - Cache & streaming
+- **Logging** : [LOGGING.md](docs/LOGGING.md) - Logs rotatifs (5MB x3, optimisé IA)
+
+### Développement
+- **[Developer Guide](docs/developer.md)** - Setup, tests, workflow
+- **[Testing Guide](docs/TESTING_GUIDE.md)** - Tests unitaires/intégration/E2E
+- **[Runbooks](docs/runbooks.md)** - Procédures opérationnelles
+- **[Troubleshooting](docs/troubleshooting.md)** - Résolution problèmes courants
+- **[Contributing](CONTRIBUTING.md)** - Guidelines contribution
+
+### Index Complet
+📖 **[Index Documentation](docs/index.md)** - Liste complète des docs disponibles
+
+## 🔧 Configuration
+
+### Multi-Utilisateurs
+6 utilisateurs configurés : `demo`, `jack`, `donato`, `elda`, `roberto`, `clea`
+- **Isolation complète** : données, config, clés API séparées
+- **Sélecteur dynamique** : barre navigation (indépendant du menu Admin)
+- **Sources dynamiques** : affichage auto des CSV + API selon config
+
+### Sources de Données
+1. **CSV locaux** : upload via Settings → Sources (versioning automatique)
+2. **API CoinTracking** : si clés configurées (temps réel)
+3. **API Saxo** : import positions bourse
+4. **Banks** : comptes bancaires manuels
+
+### Clés API Recommandées
+```env
+# .env
+COINGECKO_API_KEY=your_key_here        # Prix crypto (3 min cache)
+COINTRACKING_API_KEY=your_key_here     # Balances temps réel
+FRED_API_KEY=your_key_here             # Macro data
+REDIS_URL=redis://localhost:6379/0     # Cache avancé (optionnel)
+```
+
+## 📊 Endpoints Principaux
+
+```bash
+# Health & Config
+GET  /healthz                                    # Status application
+GET  /api/config                                 # Configuration frontend
+
+# Portfolio
+GET  /balances/current?source=cointracking       # Balances actuelles
+GET  /portfolio/metrics?user_id=demo             # Métriques + P&L Today
+POST /portfolio/snapshot                         # Créer snapshot P&L
+
+# ML & Analytics
+GET  /api/ml/sentiment/symbol/BTC                # Sentiment ML
+GET  /api/ml/cycle_score                         # Cycle Score
+GET  /api/ml/onchain_score                       # On-Chain Score
+
+# Risk
+GET  /api/risk/dashboard                         # Dashboard risk complet
+GET  /api/risk/bourse/dashboard                  # Risk bourse (Saxo)
+
+# Governance & Execution
+GET  /execution/governance/state                 # État gouvernance
+POST /execution/governance/approve               # Approuver plan
+GET  /execution/monitoring/live                  # Monitoring temps réel
+
+# Sources
+GET  /api/sources/list                           # Sources disponibles
+POST /api/sources/upload                         # Upload fichier
+GET  /api/sources/test                           # Tester source
+```
+
+📖 API complète : http://localhost:8000/docs (Swagger UI)
+
+## 🧪 Tests
+
+```bash
+# Activer environnement
+.venv\\Scripts\\Activate  # Windows
+source .venv/bin/activate  # Linux/macOS
+
+# Tests unitaires
+pytest tests/unit -v
+
+# Tests intégration
+pytest tests/integration -v
+
+# Tests E2E (nécessite serveur lancé)
+pytest tests/e2e -v
+
+# Coverage
+pytest --cov=services --cov=api --cov-report=html
+```
+
+## 🎯 Règles Critiques (Développeurs)
+
+### 1. Multi-Tenant OBLIGATOIRE
+```python
+# Backend: TOUJOURS utiliser dependency injection
+from api.deps import get_active_user
+
+@router.get("/endpoint")
+async def endpoint(user: str = Depends(get_active_user)):
+    pass
+```
+
+```javascript
+// Frontend: TOUJOURS utiliser window.loadBalanceData()
+const balanceResult = await window.loadBalanceData(true);
+```
+
+### 2. Risk Score = Positif (0-100)
+- **Convention** : Plus haut = plus robuste
+- **❌ INTERDIT** : Ne jamais inverser avec `100 - scoreRisk`
+
+### 3. Decision Index vs Régime
+- **Decision Index** : Qualité technique allocation (65/45 fixe)
+- **Score de Régime** : État marché (0-100 variable)
+- **Phase** : Basée UNIQUEMENT sur Cycle Score (<70=bearish, 70-90=moderate, ≥90=bullish)
+
+📖 Détails : [CLAUDE.md](CLAUDE.md)
+
+## 🤝 Contributing
+
+Contributions bienvenues ! Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour guidelines.
+
+**Workflow recommandé :**
+1. Fork le projet
+2. Créer une branche feature (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'feat: add amazing feature'`)
+4. Push branch (`git push origin feature/amazing-feature`)
+5. Ouvrir Pull Request
+
+## 📝 Changelog
+
+Voir [CHANGELOG.md](CHANGELOG.md) pour l'historique complet des versions.
+
+## 📄 Licence
+
+Ce projet est un starter/template pour usage personnel ou éducatif.
+
+## 🆘 Support
+
+- **Documentation** : [docs/index.md](docs/index.md)
+- **Issues** : Pour bugs et feature requests
+- **Troubleshooting** : [docs/troubleshooting.md](docs/troubleshooting.md)
+
+---
+
+**Status** : ✅ Production Stable (Oct 2025)
+**Version** : 3.0
+**Stack** : Python 3.10+ • FastAPI • Vanilla JS (ES6) • Redis (optionnel)

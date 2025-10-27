@@ -448,6 +448,33 @@ if memecoins_pct >= 0.48 and memecoins_pct <= 0.52:
     delta = -10 + t * (-15 - (-10))  # Transition douce
 ```
 
+### Alerts System (Oct 2025)
+**Architecture multi-couches** pour alertes temps réel avec ML prédictif :
+
+**Composants principaux :**
+1. **Alert Storage** - Persistence Redis + fallback mémoire ([alert_storage.py](services/alerts/alert_storage.py))
+2. **Alert Engine** - Détection conditions + déclenchement ([alert_engine.py](services/alerts/alert_engine.py))
+3. **ML Alert Predictor** - Prédictions ML basées données réelles ([ml_alert_predictor.py](services/alerts/ml_alert_predictor.py))
+4. **Unified Facade** - API unifiée multi-timeframe ([unified_alert_facade.py](services/alerts/unified_alert_facade.py))
+
+**Features avancées :**
+- **Auto-clear** : Alertes résolues automatiquement (évite spam UI)
+- **Idempotency** : Dédoublonnage intelligent (24h window)
+- **Cross-asset correlation** : Alertes corrélées crypto/bourse
+- **Multi-timeframe** : Support 5m, 15m, 1h, 4h, 1d
+- **Streaming Redis** : 4 streams temps réel (risk_events, alerts, market_data, portfolio_updates)
+
+**API Endpoints :**
+- `/api/alerts/list` - Liste alertes actives
+- `/api/alerts/history` - Historique alertes
+- `/api/alerts/clear` - Clear manuelle
+- `/api/alerts/predict` - Prédictions ML prochaines alertes
+
+**Docs détaillées :**
+- [`docs/ML_ALERT_PREDICTOR_REAL_DATA_OCT_2025.md`](docs/ML_ALERT_PREDICTOR_REAL_DATA_OCT_2025.md) - ML Predictor
+- [`docs/ALERT_REDUCTION_AUTO_CLEAR.md`](docs/ALERT_REDUCTION_AUTO_CLEAR.md) - Auto-clear system
+- [`docs/PHASE_2C_ML_ALERT_PREDICTIONS.md`](docs/PHASE_2C_ML_ALERT_PREDICTIONS.md) - Phase 2C implémentation
+
 ### WealthContextBar
 - Change source depuis n'importe quelle page
 - Menu "Compte" → Sélection CSV/API → Reload auto
@@ -501,9 +528,10 @@ EOF
 - **Sources**: `docs/SOURCES_MIGRATION_DATA_FOLDER.md`
 - **Logging**: `docs/LOGGING.md` (système de logs rotatifs pour debug/IA)
 - **Redis**: `docs/REDIS_SETUP.md` (installation, config, cache & streaming)
+- **Alerts**: `docs/ML_ALERT_PREDICTOR_REAL_DATA_OCT_2025.md`, `docs/ALERT_REDUCTION_AUTO_CLEAR.md` (ML predictor, auto-clear)
 
-### Session Notes
-- Latest: `SESSION_RESUME_2025-10-20.md` (dependency injection + consolidation)
+### Archives
+- **Session Notes**: `docs/_archive/session_notes/` (notes de développement archivées)
 
 ---
 
