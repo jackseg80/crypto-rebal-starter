@@ -150,6 +150,7 @@ from api.intelligence_endpoints import router as intelligence_router
 from api.user_settings_endpoints import router as user_settings_router
 from api.wealth_endpoints import router as wealth_router
 from api.sources_endpoints import router as sources_router
+from api.fx_endpoints import router as fx_router
 from api.debug_router import router as debug_router
 from api.health_router import router as health_router
 from api.coingecko_proxy_router import router as coingecko_proxy_router
@@ -734,6 +735,7 @@ app.include_router(intelligence_router)
 app.include_router(user_settings_router)
 app.include_router(sources_router)
 app.include_router(wealth_router)
+app.include_router(fx_router)
 app.include_router(debug_router)
 app.include_router(health_router)
 app.include_router(coingecko_proxy_router)  # CoinGecko CORS proxy with caching

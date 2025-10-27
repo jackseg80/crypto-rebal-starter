@@ -3471,8 +3471,17 @@
         }
 
         // Edit cash amount (show modal)
-        function editCashAmount() {
+        async function editCashAmount() {
             const currentCash = window.portfolioCash || 0;
+
+            // Saved currency preference (default EUR)
+            const savedCurrency = localStorage.getItem('saxoCashCurrency') || 'EUR';
+
+            // Pre-load exchange rates (non-blocking)
+            const ratesPromise = Promise.all([
+                window.currencyManager.ensureRate('EUR'),
+                window.currencyManager.ensureRate('CHF')
+            ]);
 
             // Create modal
             const modal = document.createElement('div');
@@ -3498,22 +3507,36 @@
                     </div>
 
                     <div style="margin-bottom: 1rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Montant en USD:</label>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Devise:</label>
+                        <select id="currencySelect"
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--theme-border); border-radius: var(--radius-md); background: var(--theme-bg); color: var(--theme-text); font-size: 1rem; cursor: pointer;">
+                            <option value="EUR" ${savedCurrency === 'EUR' ? 'selected' : ''}>EUR (Euro)</option>
+                            <option value="USD" ${savedCurrency === 'USD' ? 'selected' : ''}>USD (Dollar)</option>
+                            <option value="CHF" ${savedCurrency === 'CHF' ? 'selected' : ''}>CHF (Franc Suisse)</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Montant:</label>
                         <input type="number" id="cashInput" value="${currentCash}" step="100" min="0"
                             style="width: 100%; padding: 0.75rem; border: 1px solid var(--theme-border); border-radius: var(--radius-md); background: var(--theme-bg); color: var(--theme-text); font-size: 1rem;"
                         />
                     </div>
 
+                    <div id="conversionDisplay" style="padding: 1rem; background: var(--brand-primary-alpha); border-left: 3px solid var(--brand-primary); border-radius: var(--radius-sm); margin-bottom: 1rem; font-size: 0.875rem;">
+                        <strong>💱 Équivalent USD:</strong> <span id="usdEquivalent">Chargement des taux de change...</span>
+                    </div>
+
                     <div style="padding: 1rem; background: var(--theme-bg); border-radius: var(--radius-sm); margin-bottom: 1.5rem; font-size: 0.875rem; color: var(--theme-text-muted);">
-                        ℹ️ <strong>Info:</strong> Cette valeur représente les liquidités disponibles sur votre compte Saxo. Elle sera prise en compte dans les analyses de risque et les recommandations.
+                        ℹ️ <strong>Info:</strong> Cette valeur représente les liquidités disponibles sur votre compte Saxo. Elle sera prise en compte dans les analyses de risque et les recommandations (converties en USD).
                     </div>
 
                     <div style="display: flex; gap: 1rem; justify-content: flex-end;">
                         <button onclick="closeCashModal()" style="padding: 0.75rem 1.5rem; background: var(--theme-bg); border: 1px solid var(--theme-border); border-radius: var(--radius-md); cursor: pointer; font-weight: 600;">
                             Annuler
                         </button>
-                        <button onclick="saveCashAmount()" style="padding: 0.75rem 1.5rem; background: var(--brand-primary); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; font-weight: 600;">
-                            💾 Enregistrer
+                        <button id="saveCashBtn" onclick="saveCashAmount()" disabled style="padding: 0.75rem 1.5rem; background: var(--brand-primary); color: white; border: none; border-radius: var(--radius-md); cursor: not-allowed; font-weight: 600; opacity: 0.5;">
+                            ⏳ Chargement...
                         </button>
                     </div>
                 </div>
@@ -3521,10 +3544,53 @@
 
             document.body.appendChild(modal);
 
-            // Focus on input
-            setTimeout(() => {
+            // Real-time conversion update
+            function updateConversion() {
+                const amount = parseFloat(document.getElementById('cashInput')?.value || 0);
+                const currency = document.getElementById('currencySelect')?.value || 'EUR';
+                const usdSpan = document.getElementById('usdEquivalent');
+
+                if (currency === 'USD') {
+                    usdSpan.textContent = `$${amount.toFixed(2)} USD`;
+                } else {
+                    const rate = window.currencyManager.getRateSync(currency);
+                    if (rate > 0) {
+                        const usdAmount = amount / rate;
+                        usdSpan.textContent = `$${usdAmount.toFixed(2)} USD (taux: ${rate.toFixed(4)})`;
+                    } else {
+                        usdSpan.textContent = 'Chargement du taux...';
+                    }
+                }
+            }
+
+            // Add event listeners
+            document.getElementById('cashInput')?.addEventListener('input', updateConversion);
+            document.getElementById('currencySelect')?.addEventListener('change', updateConversion);
+
+            // Wait for rates to be loaded, then enable save button
+            ratesPromise.then(() => {
+                const saveBtn = document.getElementById('saveCashBtn');
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.style.cursor = 'pointer';
+                    saveBtn.style.opacity = '1';
+                    saveBtn.textContent = '💾 Enregistrer';
+                }
+                updateConversion();
                 document.getElementById('cashInput')?.focus();
-            }, 100);
+            }).catch((error) => {
+                debugLogger.warn('Failed to load exchange rates, using fallbacks', error);
+                // Still enable button (we have fallback rates)
+                const saveBtn = document.getElementById('saveCashBtn');
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.style.cursor = 'pointer';
+                    saveBtn.style.opacity = '1';
+                    saveBtn.textContent = '💾 Enregistrer';
+                }
+                updateConversion();
+                document.getElementById('cashInput')?.focus();
+            });
 
             // Close on Escape key
             window.addEventListener('keydown', function escHandler(e) {
@@ -3546,7 +3612,9 @@
         // Save cash amount
         async function saveCashAmount() {
             const cashInput = document.getElementById('cashInput');
+            const currencySelect = document.getElementById('currencySelect');
             const cashAmount = Number(cashInput?.value || 0);
+            const currency = currencySelect?.value || 'EUR';
 
             if (cashAmount < 0) {
                 alert('Le montant ne peut pas être négatif');
@@ -3558,6 +3626,24 @@
             try {
                 // Show saving indicator
                 cashInput.disabled = true;
+                currencySelect.disabled = true;
+
+                // Convert to USD
+                let cashAmountUSD = cashAmount;
+                if (currency !== 'USD') {
+                    // Ensure rate is loaded
+                    await window.currencyManager.ensureRate(currency);
+                    const rate = window.currencyManager.getRateSync(currency);
+                    if (rate > 0) {
+                        cashAmountUSD = cashAmount / rate;
+                        debugLogger.info(`💱 Converting ${cashAmount} ${currency} to USD using rate ${rate.toFixed(4)}`);
+                    } else {
+                        throw new Error(`Taux de change ${currency}/USD non disponible. Veuillez vérifier votre connexion internet.`);
+                    }
+                }
+
+                // Save currency preference
+                localStorage.setItem('saxoCashCurrency', currency);
 
                 // Build URL with file_key
                 let url = `/api/saxo/cash?user_id=${activeUser}`;
@@ -3572,7 +3658,7 @@
                         'X-User': activeUser
                     },
                     body: JSON.stringify({
-                        cash_amount: cashAmount
+                        cash_amount: cashAmountUSD
                     })
                 });
 
@@ -3580,8 +3666,8 @@
                     throw new Error('Failed to save cash amount');
                 }
 
-                // Update local value
-                window.portfolioCash = cashAmount;
+                // Update local value (in USD)
+                window.portfolioCash = cashAmountUSD;
 
                 // Close modal
                 closeCashModal();
@@ -3591,12 +3677,13 @@
                     loadOverviewData(currentPortfolioData);
                 }
 
-                debugLogger.info(`💾 Cash amount saved: $${cashAmount}`);
+                debugLogger.info(`💾 Cash amount saved: ${cashAmount} ${currency} → $${cashAmountUSD.toFixed(2)} USD`);
 
             } catch (error) {
                 debugLogger.error('Failed to save cash amount', error);
                 alert('Erreur lors de la sauvegarde: ' + error.message);
                 cashInput.disabled = false;
+                currencySelect.disabled = false;
             }
         }
 

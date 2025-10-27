@@ -243,7 +243,17 @@ class SaxoImportConnector:
             status = clean_str(row.get('Status', ''))
             quantity = self._to_float(row.get('Quantity', 0))
             market_value = self._to_float(row.get('Market Value', 0))
-            currency = clean_str(row.get('Currency', 'USD')).upper() or 'USD'
+
+            # IMPORTANT: The "Currency" column in Saxo CSV indicates the instrument's trading currency,
+            # NOT the currency of the "Market Value" column!
+            # Market Value is ALWAYS in the account's base currency (typically EUR for Saxo Europe)
+            instrument_currency = clean_str(row.get('Currency', 'USD')).upper() or 'USD'
+
+            # Detect account base currency (the currency used for Market Value column)
+            # For Saxo Europe accounts, this is typically EUR
+            # We can detect this by checking if there's an "Account Currency" column
+            account_base_currency = clean_str(row.get('Account Currency', 'EUR')).upper() or 'EUR'
+
             asset_class_raw = clean_str(row.get('Asset Class', 'Unknown')) or 'Unknown'
 
             # Extract average entry price (cost basis) for trailing stop calculation
@@ -271,7 +281,11 @@ class SaxoImportConnector:
             if ':' in symbol:
                 symbol = symbol.split(':')[0].strip()
 
-            market_value_usd = self._convert_to_usd(market_value, currency)
+            # Convert market_value from account base currency to USD
+            # NOTE: market_value is in account_base_currency (e.g., EUR), NOT in instrument_currency!
+            market_value_usd = self._convert_to_usd(market_value, account_base_currency)
+
+            logger.debug(f"[saxo_import] {instrument_raw}: {market_value} {account_base_currency} → {market_value_usd:.2f} USD (instrument quoted in {instrument_currency})")
 
             # Enrichissement via registry (nom lisible, exchange, etc.)
             # Priority: ISIN > Symbol > Instrument name
@@ -284,7 +298,7 @@ class SaxoImportConnector:
             display_name = instrument_raw  # Always use the nice name from CSV
             enriched_symbol = symbol or enriched.get("symbol") or instrument_raw
             enriched_isin = isin_raw or enriched.get("isin")
-            enriched_currency = currency
+            enriched_currency = instrument_currency  # Instrument's trading currency, not account currency
             enriched_asset_class = self._standardize_asset_class(asset_class_raw)
 
             logger.debug(f"Processed: {instrument_raw} → symbol={enriched_symbol}, isin={enriched_isin}, asset_class={asset_class_raw} → {enriched_asset_class}")
@@ -295,9 +309,10 @@ class SaxoImportConnector:
                 "instrument": instrument_raw,  # Keep original nice name
                 "name": display_name,  # Keep original nice name
                 "quantity": quantity,
-                "market_value": market_value,
-                "market_value_usd": market_value_usd,
-                "currency": enriched_currency,
+                "market_value": market_value,  # In account base currency (EUR)
+                "market_value_usd": market_value_usd,  # Converted to USD
+                "currency": enriched_currency,  # Instrument's trading currency
+                "account_base_currency": account_base_currency,  # Account's base currency (EUR)
                 "asset_class": enriched_asset_class,
                 "_raw_asset_class": asset_class_raw,  # For debugging
                 "exchange": enriched.get("exchange"),
@@ -354,20 +369,41 @@ class SaxoImportConnector:
         return mapping.get(asset_class, 'Other')
 
     def _convert_to_usd(self, amount: float, currency: str) -> float:
-        """Convert amount to USD (placeholder implementation)"""
-        # Placeholder FX rates - in production would use real-time rates
-        fx_rates = {
-            'USD': 1.0,
-            'EUR': 1.1,
-            'CHF': 1.1,
-            'GBP': 1.25,
-            'SEK': 0.095,
-            'NOK': 0.09,
-            'DKK': 0.15
-        }
+        """
+        Convert amount to USD using live FX rates.
 
-        rate = fx_rates.get(currency, 1.0)
-        return amount * rate
+        Uses the centralized fx_service which fetches live rates from external API
+        and falls back to cached rates if unavailable.
+
+        Args:
+            amount: Amount to convert
+            currency: Source currency code (e.g., 'EUR', 'CHF')
+
+        Returns:
+            float: Amount converted to USD
+        """
+        try:
+            from services.fx_service import convert
+
+            # Use fx_service for conversion (live rates with fallback)
+            return convert(amount, currency, "USD")
+
+        except Exception as e:
+            logger.warning(f"[saxo_import] FX conversion failed for {currency}: {e}, using fallback rate")
+
+            # Emergency fallback rates (Oct 2025) if fx_service unavailable
+            fallback_rates = {
+                'USD': 1.0,
+                'EUR': 1.087,
+                'CHF': 1.136,
+                'GBP': 1.30,
+                'SEK': 0.096,
+                'NOK': 0.093,
+                'DKK': 0.146
+            }
+
+            rate = fallback_rates.get(currency.upper(), 1.0)
+            return amount * rate
 
     def get_portfolio_summary(self, positions: List[Dict]) -> Dict:
         """Generate portfolio summary from positions"""

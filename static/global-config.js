@@ -822,68 +822,117 @@ console.debug('🚀 Configuration globale chargée:', globalConfig.getAll());
 
 // ====== Currency conversion helper (USD -> display currency) ======
 window.currencyManager = (function(){
-  const rates = { USD: 1 };
-  let fetching = {};
+  // Fallback rates (synchronized with backend, updated Oct 2025)
+  const FALLBACK_RATES = {
+    USD: 1.0,
+    EUR: 0.920,    // 1 USD = 0.920 EUR (inverted from backend: 1 EUR = 1.087 USD)
+    CHF: 0.880,    // 1 USD = 0.880 CHF (inverted from backend: 1 CHF = 1.136 USD)
+    GBP: 0.769,    // 1 USD = 0.769 GBP (inverted from backend: 1 GBP = 1.30 USD)
+    DKK: 6.849,    // 1 USD = 6.849 DKK
+    SEK: 10.417,   // 1 USD = 10.417 SEK
+    NOK: 10.753,   // 1 USD = 10.753 NOK
+    JPY: 151.515,  // 1 USD = 151.515 JPY
+    CAD: 1.389,    // 1 USD = 1.389 CAD
+    AUD: 1.538,    // 1 USD = 1.538 AUD
+    SGD: 1.333,    // 1 USD = 1.333 SGD
+  };
 
-  async function fetchEURRate() {
-    // Use a free FX API; fallback to 1 if unavailable
+  const rates = { ...FALLBACK_RATES };
+  let fetching = null;
+  let lastFetch = 0;
+  const CACHE_TTL = 3600000; // 1 hour cache
+
+  async function fetchAllRates() {
+    // Fetch all rates from backend API
     try {
-      const res = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=EUR');
+      const apiUrl = (typeof globalConfig !== 'undefined' && globalConfig.getApiUrl)
+        ? globalConfig.getApiUrl('/api/fx/rates?base=USD')
+        : 'http://localhost:8000/api/fx/rates?base=USD';
+
+      const res = await fetch(apiUrl, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      const rate = data?.rates?.EUR;
-      return (typeof rate === 'number' && rate > 0) ? rate : 0;
+
+      const response = await res.json();
+
+      if (response?.ok && response?.data?.rates) {
+        const fetchedRates = response.data.rates;
+        console.debug('✅ FX rates fetched from backend:', Object.keys(fetchedRates).length, 'currencies');
+
+        // Update rates cache
+        for (const [currency, rate] of Object.entries(fetchedRates)) {
+          if (typeof rate === 'number' && rate > 0) {
+            rates[currency] = rate;
+          }
+        }
+
+        lastFetch = Date.now();
+        return true;
+      } else {
+        throw new Error('Invalid response format');
+      }
     } catch (error) {
-      // Silent failure for CORS or network errors - use fallback rate
-      console.debug('Currency rate fetch failed (expected in some environments):', error.name);
-      return 0; // Trigger fallback to default rate
-    }
-  }
-
-  async function fetchBTCRate() {
-    // Get BTCUSDT price from Binance public API (approx USD)
-    try {
-      const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      const price = parseFloat(data?.price);
-      return (price && price > 0) ? (1 / price) : 0; // USD->BTC = 1 / BTCUSD
-    } catch (_) {
-      return 0;
+      console.debug('⚠️ FX rates fetch failed, using fallback rates:', error.message);
+      // Fallback rates already loaded
+      return false;
     }
   }
 
   async function ensureRate(currency) {
     const cur = (currency || '').toUpperCase();
     if (!cur || cur === 'USD') { rates.USD = 1; return 1; }
-    if (rates[cur] && rates[cur] > 0) return rates[cur];
-    if (fetching[cur]) return fetching[cur];
 
-    fetching[cur] = (async () => {
-      let r = 1;
-      if (cur === 'EUR') r = await fetchEURRate();
-      else if (cur === 'BTC') r = await fetchBTCRate();
-      rates[cur] = r > 0 ? r : 0;
-      fetching[cur] = null;
+    // Check if we need to refresh rates
+    const now = Date.now();
+    if (now - lastFetch > CACHE_TTL && !fetching) {
+      // Fetch all rates if cache expired
+      fetching = fetchAllRates();
+    }
+
+    // Wait for fetch if in progress
+    if (fetching) {
+      await fetching;
+      fetching = null;
+    }
+
+    // Return rate (from cache or fallback)
+    const rate = rates[cur];
+    if (rate && rate > 0) {
       try {
-        window.dispatchEvent(new CustomEvent('currencyRateUpdated', { detail: { currency: cur, rate: rates[cur] } }));
+        window.dispatchEvent(new CustomEvent('currencyRateUpdated', { detail: { currency: cur, rate } }));
       } catch (_) {}
-      return rates[cur];
-    })();
-    return fetching[cur];
+      return rate;
+    }
+
+    // No rate available, return fallback
+    const fallback = FALLBACK_RATES[cur] || 1;
+    rates[cur] = fallback;
+    return fallback;
   }
 
   function getRateSync(currency) {
     const cur = (currency || '').toUpperCase();
     if (!cur || cur === 'USD') return 1;
-    // If not loaded yet, return 0 so UIs can display '—' instead of a wrong number
-    return (cur in rates) ? rates[cur] : 0;
+    // Return cached rate or fallback
+    return (cur in rates && rates[cur] > 0) ? rates[cur] : (FALLBACK_RATES[cur] || 1);
   }
 
-  // Preload if current display currency is not USD
+  // Preload rates on initialization
   try {
+    // Pre-fetch all rates from backend on page load
+    fetchAllRates().then(() => {
+      console.debug('💱 Currency rates initialized from backend');
+    }).catch(() => {
+      console.debug('💱 Currency rates initialized with fallbacks');
+    });
+
+    // Preload display currency if not USD
     const cur = (typeof globalConfig !== 'undefined' && globalConfig.get('display_currency')) || 'USD';
     if (cur && cur !== 'USD') ensureRate(cur);
+
     // React on config changes
     window.addEventListener('configChanged', (ev) => {
       if (ev?.detail?.key === 'display_currency') {

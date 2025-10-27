@@ -241,6 +241,13 @@ def get_startup_handler():
             logger.info("🚀 FastAPI started successfully")
             logger.info("⚡ ML models will load on first request (lazy loading)")
 
+            # Initialize FX rates (fast, synchronous)
+            try:
+                from services.fx_service import initialize_rates
+                initialize_rates()
+            except Exception as fx_error:
+                logger.warning(f"⚠️ FX rates initialization failed (non-blocking): {fx_error}")
+
             # Start background task without waiting
             asyncio.create_task(background_startup_tasks())
 
