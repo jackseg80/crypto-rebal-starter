@@ -15,6 +15,16 @@ Système unifié de conversion de devises utilisé par l'ensemble de l'applicati
 - ✅ Support de 165+ devises mondiales
 - ✅ Initialisation automatique au démarrage
 
+### ✅ Note : Système ML/Bourse Unifié
+
+Le module `ForexConverter` ([MULTI_CURRENCY_IMPLEMENTATION.md](MULTI_CURRENCY_IMPLEMENTATION.md)) utilisé par les recommandations ML/Bourse **utilise maintenant fx_service en backend**.
+
+**Status actuel :**
+- ✅ `fx_service` (ce document) : Système central utilisé partout
+- ✅ `ForexConverter` : Wrapper async vers fx_service (compatibilité)
+
+**Résultat :** **Source unique de taux** pour toute l'application = cohérence garantie.
+
 ---
 
 ## 📁 Architecture
@@ -428,6 +438,38 @@ url = "https://api.exchangerate.host/latest?base=USD"
 
 ---
 
+## 🔀 ForexConverter: Wrapper de Compatibilité
+
+`ForexConverter` ([MULTI_CURRENCY_IMPLEMENTATION.md](MULTI_CURRENCY_IMPLEMENTATION.md)) est maintenant un **wrapper léger** vers `fx_service`.
+
+| Aspect | fx_service | ForexConverter |
+|--------|------------|----------------|
+| **Rôle** | Système central | Wrapper async |
+| **Fichier** | `services/fx_service.py` | `services/ml/bourse/forex_converter.py` |
+| **API externe** | exchangerate-api.com | Aucune (délégué) |
+| **Cache** | 4h | Délégué à fx_service |
+| **Devises** | 165+ | 165+ (via fx_service) |
+| **Interface** | Synchrone | Async (compatibilité) |
+
+### Quand utiliser quoi ?
+
+**fx_service (recommandé) :**
+```python
+from services.fx_service import convert
+usd_amount = convert(100, 'CHF', 'USD')  # Synchrone, simple
+```
+
+**ForexConverter (legacy) :**
+```python
+from services.ml.bourse.forex_converter import ForexConverter
+converter = ForexConverter()
+usd_amount = await converter.convert(100, 'CHF', 'USD')  # Async, pour compatibilité
+```
+
+**Résultat identique**, `ForexConverter` appelle `fx_service` en interne.
+
+---
+
 ## 🔗 Références
 
 - API externe : https://www.exchangerate-api.com/
@@ -435,6 +477,7 @@ url = "https://api.exchangerate.host/latest?base=USD"
 - API endpoints : [api/fx_endpoints.py](../api/fx_endpoints.py)
 - Frontend manager : [static/global-config.js:823-946](../static/global-config.js#L823-L946)
 - Saxo parser : [connectors/saxo_import.py:356-391](../connectors/saxo_import.py#L356-L391)
+- ML/Bourse system : [MULTI_CURRENCY_IMPLEMENTATION.md](MULTI_CURRENCY_IMPLEMENTATION.md)
 
 ---
 

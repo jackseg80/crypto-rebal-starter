@@ -1,8 +1,10 @@
 # Multi-Currency Support Implementation
 
 **Date:** 25 octobre 2025
-**Version:** 1.0
-**Status:** ✅ Production Ready
+**Version:** 2.0
+**Status:** ✅ Production Ready (migré vers système FX unifié)
+
+> **✅ Migration Complète (Oct 2025) :** Ce module utilise maintenant le système FX unifié ([FX_SYSTEM.md](FX_SYSTEM.md)) en backend. `ForexConverter` est maintenant un wrapper léger vers `fx_service` pour compatibilité. Voir section "Migration FX_SYSTEM" en bas.
 
 ---
 
@@ -432,6 +434,75 @@ rate = await converter.get_exchange_rate('CHF', 'USD')
 
 ---
 
+## 🔄 Migration FX_SYSTEM (✅ Complétée)
+
+> **✅ Migration terminée (Oct 2025) :** `ForexConverter` utilise maintenant `fx_service` en backend.
+
+### Status actuel
+
+| Aspect | ForexConverter (wrapper) | fx_service (backend) |
+|--------|--------------------------|----------------------|
+| **Fichier** | `services/ml/bourse/forex_converter.py` | `services/fx_service.py` |
+| **Implémentation** | Wrapper async → fx_service | Conversion réelle |
+| **API externe** | Aucune (délégué à fx_service) | exchangerate-api.com |
+| **Cache** | Délégué à fx_service | 4h |
+| **Devises** | 165+ (via fx_service) | 165+ |
+| **Usage** | ML/Bourse (compatibilité) | Toute l'application |
+
+### Ce qui a changé
+
+**ForexConverter est maintenant un wrapper léger :**
+```python
+# services/ml/bourse/forex_converter.py (après migration)
+class ForexConverter:
+    async def convert(self, amount: float, from_currency: str, to_currency: str) -> float:
+        # Délègue à fx_service unifié
+        from services.fx_service import convert as fx_convert
+        return fx_convert(amount, from_currency, to_currency)
+```
+
+**Avantages de la migration :**
+- ✅ Une seule source de taux (cohérence parfaite)
+- ✅ 165+ devises au lieu de 9
+- ✅ Fallback synchronisé
+- ✅ Pas de duplication de code
+- ✅ Cache unifié (4h)
+
+### Compatibilité
+
+**Code existant continue de fonctionner sans modification :**
+```python
+# Toujours fonctionnel
+from services.ml.bourse.forex_converter import ForexConverter
+converter = ForexConverter()
+usd_amount = await converter.convert(100, 'CHF', 'USD')
+# → Utilise fx_service en interne
+```
+
+**Pour nouveau code, utiliser directement fx_service :**
+```python
+# Recommandé pour nouveau code
+from services.fx_service import convert
+usd_amount = convert(100, 'CHF', 'USD')  # Synchrone, plus simple
+```
+
+### Limitations
+
+**Taux historiques non supportés :**
+- ForexConverter acceptait un paramètre `date` pour taux historiques
+- fx_service ne supporte que les taux actuels (rafraîchis toutes les 4h)
+- Les appels avec `date` logguent un warning et utilisent le taux actuel
+
+**Impact :** Minime - les recommandations utilisent les taux actuels de toute façon.
+
+### Références
+
+- Documentation système unifié : [FX_SYSTEM.md](FX_SYSTEM.md)
+- Service central : [services/fx_service.py](../services/fx_service.py)
+- API endpoints : [api/fx_endpoints.py](../api/fx_endpoints.py)
+
+---
+
 *Documentation générée le 25 octobre 2025*
-*Version: 1.0*
-*Status: ✅ Production Ready*
+*Version: 2.0 (migration vers fx_service complétée)*
+*Status: ✅ Production Ready (système unifié)*
