@@ -411,6 +411,56 @@ ethTarget = (baseEthRatio / baseTotal) × nonStablesSpace
 - [`docs/STOP_LOSS_BACKTEST_RESULTS.md`](docs/STOP_LOSS_BACKTEST_RESULTS.md) - Backtest validation
 - [`docs/STOP_LOSS_SYSTEM.md`](docs/STOP_LOSS_SYSTEM.md) - Architecture système
 
+### Market Opportunities System (Oct 2025)
+
+**Identifie opportunités d'investissement en dehors du portefeuille actuel** ([opportunity_scanner.py](services/ml/bourse/opportunity_scanner.py)):
+
+**Architecture 3 modules:**
+1. **Opportunity Scanner** - Scan secteurs S&P 500 vs portfolio, détecte gaps
+2. **Sector Analyzer** - Scoring 3-pillar: Momentum 40%, Value 30%, Diversification 30%
+3. **Portfolio Gap Detector** - Suggestions ventes intelligentes (max 30%, top 3 protected)
+
+**API Endpoint:**
+```bash
+GET /api/bourse/opportunities?user_id=jack&horizon=medium&min_gap_pct=5.0
+```
+
+**Frontend** ([saxo-dashboard.html](static/saxo-dashboard.html)):
+- Onglet "Market Opportunities" dédié
+- 4 sections: Portfolio Gaps (cards), Top Opportunities (table), Suggested Sales, Impact Simulator
+- Horizons: short (1-3M), medium (6-12M), long (2-3Y)
+
+**Scoring System:**
+```python
+opportunity_score = (
+    momentum_score * 0.40 +  # Price momentum, RSI, relative strength vs SPY
+    value_score * 0.30 +      # P/E, PEG, dividend yield
+    diversification_score * 0.30  # Corrélation portfolio, volatilité
+)
+```
+
+**Contraintes réallocation:**
+- Max 30% vente par position
+- Top 3 holdings protégés (jamais vendus)
+- Détention min 30 jours
+- Max 25% par secteur
+- Validation stops (respect trailing stops)
+
+**Secteurs standard:**
+11 secteurs GICS (Technology, Healthcare, Financials, Consumer Discretionary, Communication Services, Industrials, Consumer Staples, Energy, Utilities, Real Estate, Materials) avec targets ranges (ex: Tech 15-30%, Utilities 2-8%)
+
+**Usage:**
+```javascript
+// User: Clic "Scan Opportunities" (horizon: medium 6-12M)
+// → Détecte gaps sectoriels (ex: Utilities 0% → cible 12%)
+// → Suggère XLU (Utilities ETF), score 87
+// → Suggère vente NVDA 30% pour financer
+// → Simule impact: Tech 52%→38%, Risk 7.2→6.4
+```
+
+**Détails complets:**
+- [`docs/MARKET_OPPORTUNITIES_SYSTEM.md`](docs/MARKET_OPPORTUNITIES_SYSTEM.md) - Documentation système complète
+
 ### Governance - Freeze Semantics (Oct 2025)
 **3 types de freeze avec opérations granulaires** ([governance.py](services/execution/governance.py)):
 

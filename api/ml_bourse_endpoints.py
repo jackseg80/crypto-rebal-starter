@@ -710,3 +710,160 @@ async def get_portfolio_recommendations(
     except Exception as e:
         logger.error(f"Error generating recommendations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@router.get("/api/bourse/opportunities")
+async def get_market_opportunities(
+    user_id: str = Query(..., description="User ID"),
+    horizon: str = Query("medium", description="Time horizon: short (1-3M), medium (6-12M), long (2-3Y)"),
+    file_key: Optional[str] = Query(None, description="Saxo CSV file key"),
+    min_gap_pct: float = Query(5.0, ge=0.0, le=50.0, description="Minimum gap percentage to consider")
+):
+    """
+    Get market opportunities outside current portfolio.
+
+    Identifies sector gaps and suggests:
+    - Underweight/missing sectors
+    - Top opportunities to buy (stocks + ETFs)
+    - Positions to trim to fund opportunities
+    - Portfolio reallocation impact
+
+    Example:
+        GET /api/bourse/opportunities?user_id=jack&horizon=medium&min_gap_pct=5.0
+    """
+    try:
+        logger.info(f"🔍 Market opportunities requested (user={user_id}, horizon={horizon})")
+
+        # Validate horizon
+        if horizon not in ["short", "medium", "long"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid horizon '{horizon}'. Must be: short, medium, or long"
+            )
+
+        # 1. Get user positions from Saxo
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            positions_url = "http://localhost:8000/api/saxo/positions"
+            if file_key:
+                positions_url += f"?file_key={file_key}"
+            pos_response = await client.get(
+                positions_url,
+                headers={"X-User": user_id}
+            )
+            pos_response.raise_for_status()
+            positions_data = pos_response.json()
+            positions = positions_data.get("positions", [])
+
+        if not positions:
+            return {
+                "gaps": [],
+                "opportunities": [],
+                "suggested_sales": [],
+                "impact": {},
+                "message": "No positions found",
+                "generated_at": datetime.now().isoformat()
+            }
+
+        # Debug: Log position format
+        if positions and len(positions) > 0:
+            logger.debug(f"📊 Sample position keys: {list(positions[0].keys())}")
+            logger.debug(f"📊 Sample position: {positions[0]}")
+
+        # 2. Scan for opportunities
+        from services.ml.bourse.opportunity_scanner import OpportunityScanner
+        scanner = OpportunityScanner()
+
+        scan_result = await scanner.scan_opportunities(
+            positions=positions,
+            horizon=horizon,
+            min_gap_pct=min_gap_pct
+        )
+
+        gaps = scan_result.get("top_gaps", [])
+
+        # 3. Build opportunities list (for now, use sector ETFs)
+        from services.ml.bourse.sector_analyzer import SectorAnalyzer
+        sector_analyzer = SectorAnalyzer()
+
+        opportunities = []
+        for gap in gaps:
+            sector = gap.get("sector")
+            etf = gap.get("etf")
+            gap_pct = gap.get("gap_pct", 0)
+
+            # Get top stocks in sector
+            top_stocks = await sector_analyzer.get_top_stocks_in_sector(etf, top_n=1)
+
+            # Calculate capital needed based on gap and portfolio size
+            # Note: Saxo positions use "market_value" field (already in USD)
+            total_value = sum(p.get("market_value", 0) or p.get("market_value_usd", 0) for p in positions)
+            capital_needed = (gap_pct / 100) * total_value
+
+            if top_stocks:
+                for stock in top_stocks:
+                    opportunities.append({
+                        "symbol": stock.get("symbol"),
+                        "name": stock.get("name", f"{sector} ETF"),
+                        "sector": sector,
+                        "type": stock.get("type", "ETF"),
+                        "score": gap.get("score", 50),
+                        "confidence": gap.get("confidence", 0.7),
+                        "action": "BUY",
+                        "horizon": horizon,
+                        "capital_needed": round(capital_needed, 2),
+                        "rationale": f"{sector} sector gap: {gap_pct:.1f}% underweight",
+                        "momentum_score": gap.get("momentum_score", 50),
+                        "value_score": gap.get("value_score", 50),
+                        "diversification_score": gap.get("diversification_score", 50)
+                    })
+
+        # Sort opportunities by score (descending)
+        opportunities.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        # Limit to top 10
+        opportunities = opportunities[:10]
+
+        # 4. Detect sales to fund opportunities
+        from services.ml.bourse.portfolio_gap_detector import PortfolioGapDetector
+        gap_detector = PortfolioGapDetector()
+
+        total_capital_needed = sum(o.get("capital_needed", 0) for o in opportunities)
+
+        sales_result = await gap_detector.detect_sales(
+            positions=positions,
+            opportunities=opportunities,
+            total_capital_needed=total_capital_needed
+        )
+
+        suggested_sales = sales_result.get("suggested_sales", [])
+
+        # 5. Calculate reallocation impact
+        impact = await gap_detector.calculate_reallocation_impact(
+            current_positions=positions,
+            suggested_sales=suggested_sales,
+            opportunities=opportunities
+        )
+
+        return {
+            "gaps": gaps,
+            "opportunities": opportunities,
+            "suggested_sales": suggested_sales,
+            "impact": impact,
+            "summary": {
+                "total_gaps": len(gaps),
+                "total_opportunities": len(opportunities),
+                "total_sales": len(suggested_sales),
+                "capital_needed": total_capital_needed,
+                "capital_freed": sales_result.get("total_freed", 0),
+                "sufficient_capital": sales_result.get("sufficient", False)
+            },
+            "horizon": horizon,
+            "generated_at": datetime.now().isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting market opportunities: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
