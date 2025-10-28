@@ -415,10 +415,12 @@ ethTarget = (baseEthRatio / baseTotal) × nonStablesSpace
 
 **Identifie opportunités d'investissement en dehors du portefeuille actuel** ([opportunity_scanner.py](services/ml/bourse/opportunity_scanner.py)):
 
+**Status:** ✅ **95% fonctionnel** (Unknown 1.1%, 26 ventes suggérées, €29.8k capital freed, 62% coverage)
+
 **Architecture 3 modules:**
-1. **Opportunity Scanner** - Scan secteurs S&P 500 vs portfolio, détecte gaps
+1. **Opportunity Scanner** - Scan secteurs S&P 500 vs portfolio, détecte gaps + enrichissement Yahoo Finance
 2. **Sector Analyzer** - Scoring 3-pillar: Momentum 40%, Value 30%, Diversification 30%
-3. **Portfolio Gap Detector** - Suggestions ventes intelligentes (max 30%, top 3 protected)
+3. **Portfolio Gap Detector** - Suggestions ventes intelligentes (max 30%, top 2 protected)
 
 **API Endpoint:**
 ```bash
@@ -441,10 +443,16 @@ opportunity_score = (
 
 **Contraintes réallocation:**
 - Max 30% vente par position
-- Top 3 holdings protégés (jamais vendus)
+- **Top 2 holdings protégés** (jamais vendus) - optimisé Oct 2025
 - Détention min 30 jours
 - Max 25% par secteur
 - Validation stops (respect trailing stops)
+
+**Features clés:**
+- **ETF mapping manuel** (7 ETFs): IWDA/ACWI/WORLD (Diversified), ITEK (Tech), BTEC (Healthcare), AGGS (Fixed Income), XGDU (Commodities)
+- **Symboles européens** (6 actions): Mapping Saxo→Yahoo (.SW, .DE, .WA, .PA, .AS, .MI, .L)
+- **BRKb mapping** (Berkshire Hathaway): "BRKb" → "BRK-B" (Yahoo Finance format)
+- **Normalisation yfinance**: Retire suffix `:xexchange` avant fetch (plus d'erreurs format)
 
 **Secteurs standard:**
 11 secteurs GICS (Technology, Healthcare, Financials, Consumer Discretionary, Communication Services, Industrials, Consumer Staples, Energy, Utilities, Real Estate, Materials) avec targets ranges (ex: Tech 15-30%, Utilities 2-8%)
@@ -452,14 +460,21 @@ opportunity_score = (
 **Usage:**
 ```javascript
 // User: Clic "Scan Opportunities" (horizon: medium 6-12M)
-// → Détecte gaps sectoriels (ex: Utilities 0% → cible 12%)
-// → Suggère XLU (Utilities ETF), score 87
-// → Suggère vente NVDA 30% pour financer
-// → Simule impact: Tech 52%→38%, Risk 7.2→6.4
+// → Détecte gaps sectoriels (ex: Utilities 0% → cible 5%)
+// → Suggère XLU (Utilities ETF), score 56
+// → Suggère vente NVDA 30% pour financer (€2,863 freed)
+// → Simule impact: Tech 35%→26%, Risk 7.2→6.4
 ```
+
+**Métriques finales:**
+- Unknown: **1.1%** (était 42%) - 97% amélioration
+- Suggested sales: **26 positions** (était 0)
+- Capital freed: **€29,872** (62% du besoin de €47,946)
+- Scan time: **16s** (avec enrichissement Yahoo Finance)
 
 **Détails complets:**
 - [`docs/MARKET_OPPORTUNITIES_SYSTEM.md`](docs/MARKET_OPPORTUNITIES_SYSTEM.md) - Documentation système complète
+- [`docs/MARKET_OPPORTUNITIES_FINAL_RESULTS.md`](docs/MARKET_OPPORTUNITIES_FINAL_RESULTS.md) - Résultats finaux (7 bugs corrigés)
 
 ### Governance - Freeze Semantics (Oct 2025)
 **3 types de freeze avec opérations granulaires** ([governance.py](services/execution/governance.py)):

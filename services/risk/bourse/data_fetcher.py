@@ -129,9 +129,13 @@ class BourseDataFetcher:
         try:
             import yfinance as yf
 
+            # Normalize ticker for yfinance (remove exchange suffix if present)
+            # Example: "NVDA:xnas" → "NVDA", "SLHN.SW:xvtx" → "SLHN.SW"
+            normalized_ticker = ticker.split(':')[0] if ':' in ticker else ticker
+
             # Download data
             data = yf.download(
-                ticker,
+                normalized_ticker,
                 start=start_date.strftime('%Y-%m-%d'),
                 end=end_date.strftime('%Y-%m-%d'),
                 progress=False

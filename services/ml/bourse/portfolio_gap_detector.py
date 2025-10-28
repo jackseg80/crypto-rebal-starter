@@ -5,7 +5,7 @@ Suggests intelligent portfolio sales to fund new opportunities.
 
 Guards:
 - Max 30% sale per position
-- Protect top 3 holdings (never sell)
+- Protect top 2 holdings (never sell)
 - Min 30 days holding period
 - Max 25% per sector
 - Validate against stop loss levels
@@ -37,7 +37,7 @@ class PortfolioGapDetector:
 
     Respects:
     - Max 30% reduction per position
-    - Top 3 holdings protected
+    - Top 2 holdings protected
     - Min holding period (30 days)
     - Stop loss levels
     """
@@ -50,7 +50,7 @@ class PortfolioGapDetector:
         # Configuration
         self.MAX_POSITION_SIZE = 10.0  # % of portfolio (reduced from 15% for more suggestions)
         self.MAX_SALE_PCT = 30.0  # Max % to sell per position
-        self.TOP_N_PROTECTED = 3  # Top N holdings protected
+        self.TOP_N_PROTECTED = 2  # Top N holdings protected (reduced from 3 to free more capital)
         self.MIN_HOLDING_DAYS = 30  # Min days before suggesting sale
 
     async def detect_sales(

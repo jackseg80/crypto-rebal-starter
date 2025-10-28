@@ -148,6 +148,24 @@ SECTOR_MAPPING = {
 }
 
 
+# ETF Sector Mapping (Yahoo Finance doesn't return sector for ETFs)
+# Maps base symbol (without exchange suffix) → sector classification
+ETF_SECTOR_MAPPING = {
+    # Diversified World ETFs
+    "IWDA": "Diversified",      # iShares Core MSCI World UCITS ETF
+    "ACWI": "Diversified",      # iShares MSCI ACWI ETF
+    "WORLD": "Diversified",     # UBS MSCI World UCITS ETF
+
+    # Sector-Specific ETFs
+    "ITEK": "Technology",       # HAN-GINS Tech Megatrend Equal Weight UCITS ETF
+    "BTEC": "Healthcare",       # iShares NASDAQ US Biotechnology UCITS ETF
+
+    # Alternative Assets
+    "AGGS": "Fixed Income",     # iShares Core Global Aggregate Bond UCITS ETF
+    "XGDU": "Commodities",      # Xtrackers IE Physical Gold ETC
+}
+
+
 class OpportunityScanner:
     """
     Scans portfolio for sector gaps and scoring opportunities.
@@ -247,12 +265,27 @@ class OpportunityScanner:
 
             # Parse Saxo format: "SYMBOL:xexchange" → (SYMBOL, xexchange)
             yahoo_symbol = symbol
+            base_symbol = symbol.split(':')[0].upper() if ':' in symbol else symbol.upper()
+
+            # Check ETF mapping FIRST (Yahoo Finance doesn't return sectors for ETFs)
+            if base_symbol in ETF_SECTOR_MAPPING:
+                sector = ETF_SECTOR_MAPPING[base_symbol]
+                logger.info(f"🏦 {symbol} → {sector} (ETF mapping)")
+                return sector
+
             if ':' in symbol:
                 base_symbol, exchange = symbol.split(':', 1)
                 exchange = exchange.lower()
 
                 # Clean symbol (SLHn → SLHN, etc.)
                 base_symbol = base_symbol.upper()
+
+                # Special symbol mappings (Yahoo Finance exceptions)
+                SYMBOL_EXCEPTIONS = {
+                    'BRKB': 'BRK-B',  # Berkshire Hathaway Class B
+                    'BRKA': 'BRK-A',  # Berkshire Hathaway Class A
+                }
+                base_symbol = SYMBOL_EXCEPTIONS.get(base_symbol, base_symbol)
 
                 # Get Yahoo Finance suffix
                 if exchange in SAXO_TO_YAHOO_EXCHANGE:
