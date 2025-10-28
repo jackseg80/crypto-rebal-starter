@@ -286,9 +286,12 @@ class SaxoImportConnector:
             # Use Symbol column if available, otherwise extract from instrument
             symbol = symbol_raw if symbol_raw else self._standardize_symbol(instrument_raw)
 
-            # Clean symbol (remove exchange suffix like :xnas)
-            if ':' in symbol:
-                symbol = symbol.split(':')[0].strip()
+            # IMPORTANT: Keep exchange suffix (e.g., :xnas, :xvtx) for European stocks
+            # The suffix is needed for Yahoo Finance API to detect correct exchange
+            # (e.g., SLHn:xvtx → SLHN.SW for Swiss stocks)
+            # DO NOT clean the symbol - preserve original format from CSV
+            # if ':' in symbol:
+            #     symbol = symbol.split(':')[0].strip()  # ❌ REMOVED - breaks European stock detection
 
             # Convert market_value from account base currency to USD
             # NOTE: market_value is in account_base_currency (e.g., EUR), NOT in instrument_currency!

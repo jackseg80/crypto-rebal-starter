@@ -48,7 +48,7 @@ class PortfolioGapDetector:
         self.stop_loss_calc = StopLossCalculator()
 
         # Configuration
-        self.MAX_POSITION_SIZE = 15.0  # % of portfolio
+        self.MAX_POSITION_SIZE = 10.0  # % of portfolio (reduced from 15% for more suggestions)
         self.MAX_SALE_PCT = 30.0  # Max % to sell per position
         self.TOP_N_PROTECTED = 3  # Top N holdings protected
         self.MIN_HOLDING_DAYS = 30  # Min days before suggesting sale
@@ -94,28 +94,39 @@ class PortfolioGapDetector:
 
             # 2. Identify top N protected holdings
             protected_symbols = [
-                p.get("symbol") for p in sorted_positions[:self.TOP_N_PROTECTED]
+                p.get("symbol") or p.get("instrument_id") for p in sorted_positions[:self.TOP_N_PROTECTED]
             ]
             logger.debug(f"Protected holdings (top {self.TOP_N_PROTECTED}): {protected_symbols}")
 
             # 3. Score each position for sale potential
             scored_positions = []
+            logger.info(f"📊 Evaluating {len(positions)} positions for sale potential")
+            logger.info(f"🔒 Protected symbols: {protected_symbols}")
+
             for pos in positions:
-                symbol = pos.get("symbol")
+                symbol = pos.get("symbol") or pos.get("instrument_id")
+                value = pos.get("market_value", 0) or pos.get("market_value_usd", 0)
+                weight = (value / total_value) * 100 if total_value > 0 else 0
 
                 # Skip protected holdings
                 if symbol in protected_symbols:
+                    logger.info(f"  ⛔ {symbol}: Protected (top {self.TOP_N_PROTECTED} holding)")
                     continue
 
                 score_data = await self._score_position_for_sale(pos, total_value)
+                logger.info(f"  🎯 {symbol}: weight={weight:.1f}%, score={score_data['sale_score']:.1f}, sellable={score_data['sellable']}, rationale={score_data['sale_rationale']}")
+
                 if score_data["sellable"]:
                     scored_positions.append({
                         **pos,
-                        **score_data
+                        **score_data,
+                        "weight": weight
                     })
 
             # Sort by sale score (descending = best candidates to sell)
             scored_positions.sort(key=lambda p: p.get("sale_score", 0), reverse=True)
+
+            logger.info(f"📋 {len(scored_positions)} positions eligible for sale (from {len(positions)} evaluated)")
 
             # 4. Select positions to sell until capital target met
             suggested_sales = []
@@ -137,7 +148,7 @@ class PortfolioGapDetector:
                 sale_pct = (sale_value / position_value) * 100
 
                 suggested_sales.append({
-                    "symbol": pos.get("symbol"),
+                    "symbol": pos.get("symbol") or pos.get("instrument_id"),
                     "name": pos.get("name", ""),
                     "current_value": position_value,
                     "sale_value": sale_value,
@@ -194,7 +205,7 @@ class PortfolioGapDetector:
             Dict with sale score and rationale
         """
         try:
-            symbol = position.get("symbol")
+            symbol = position.get("symbol") or position.get("instrument_id")
             value = position.get("market_value", 0) or position.get("market_value_usd", 0)
             weight = (value / total_portfolio_value) * 100
 
@@ -206,6 +217,17 @@ class PortfolioGapDetector:
                 conc_score = min((weight - self.MAX_POSITION_SIZE) * 5, 50)
                 scores.append(conc_score)
                 rationale_parts.append(f"Over-concentrated ({weight:.1f}% of portfolio)")
+            elif weight > 5.0:
+                # Give moderate score for positions >5% (reasonable trim candidates)
+                # Reduced from 7% to allow more flexibility for reallocation
+                conc_score = 12.0
+                scores.append(conc_score)
+                rationale_parts.append(f"Moderate position ({weight:.1f}% - trim candidate)")
+            elif weight > 3.0:
+                # Small positions can still be trimmed if needed
+                conc_score = 10.0
+                scores.append(conc_score)
+                rationale_parts.append(f"Small position ({weight:.1f}% - potential trim)")
 
             # 2. Momentum score (negative momentum = higher score)
             try:
@@ -261,7 +283,9 @@ class PortfolioGapDetector:
                 sale_score = 10.0
 
             # Determine if sellable
-            sellable = len(scores) > 0 and sale_score >= 15
+            # Accept positions with score >= 10, even without strong reasons
+            # This allows trimming for reallocation purposes
+            sellable = sale_score >= 10
 
             # Build rationale
             if rationale_parts:

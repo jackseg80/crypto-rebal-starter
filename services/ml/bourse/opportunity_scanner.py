@@ -219,30 +219,65 @@ class OpportunityScanner:
     def _enrich_position_with_sector(self, symbol: str) -> str:
         """
         Enrich position with sector from Yahoo Finance.
+        Handles European stock symbols from Saxo Bank format (SYMBOL:xexchange).
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock ticker (may be in Saxo format like "SLHn:xvtx")
 
         Returns:
             Sector name or "Unknown"
         """
+        # Mapping Saxo exchange codes → Yahoo Finance suffixes
+        SAXO_TO_YAHOO_EXCHANGE = {
+            'xvtx': '.SW',   # Swiss (Zurich)
+            'xswx': '.SW',   # Swiss (SIX)
+            'xetr': '.DE',   # German (Xetra)
+            'xwar': '.WA',   # Poland (Warsaw)
+            'xpar': '.PA',   # France (Paris)
+            'xams': '.AS',   # Netherlands (Amsterdam)
+            'xmil': '.MI',   # Italy (Milan)
+            'xmli': '.MI',   # Italy (Milan ETF)
+            'xlon': '.L',    # UK (London)
+            'xnas': '',      # US (NASDAQ - no suffix)
+            'xnys': '',      # US (NYSE - no suffix)
+        }
+
         try:
             import yfinance as yf
-            ticker = yf.Ticker(symbol)
+
+            # Parse Saxo format: "SYMBOL:xexchange" → (SYMBOL, xexchange)
+            yahoo_symbol = symbol
+            if ':' in symbol:
+                base_symbol, exchange = symbol.split(':', 1)
+                exchange = exchange.lower()
+
+                # Clean symbol (SLHn → SLHN, etc.)
+                base_symbol = base_symbol.upper()
+
+                # Get Yahoo Finance suffix
+                if exchange in SAXO_TO_YAHOO_EXCHANGE:
+                    suffix = SAXO_TO_YAHOO_EXCHANGE[exchange]
+                    yahoo_symbol = f"{base_symbol}{suffix}"
+                    logger.info(f"🔄 Saxo '{symbol}' → Yahoo '{yahoo_symbol}'")
+                else:
+                    logger.info(f"⚠️ Unknown exchange '{exchange}' for {symbol}, trying as-is")
+
+            # Try fetching with converted symbol
+            ticker = yf.Ticker(yahoo_symbol)
             info = ticker.info
 
             # Try different sector fields
             sector = info.get('sector') or info.get('sectorKey') or info.get('industry')
 
             if sector:
-                logger.debug(f"📍 {symbol} → {sector}")
+                logger.info(f"📍 {symbol} → {sector}")
                 return sector
             else:
-                logger.debug(f"❓ {symbol} → No sector found")
+                logger.info(f"❓ {yahoo_symbol} → No sector found in Yahoo Finance")
                 return "Unknown"
 
         except Exception as e:
-            logger.debug(f"❌ {symbol} → Error fetching sector: {e}")
+            logger.info(f"❌ {symbol} → Error fetching sector: {e}")
             return "Unknown"
 
     def _extract_sector_allocation(self, positions: List[Dict[str, Any]]) -> Dict[str, float]:
@@ -272,6 +307,7 @@ class OpportunityScanner:
                 sector_raw = pos.get("sector")
 
                 if not sector_raw or sector_raw == "Unknown":
+                    # Support both "symbol" and "instrument_id" field names
                     symbol = pos.get("symbol") or pos.get("instrument_id")
                     if symbol:
                         sector_raw = self._enrich_position_with_sector(symbol)
