@@ -3695,6 +3695,52 @@
         function loadAllPositions() {
             if (!currentPortfolioData) return;
 
+            // Consolidate positions by (symbol + asset_class) - P0 Enhancement Oct 2025
+            // Separate CFD/Actions, detect Saxo summary lines, consolidate lots
+            const byKey = {};
+            currentPortfolioData.positions.forEach(pos => {
+                const symbol = pos.symbol || 'UNKNOWN';
+                const assetClass = pos.asset_class || 'Unknown';
+                // Key = symbol + asset_class to separate CFD/Actions/etc
+                const key = `${symbol}|${assetClass}`;
+                if (!byKey[key]) byKey[key] = [];
+                byKey[key].push(pos);
+            });
+
+            const consolidated = [];
+            for (const [key, positions] of Object.entries(byKey)) {
+                if (positions.length === 1) {
+                    // Single position, no consolidation
+                    consolidated.push(positions[0]);
+                } else {
+                    // Multiple positions → Check for Saxo summary line
+                    let filteredPositions = positions;
+
+                    // Heuristic: if largest value ≈ sum of others (±5%), it's a summary line
+                    const values = positions.map(p => p.market_value_usd || 0).sort((a, b) => b - a);
+                    const largest = values[0];
+                    const sumOthers = values.slice(1).reduce((sum, v) => sum + v, 0);
+
+                    if (values.length > 1 && Math.abs(largest - sumOthers) / Math.max(largest, 1) < 0.05) {
+                        // Summary line detected → remove it (keep only detail lines)
+                        const sortedPositions = positions.slice().sort((a, b) =>
+                            (b.market_value_usd || 0) - (a.market_value_usd || 0)
+                        );
+                        filteredPositions = sortedPositions.slice(1); // Remove largest (summary)
+                        console.log(`Saxo summary detected for ${key}: removed summary line, keeping ${filteredPositions.length} detail lots`);
+                    }
+
+                    // Consolidate remaining positions
+                    const total = {
+                        ...filteredPositions[0], // Use first as template
+                        quantity: filteredPositions.reduce((sum, p) => sum + (p.quantity || 0), 0),
+                        market_value_usd: filteredPositions.reduce((sum, p) => sum + (p.market_value_usd || 0), 0),
+                        lots_count: filteredPositions.length
+                    };
+                    consolidated.push(total);
+                }
+            }
+
             const positionsHtml = `
                 <div class="table-container">
                     <table class="positions-table">
@@ -3710,16 +3756,22 @@
                             </tr>
                         </thead>
                         <tbody>
-                            ${currentPortfolioData.positions
+                            ${consolidated
                     .sort((a, b) => b.market_value_usd - a.market_value_usd)
                     .map(position => {
                         const name = position.name || position.instrument || position.symbol || 'Unknown';
                         const symbol = position.symbol || 'N/A';
                         const displayName = name !== symbol ? name : (position.isin || name);
+
+                        // Fragmentation badge (P0 Enhancement - Oct 2025)
+                        const lotsCount = position.lots_count || 0;
+                        const fragmentationBadge = lotsCount > 1 ?
+                            `<span style="display: inline-block; margin-left: 0.5rem; font-size: 0.65rem; padding: 0.15rem 0.4rem; background: #ef4444; color: white; border-radius: 3px; font-weight: 600;" title="${lotsCount} lots détectés - Considérer consolidation pour réduire frais">⚠️ ${lotsCount} lots</span>` : '';
+
                         return `
                                 <tr>
                                     <td>
-                                        <strong>${displayName}</strong>
+                                        <strong>${displayName}</strong>${fragmentationBadge}
                                         ${position.isin ? `<div style="font-size: 0.75rem; color: var(--theme-text-muted); margin-top: 0.25rem;">ISIN: ${position.isin}</div>` : ''}
                                     </td>
                                     <td><code style="font-size: 0.85rem;">${symbol}</code></td>
@@ -3740,7 +3792,7 @@
             `;
 
             document.getElementById('allPositions').innerHTML = positionsHtml;
-            document.getElementById('positionsCount').textContent = `${currentPortfolioData.positions.length} positions`;
+            document.getElementById('positionsCount').textContent = `${consolidated.length} positions`;
         }
 
         function loadAllocationDetails() {
@@ -4406,6 +4458,17 @@
                 const legacyBadge = isTrailingStop ?
                     `<span style="display: inline-block; margin-left: 0.25rem; font-size: 0.65rem; padding: 0.15rem 0.4rem; background: #10b981; color: white; border-radius: 3px;" title="Legacy position +${gainPct.toFixed(0)}% (trailing stop active)">🏆</span>` : '';
 
+                // CFD/Leverage badge (P0 Enhancement - Oct 2025)
+                const isCFD = rec.is_cfd || false;
+                const leverage = rec.leverage || 1;
+                const cfdBadge = isCFD ?
+                    `<span style="display: inline-block; margin-left: 0.25rem; font-size: 0.65rem; padding: 0.15rem 0.4rem; background: #f59e0b; color: white; border-radius: 3px; font-weight: 600;" title="CFD/Leveraged ${leverage.toFixed(0)}x - Tight stops required">⚠️ ${leverage.toFixed(0)}x</span>` : '';
+
+                // Fragmentation badge (P0 Enhancement - Oct 2025)
+                const positionsCount = rec.positions_count || 0;
+                const fragmentationBadge = positionsCount > 1 ?
+                    `<span style="display: inline-block; margin-left: 0.25rem; font-size: 0.65rem; padding: 0.15rem 0.4rem; background: #ef4444; color: white; border-radius: 3px; font-weight: 600;" title="${positionsCount} lots d'achat séparés dans le CSV - Considérer consolidation en une seule position">⚠️ ${positionsCount} lots</span>` : '';
+
                 tableHTML += `
                     <tr class="rec-row"
                         data-symbol="${rec.symbol}"
@@ -4420,7 +4483,7 @@
                         style="border-bottom: 1px solid var(--theme-border); cursor: pointer;"
                         onclick="showRecommendationModal('${rec.symbol}')">
                         <td style="padding: 0.75rem;">
-                            <div style="font-weight: 600; color: var(--theme-text);">${rec.symbol}${legacyBadge}</div>
+                            <div style="font-weight: 600; color: var(--theme-text);">${rec.symbol}${legacyBadge}${cfdBadge}${fragmentationBadge}</div>
                         </td>
                         <td style="padding: 0.75rem;">
                             <div style="font-size: 0.875rem; color: var(--theme-text-muted);" title="${fullName}">${displayName}</div>
@@ -5029,6 +5092,24 @@
                                 </div>
                             </div>
 
+                            <!-- CFD/Leverage Warning (P0 Enhancement - Oct 2025) -->
+                            ${rec.is_cfd ? `
+                            <div style="background: #fee2e2; border: 2px solid #ef4444; padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+                                <div style="display: flex; align-items: start; gap: 0.75rem;">
+                                    <div style="font-size: 1.5rem;">⚠️</div>
+                                    <div style="flex: 1;">
+                                        <h3 style="font-size: 1rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #7f1d1d;">CFD/Leveraged Position</h3>
+                                        <p style="margin: 0; font-size: 0.875rem; color: #991b1b;">
+                                            <strong>Leverage:</strong> ${rec.leverage?.toFixed(1)}x<br>
+                                            <strong>⚠️ Risk:</strong> Losses amplified by ${rec.leverage?.toFixed(1)}x<br>
+                                            <strong>🛡️ Stop Loss:</strong> Tighter stop applied (divided by leverage)<br>
+                                            <strong>💡 Position Sizing:</strong> Reduce position size by 50% vs normal stocks
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            ` : ''}
+
                             ${rec.adjusted ? `
                             <!-- Adjustment Note -->
                             <div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
@@ -5215,11 +5296,39 @@
                 const qualityColor = getQualityColor(methodData.quality);
                 const isTrailingStop = methodKey === 'trailing_stop';
 
-                // Special note for trailing stop
-                const trailingNote = isTrailingStop && methodData.gain_pct ?
-                    `<div style="font-size: 0.65rem; color: var(--success); margin-top: 0.25rem;">
-                        Position long terme détectée (+${methodData.gain_pct.toFixed(0)}%)
-                    </div>` : '';
+                // Special note for trailing stop with tier details (P0 Enhancement - Oct 2025)
+                let trailingNote = '';
+                if (isTrailingStop && methodData.gain_pct) {
+                    const gainPct = methodData.gain_pct;
+                    let tier = '';
+                    let trailingPct = 0;
+                    let protectedGainPct = 0;
+
+                    // Determine tier and protected gain
+                    if (gainPct >= 500) {
+                        tier = '>500% (Legendary)';
+                        trailingPct = 30;
+                        protectedGainPct = gainPct - 30;
+                    } else if (gainPct >= 100) {
+                        tier = '100-500% (Legacy)';
+                        trailingPct = 25;
+                        protectedGainPct = gainPct - 25;
+                    } else if (gainPct >= 50) {
+                        tier = '50-100% (Strong)';
+                        trailingPct = 20;
+                        protectedGainPct = gainPct - 20;
+                    } else {
+                        tier = '20-50% (Good)';
+                        trailingPct = 15;
+                        protectedGainPct = gainPct - 15;
+                    }
+
+                    trailingNote = `<div style="font-size: 0.65rem; color: var(--success); margin-top: 0.25rem;">
+                        🏆 Legacy position: +${gainPct.toFixed(0)}%<br>
+                        📊 Tier: ${tier} → Trailing -${trailingPct}%<br>
+                        🛡️ Protected minimum gain: +${protectedGainPct.toFixed(0)}%
+                    </div>`;
+                }
 
                 return `
                     <tr style="background: ${isRecommended ? 'color-mix(in oklab, var(--success) 10%, transparent)' : 'transparent'}; border-bottom: 1px solid var(--theme-border);">
