@@ -15,11 +15,24 @@ import numpy as np
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 import logging
+import json
+import os
 
 from services.ml.bourse.data_sources import StocksDataSource
 from services.ml.bourse.technical_indicators import TechnicalIndicators
 
 logger = logging.getLogger(__name__)
+
+# Redis cache configuration (optional)
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    logger.info("Redis not available, stock score caching disabled")
+
+# Cache TTL: 4 hours (aligned with on-chain metrics cache)
+STOCK_SCORE_CACHE_TTL = 4 * 3600  # 14400 seconds
 
 
 # Static mapping of top blue-chip stocks per sector (S&P 500)
@@ -115,10 +128,153 @@ class SectorAnalyzer:
     - ETF and constituent stocks
     """
 
-    def __init__(self):
-        """Initialize analyzer with data source"""
+    def __init__(self, redis_url: Optional[str] = None):
+        """
+        Initialize analyzer with data source and optional Redis cache.
+
+        Args:
+            redis_url: Redis connection URL (default: from env REDIS_URL)
+        """
         self.data_source = StocksDataSource()
         self.tech_indicators = TechnicalIndicators()
+
+        # Initialize Redis cache (optional)
+        self.redis_client = None
+        self.cache_enabled = False
+
+        if REDIS_AVAILABLE:
+            try:
+                redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+                self.redis_client = redis.from_url(
+                    redis_url,
+                    decode_responses=True,
+                    socket_timeout=5,  # Increased for WSL2 latency
+                    socket_connect_timeout=5
+                )
+                # Test connection
+                self.redis_client.ping()
+                self.cache_enabled = True
+                logger.info("✅ Redis cache enabled for stock scores (TTL: 4h)")
+            except Exception as e:
+                logger.info(f"Redis cache disabled: {e}")
+                self.cache_enabled = False
+        else:
+            logger.info("Redis not installed, stock score caching disabled")
+
+    def _get_cache_key(self, symbol: str, horizon: str) -> str:
+        """Generate Redis cache key for stock score"""
+        return f"stock_score:{symbol.upper()}:{horizon}"
+
+    def _get_cached_score(self, symbol: str, horizon: str) -> Optional[Dict[str, Any]]:
+        """
+        Get cached stock score from Redis.
+
+        Args:
+            symbol: Stock ticker
+            horizon: Time horizon (short/medium/long)
+
+        Returns:
+            Cached score dict or None if cache miss
+        """
+        if not self.cache_enabled:
+            return None
+
+        try:
+            cache_key = self._get_cache_key(symbol, horizon)
+            cached_data = self.redis_client.get(cache_key)
+
+            if cached_data:
+                score_data = json.loads(cached_data)
+                logger.info(f"📦 Cache hit for {symbol} ({horizon})")
+                return score_data
+            else:
+                return None
+
+        except Exception as e:
+            logger.warning(f"Cache read error for {symbol}: {e}")
+            return None
+
+    def _cache_score(self, symbol: str, horizon: str, score_data: Dict[str, Any]) -> None:
+        """
+        Cache stock score to Redis with TTL.
+
+        Args:
+            symbol: Stock ticker
+            horizon: Time horizon
+            score_data: Score dict to cache
+        """
+        if not self.cache_enabled:
+            return
+
+        try:
+            cache_key = self._get_cache_key(symbol, horizon)
+            cached_json = json.dumps(score_data)
+            self.redis_client.setex(
+                cache_key,
+                STOCK_SCORE_CACHE_TTL,
+                cached_json
+            )
+            logger.info(f"💾 Cached score for {symbol} ({horizon}, TTL: 4h)")
+        except Exception as e:
+            logger.warning(f"Cache write error for {symbol}: {e}")
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """
+        Get cache statistics.
+
+        Returns:
+            Dict with cache stats (enabled, total_keys, etc.)
+        """
+        if not self.cache_enabled:
+            return {
+                "enabled": False,
+                "reason": "Redis not available or connection failed"
+            }
+
+        try:
+            # Count stock score keys
+            pattern = "stock_score:*"
+            keys = self.redis_client.keys(pattern)
+
+            return {
+                "enabled": True,
+                "total_keys": len(keys),
+                "ttl_seconds": STOCK_SCORE_CACHE_TTL,
+                "ttl_hours": STOCK_SCORE_CACHE_TTL / 3600,
+                "sample_keys": keys[:5] if keys else []
+            }
+        except Exception as e:
+            return {
+                "enabled": True,
+                "error": str(e)
+            }
+
+    def clear_cache(self, pattern: str = "stock_score:*") -> int:
+        """
+        Clear cached stock scores.
+
+        Args:
+            pattern: Redis key pattern (default: all stock scores)
+
+        Returns:
+            Number of keys deleted
+        """
+        if not self.cache_enabled:
+            logger.info("Cache not enabled, nothing to clear")
+            return 0
+
+        try:
+            keys = self.redis_client.keys(pattern)
+            if keys:
+                deleted = self.redis_client.delete(*keys)
+                logger.info(f"🗑️ Cleared {deleted} cached stock scores")
+                return deleted
+            else:
+                logger.info("No cached keys to clear")
+                return 0
+        except Exception as e:
+            logger.error(f"Error clearing cache: {e}")
+            return 0
 
     async def analyze_individual_stock(
         self,
@@ -129,6 +285,8 @@ class SectorAnalyzer:
         """
         Analyze an individual stock (similar to analyze_sector but for stocks).
 
+        Uses Redis cache (TTL: 4h) to avoid re-scoring recently analyzed stocks.
+
         Args:
             symbol: Stock ticker (e.g., "AAPL", "JPM")
             horizon: Time horizon (short/medium/long)
@@ -138,6 +296,11 @@ class SectorAnalyzer:
             Dict with momentum, value, diversification scores
         """
         try:
+            # Check cache first
+            cached_score = self._get_cached_score(symbol, horizon)
+            if cached_score is not None:
+                return cached_score
+
             logger.info(f"📈 Analyzing individual stock: {symbol} (horizon: {horizon})")
 
             # Get lookback days based on horizon
@@ -176,7 +339,7 @@ class SectorAnalyzer:
                 diversification_score * 0.30
             )
 
-            return {
+            score_data = {
                 "symbol": symbol,
                 "momentum_score": round(momentum_score, 1),
                 "value_score": round(value_score, 1),
@@ -186,6 +349,11 @@ class SectorAnalyzer:
                 "data_points": len(stock_data),
                 "analysis_date": datetime.now().isoformat()
             }
+
+            # Cache the result
+            self._cache_score(symbol, horizon, score_data)
+
+            return score_data
 
         except Exception as e:
             logger.error(f"Error analyzing stock {symbol}: {e}", exc_info=True)

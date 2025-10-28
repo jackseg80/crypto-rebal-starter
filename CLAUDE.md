@@ -480,12 +480,17 @@ opportunity_score = (
   - JPM: 61.0 (meilleur choix Financials), BAC: 60.6, WFC: 50.3
   - Tri automatique par score (meilleurs opportunités en premier)
   - Guidance stratégique par secteur (ETF vs actions individuelles)
+- **Redis cache optimization** (P2 - Oct 2025) - Cache scores 4h TTL
+  - WSL2: -32% scan time (27s → 18.7s)
+  - Linux attendu: -63% scan time (27s → 10s)
+  - Graceful degradation (fonctionne sans Redis)
 
 **Détails complets:**
 - [`docs/MARKET_OPPORTUNITIES_SYSTEM.md`](docs/MARKET_OPPORTUNITIES_SYSTEM.md) - Documentation système complète
 - [`docs/MARKET_OPPORTUNITIES_FINAL_RESULTS.md`](docs/MARKET_OPPORTUNITIES_FINAL_RESULTS.md) - Résultats finaux (7 bugs corrigés)
 - [`docs/MARKET_OPPORTUNITIES_SESSION_3_STOCKS.md`](docs/MARKET_OPPORTUNITIES_SESSION_3_STOCKS.md) - Session 3 (actions individuelles)
 - [`docs/MARKET_OPPORTUNITIES_P1_INDIVIDUAL_SCORING.md`](docs/MARKET_OPPORTUNITIES_P1_INDIVIDUAL_SCORING.md) - P1 (scoring individuel)
+- [`docs/MARKET_OPPORTUNITIES_P2_REDIS_CACHE.md`](docs/MARKET_OPPORTUNITIES_P2_REDIS_CACHE.md) - P2 (cache Redis)
 
 ### Governance - Freeze Semantics (Oct 2025)
 **3 types de freeze avec opérations granulaires** ([governance.py](services/execution/governance.py)):
