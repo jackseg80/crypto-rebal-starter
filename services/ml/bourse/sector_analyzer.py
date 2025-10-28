@@ -120,6 +120,77 @@ class SectorAnalyzer:
         self.data_source = StocksDataSource()
         self.tech_indicators = TechnicalIndicators()
 
+    async def analyze_individual_stock(
+        self,
+        symbol: str,
+        horizon: str = "medium",
+        benchmark: str = "SPY"
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Analyze an individual stock (similar to analyze_sector but for stocks).
+
+        Args:
+            symbol: Stock ticker (e.g., "AAPL", "JPM")
+            horizon: Time horizon (short/medium/long)
+            benchmark: Benchmark ticker (default SPY)
+
+        Returns:
+            Dict with momentum, value, diversification scores
+        """
+        try:
+            logger.info(f"📈 Analyzing individual stock: {symbol} (horizon: {horizon})")
+
+            # Get lookback days based on horizon
+            lookback_days = self._get_lookback_days(horizon)
+
+            # Fetch stock data
+            stock_data = await self.data_source.get_ohlcv_data(
+                symbol=symbol,
+                lookback_days=lookback_days
+            )
+
+            if stock_data is None or stock_data.empty:
+                logger.warning(f"No data available for {symbol}")
+                return None
+
+            # Fetch benchmark data
+            benchmark_data = await self.data_source.get_ohlcv_data(
+                symbol=benchmark,
+                lookback_days=lookback_days
+            )
+
+            # Calculate scores (reuse existing methods)
+            momentum_score = self._calculate_momentum_score(
+                stock_data, benchmark_data, horizon
+            )
+            value_score = await self._calculate_value_score(symbol)
+            diversification_score = self._calculate_diversification_score(stock_data)
+
+            # Data quality confidence
+            confidence = min(len(stock_data) / lookback_days, 1.0)
+
+            # Calculate composite score (40% momentum, 30% value, 30% diversification)
+            composite_score = (
+                momentum_score * 0.40 +
+                value_score * 0.30 +
+                diversification_score * 0.30
+            )
+
+            return {
+                "symbol": symbol,
+                "momentum_score": round(momentum_score, 1),
+                "value_score": round(value_score, 1),
+                "diversification_score": round(diversification_score, 1),
+                "composite_score": round(composite_score, 1),
+                "confidence": round(confidence, 2),
+                "data_points": len(stock_data),
+                "analysis_date": datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"Error analyzing stock {symbol}: {e}", exc_info=True)
+            return None
+
     async def analyze_sector(
         self,
         sector_etf: str,
@@ -399,19 +470,24 @@ class SectorAnalyzer:
     async def get_top_stocks_in_sector(
         self,
         sector_etf: str,
-        top_n: int = 3
+        top_n: int = 3,
+        horizon: str = "medium",
+        score_individually: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Get top N stocks in a sector plus the sector ETF.
 
-        Returns ETF + top blue-chip stocks from SECTOR_TOP_STOCKS mapping.
+        Returns ETF + top blue-chip stocks from SECTOR_TOP_STOCKS mapping,
+        optionally with individual scores for each stock.
 
         Args:
             sector_etf: Sector ETF ticker (e.g., "XLK", "XLF")
             top_n: Number of individual stocks to return (default 3)
+            horizon: Time horizon for scoring (default "medium")
+            score_individually: If True, score each stock separately (default True)
 
         Returns:
-            List of recommendations: [ETF, Stock1, Stock2, Stock3]
+            List of recommendations: [ETF, Stock1, Stock2, Stock3] with scores
         """
         try:
             recommendations = []
@@ -428,14 +504,64 @@ class SectorAnalyzer:
             # 2. Add top N individual stocks from static mapping
             if sector_etf in SECTOR_TOP_STOCKS:
                 stocks = SECTOR_TOP_STOCKS[sector_etf][:top_n]  # Limit to top_n
-                for symbol, name, rationale in stocks:
-                    recommendations.append({
-                        "symbol": symbol,
-                        "type": "Stock",
-                        "name": name,
-                        "weight": 80.0,  # Individual stocks slightly lower weight
-                        "rationale": rationale
-                    })
+
+                if score_individually:
+                    # Score each stock in parallel for performance
+                    import asyncio
+                    stock_symbols = [symbol for symbol, _, _ in stocks]
+
+                    # Fetch scores in parallel using asyncio.gather
+                    score_tasks = [
+                        self.analyze_individual_stock(symbol, horizon=horizon)
+                        for symbol in stock_symbols
+                    ]
+                    scores_results = await asyncio.gather(*score_tasks, return_exceptions=True)
+
+                    # Combine stocks with their scores
+                    for (symbol, name, rationale), score_result in zip(stocks, scores_results):
+                        if isinstance(score_result, Exception):
+                            logger.warning(f"Failed to score {symbol}: {score_result}")
+                            # Fallback to no score
+                            recommendations.append({
+                                "symbol": symbol,
+                                "type": "Stock",
+                                "name": name,
+                                "weight": 80.0,
+                                "rationale": rationale
+                            })
+                        elif score_result is None:
+                            # No data available
+                            recommendations.append({
+                                "symbol": symbol,
+                                "type": "Stock",
+                                "name": name,
+                                "weight": 80.0,
+                                "rationale": rationale
+                            })
+                        else:
+                            # Add score data
+                            recommendations.append({
+                                "symbol": symbol,
+                                "type": "Stock",
+                                "name": name,
+                                "weight": score_result.get("composite_score", 80.0),
+                                "rationale": rationale,
+                                "momentum_score": score_result.get("momentum_score"),
+                                "value_score": score_result.get("value_score"),
+                                "diversification_score": score_result.get("diversification_score"),
+                                "composite_score": score_result.get("composite_score"),
+                                "confidence": score_result.get("confidence")
+                            })
+                else:
+                    # No individual scoring - just return static data
+                    for symbol, name, rationale in stocks:
+                        recommendations.append({
+                            "symbol": symbol,
+                            "type": "Stock",
+                            "name": name,
+                            "weight": 80.0,
+                            "rationale": rationale
+                        })
 
                 logger.info(f"✅ Found {len(stocks)} stocks for {sector_etf}")
             else:

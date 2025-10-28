@@ -476,11 +476,16 @@ opportunity_score = (
 - Capital freed: **€29,872** (62% du besoin de €47,946)
 - Scan time: **16s** (avec enrichissement Yahoo Finance)
 - **Opportunities: 20 (5 ETFs + 15 stocks)** (était 5 ETFs) - +300% ✨
+- **Individual stock scoring** (P1 - Oct 2025) - Chaque action a ses propres scores
+  - JPM: 61.0 (meilleur choix Financials), BAC: 60.6, WFC: 50.3
+  - Tri automatique par score (meilleurs opportunités en premier)
+  - Guidance stratégique par secteur (ETF vs actions individuelles)
 
 **Détails complets:**
 - [`docs/MARKET_OPPORTUNITIES_SYSTEM.md`](docs/MARKET_OPPORTUNITIES_SYSTEM.md) - Documentation système complète
 - [`docs/MARKET_OPPORTUNITIES_FINAL_RESULTS.md`](docs/MARKET_OPPORTUNITIES_FINAL_RESULTS.md) - Résultats finaux (7 bugs corrigés)
 - [`docs/MARKET_OPPORTUNITIES_SESSION_3_STOCKS.md`](docs/MARKET_OPPORTUNITIES_SESSION_3_STOCKS.md) - Session 3 (actions individuelles)
+- [`docs/MARKET_OPPORTUNITIES_P1_INDIVIDUAL_SCORING.md`](docs/MARKET_OPPORTUNITIES_P1_INDIVIDUAL_SCORING.md) - P1 (scoring individuel)
 
 ### Governance - Freeze Semantics (Oct 2025)
 **3 types de freeze avec opérations granulaires** ([governance.py](services/execution/governance.py)):

@@ -792,8 +792,13 @@ async def get_market_opportunities(
             etf = gap.get("etf")
             gap_pct = gap.get("gap_pct", 0)
 
-            # Get top stocks in sector (ETF + top 3 individual stocks)
-            top_stocks = await sector_analyzer.get_top_stocks_in_sector(etf, top_n=3)
+            # Get top stocks in sector (ETF + top 3 individual stocks with scores)
+            top_stocks = await sector_analyzer.get_top_stocks_in_sector(
+                sector_etf=etf,
+                top_n=3,
+                horizon=horizon,
+                score_individually=True  # Enable individual stock scoring
+            )
 
             # Calculate capital needed based on gap and portfolio size
             # Note: Saxo positions use "market_value" field (already in USD)
@@ -802,20 +807,27 @@ async def get_market_opportunities(
 
             if top_stocks:
                 for stock in top_stocks:
+                    # Use individual stock scores if available, otherwise fall back to sector scores
+                    stock_score = stock.get("composite_score") or gap.get("score", 50)
+                    stock_momentum = stock.get("momentum_score") or gap.get("momentum_score", 50)
+                    stock_value = stock.get("value_score") or gap.get("value_score", 50)
+                    stock_diversification = stock.get("diversification_score") or gap.get("diversification_score", 50)
+                    stock_confidence = stock.get("confidence") or gap.get("confidence", 0.7)
+
                     opportunities.append({
                         "symbol": stock.get("symbol"),
                         "name": stock.get("name", f"{sector} ETF"),
                         "sector": sector,
                         "type": stock.get("type", "ETF"),
-                        "score": gap.get("score", 50),
-                        "confidence": gap.get("confidence", 0.7),
+                        "score": stock_score,
+                        "confidence": stock_confidence,
                         "action": "BUY",
                         "horizon": horizon,
                         "capital_needed": round(capital_needed, 2),
-                        "rationale": f"{sector} sector gap: {gap_pct:.1f}% underweight",
-                        "momentum_score": gap.get("momentum_score", 50),
-                        "value_score": gap.get("value_score", 50),
-                        "diversification_score": gap.get("diversification_score", 50)
+                        "rationale": stock.get("rationale", f"{sector} sector gap: {gap_pct:.1f}% underweight"),
+                        "momentum_score": stock_momentum,
+                        "value_score": stock_value,
+                        "diversification_score": stock_diversification
                     })
 
         # Sort opportunities by score (descending)
