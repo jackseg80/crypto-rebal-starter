@@ -992,6 +992,13 @@ async def get_symbol_sentiment(
     """
     logger.debug(f"Getting sentiment analysis for {symbol} over {days} days")
 
+    # Check cache (TTL: 15 min = 900 seconds, optimized per CACHE_TTL_OPTIMIZATION.md)
+    cache_key = f"sentiment:{symbol}:{days}:{include_breakdown}"
+    cached_result = cache_get(_unified_ml_cache, cache_key, 900)
+    if cached_result:
+        logger.debug(f"Returning cached sentiment for {symbol}")
+        return cached_result
+
     # Try to get real sentiment from orchestrator
     orchestrator = get_orchestrator()
 
@@ -1069,7 +1076,7 @@ async def get_symbol_sentiment(
     else:
         data_quality = "low"
 
-    return SentimentResponse(
+    result = SentimentResponse(
         success=True,
         symbol=symbol.upper(),
         aggregated_sentiment={
@@ -1089,6 +1096,11 @@ async def get_symbol_sentiment(
             "last_updated": datetime.now().isoformat()
         }
     )
+
+    # Cache the result (15 min TTL)
+    cache_set(_unified_ml_cache, cache_key, result)
+
+    return result
 
 
 # === NOUVEAUX ENDPOINTS AVEC CONTRAT UNIFIE ===

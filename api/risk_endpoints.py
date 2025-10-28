@@ -17,12 +17,16 @@ from api.deps import get_active_user
 from pydantic import BaseModel
 
 from services.risk_management import risk_manager, RiskMetrics, CorrelationMatrix, StressTestResult, StressScenario, PerformanceAttribution, BacktestResult, RiskAlert, AlertSeverity, AlertCategory
+from api.utils.cache import cache_get, cache_set
 import os
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/risk", tags=["risk-management"])
 COMPUTE_ON_STUB_SOURCES = (os.getenv("COMPUTE_ON_STUB_SOURCES", "false").strip().lower() == "true")
+
+# Cache for risk endpoints (TTL: 30 min per CACHE_TTL_OPTIMIZATION.md)
+_risk_cache = {}
 
 # ===== Helper: Convert python/numpy/pandas types to JSON-safe natives =====
 def _clean_for_json(obj: Any) -> Any:
@@ -587,6 +591,13 @@ async def get_risk_dashboard(
         # Déterminer user effectif : Query param prioritaire, sinon header
         effective_user = user_id or user_header
 
+        # Check cache (TTL: 30 min = 1800 seconds, optimized per CACHE_TTL_OPTIMIZATION.md)
+        cache_key = f"risk_dashboard:{effective_user}:{source}:{min_usd}:{risk_version}"
+        cached_result = cache_get(_risk_cache, cache_key, 1800)
+        if cached_result:
+            logger.info(f"Returning cached risk dashboard for user={effective_user}, source={source}")
+            return cached_result
+
         # Récupération unifiée des balances (supporte stub | cointracking | cointracking_api)
         from api.unified_data import get_unified_filtered_balances
         unified = await get_unified_filtered_balances(source=source, min_usd=min_usd, user_id=effective_user)
@@ -1095,6 +1106,9 @@ async def get_risk_dashboard(
         import time
         sanitized_dashboard["__served_by__"] = "risk_endpoints.py:v2_shadow"
         sanitized_dashboard["__ts__"] = time.time()
+
+        # Cache the result (30 min TTL)
+        cache_set(_risk_cache, cache_key, sanitized_dashboard)
 
         return sanitized_dashboard
         
