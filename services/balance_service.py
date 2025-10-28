@@ -188,7 +188,7 @@ class BalanceService:
                 logger.warning(f"No CSV files found for user {user_id}")
                 return None
 
-            from api.main import load_csv_balances
+            from api.services.csv_helpers import load_csv_balances
             items = await load_csv_balances(csv_file)
             logger.debug(f"CSV mode successful for user {user_id}: {len(items)} items from {csv_file}")
             return {"source_used": "cointracking", "items": items}
@@ -287,8 +287,7 @@ class BalanceService:
 
     async def _legacy_api_mode(self, user_id: str = "demo") -> Dict[str, Any]:
         """Legacy API mode for backward compatibility."""
-        from api.main import load_ctapi_exchanges
-        from api.services.cointracking_helpers import pick_primary_location_for_symbol
+        from api.services.cointracking_helpers import load_ctapi_exchanges, pick_primary_location_for_symbol
 
         try:
             # 1) Load snapshot by exchange via CT-API

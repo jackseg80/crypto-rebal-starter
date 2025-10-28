@@ -408,7 +408,10 @@ except (ImportError, ModuleNotFoundError) as e:
 # CSV helper moved to api/services/csv_helpers.py
 # - load_csv_balances
 
-async def resolve_current_balances(source: str = Query("cointracking_api"), user_id: str = "demo") -> Dict[str, Any]:
+async def resolve_current_balances(
+    source: str = Query("cointracking_api"),
+    user: str = Depends(get_active_user)
+) -> Dict[str, Any]:
     """
     Retourne {source_used, items:[{symbol, alias, amount, value_usd, location}]}
     Utilise UserDataRouter pour router les données par utilisateur.
@@ -419,7 +422,7 @@ async def resolve_current_balances(source: str = Query("cointracking_api"), user
     The actual implementation is in services/balance_service.py
     """
     # Delegate to BalanceService to break circular dependencies
-    return await balance_service.resolve_current_balances(source=source, user_id=user_id)
+    return await balance_service.resolve_current_balances(source=source, user_id=user)
 
 
 # Legacy implementation moved to services/balance_service.py for better separation
