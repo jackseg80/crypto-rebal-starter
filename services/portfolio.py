@@ -428,7 +428,7 @@ class PortfolioAnalytics:
             return {"trend_data": [], "days_available": 0}
         
         # Filtrer les derniers jours
-        cutoff_date = datetime.now() - timedelta(days=days)
+        cutoff_date = datetime.now(TZ) - timedelta(days=days)
         filtered_data = [
             entry for entry in historical_data
             if datetime.fromisoformat(entry.get("date", "")) >= cutoff_date
