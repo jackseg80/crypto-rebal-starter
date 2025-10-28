@@ -15,6 +15,7 @@ import logging
 
 from services.portfolio import PortfolioAnalytics
 from api.deps import get_active_user
+from api.utils.formatters import success_response, error_response
 
 # Use BalanceService instead of importing from api.main to avoid circular dependency
 # No TYPE_CHECKING needed anymore since we use the service directly
@@ -81,7 +82,7 @@ async def portfolio_metrics(
 
         # Do not compute on stub sources unless explicitly allowed
         if ((balances.get('source_used') or '').startswith('stub') or balances.get('source_used') == 'none') and not COMPUTE_ON_STUB_SOURCES:
-            return {"ok": False, "message": "No real data: stub source in use"}
+            return error_response("No real data: stub source in use", code=400)
 
         # Calculer les métriques
         metrics = portfolio_analytics.calculate_portfolio_metrics(balances)
@@ -93,14 +94,13 @@ async def portfolio_metrics(
             window=window
         )
 
-        return {
-            "ok": True,
-            "metrics": metrics,
-            "performance": performance
-        }
+        return success_response(
+            data={"metrics": metrics, "performance": performance},
+            meta={"source": source, "anchor": anchor, "window": window}
+        )
     except Exception as e:
         logger.exception("Error calculating portfolio metrics")
-        return {"ok": False, "error": str(e)}
+        return error_response(str(e), code=500)
 
 
 @router.post("/portfolio/snapshot")
@@ -118,15 +118,18 @@ async def save_portfolio_snapshot(
         balances = {"source_used": res.get("source_used"), "items": rows}
 
         # Sauvegarder le snapshot
-        success = portfolio_analytics.save_portfolio_snapshot(balances, user_id=user, source=source)
+        saved = portfolio_analytics.save_portfolio_snapshot(balances, user_id=user, source=source)
 
-        if success:
-            return {"ok": True, "message": f"Snapshot sauvegardé pour user={user}, source={source}"}
+        if saved:
+            return success_response(
+                data={"saved": True},
+                meta={"user": user, "source": source, "message": "Snapshot sauvegardé"}
+            )
         else:
-            return {"ok": False, "error": "Erreur lors de la sauvegarde"}
+            return error_response("Erreur lors de la sauvegarde", code=500)
     except Exception as e:
         logger.exception("Error saving portfolio snapshot")
-        return {"ok": False, "error": str(e)}
+        return error_response(str(e), code=500)
 
 
 @router.get("/portfolio/trend")
@@ -134,10 +137,10 @@ async def portfolio_trend(days: int = Query(30, ge=1, le=365)):
     """Données de tendance du portfolio pour graphiques"""
     try:
         trend_data = portfolio_analytics.get_portfolio_trend(days)
-        return {"ok": True, "trend": trend_data}
+        return success_response(data=trend_data, meta={"days": days})
     except Exception as e:
         logger.exception("Error getting portfolio trend")
-        return {"ok": False, "error": str(e)}
+        return error_response(str(e), code=500)
 
 
 @router.get("/portfolio/alerts")
@@ -168,7 +171,7 @@ async def get_portfolio_alerts(
         metrics = portfolio_analytics.calculate_portfolio_metrics(balances)
 
         if not metrics.get("ok"):
-            return {"ok": False, "error": "Impossible de calculer les métriques"}
+            return error_response("Impossible de calculer les métriques", code=500)
 
         current_distribution = metrics["metrics"]["group_distribution"]
         total_value = metrics["metrics"]["total_value_usd"]
@@ -237,17 +240,22 @@ async def get_portfolio_alerts(
             overall_status = "ok"
             message = "Portfolio aligné avec les targets"
 
-        return {
-            "ok": True,
-            "status": overall_status,
-            "message": message,
-            "max_drift": round(max_drift, 2),
-            "critical_count": critical_count,
-            "warning_count": warning_count,
-            "alerts": alerts,
-            "total_value": total_value,
-            "drift_threshold": drift_threshold
-        }
+        return success_response(
+            data={
+                "status": overall_status,
+                "message": message,
+                "max_drift": round(max_drift, 2),
+                "critical_count": critical_count,
+                "warning_count": warning_count,
+                "alerts": alerts
+            },
+            meta={
+                "total_value": total_value,
+                "drift_threshold": drift_threshold,
+                "user": user,
+                "source": source
+            }
+        )
     except Exception as e:
         logger.exception("Error calculating portfolio alerts")
-        return {"ok": False, "error": str(e)}
+        return error_response(str(e), code=500)

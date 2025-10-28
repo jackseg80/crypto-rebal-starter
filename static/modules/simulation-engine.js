@@ -459,7 +459,7 @@ export function computeDecisionIndex(context) {
   // Ajuster selon confiances
   wCycle *= (0.8 + 0.4 * confidences.cycle);
   wOnchain *= (0.8 + 0.4 * confidences.onchain);
-  wRisk *= (0.8 + 0.4 * (1 - scores.risk / 100)); // risk inversé
+  wRisk *= (0.8 + 0.4 * (scores.risk / 100)); // ✅ Direct (plus haut = plus robuste)
 
   // Initialiser deterministicState si nécessaire
   ensureDeterministicState();

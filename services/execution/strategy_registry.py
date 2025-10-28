@@ -244,15 +244,15 @@ class StrategyRegistry:
             # 2. Convertir vers les métriques frontend (simulation)
             cycle_score = self._simulate_cycle_score(phase_state)
             onchain_score = scores.decision  # Utilise le score canonique
-            risk_adjusted_score = 100.0 - scores.components.risk  # Inversion risk
+            risk_score = scores.components.risk  # ✅ Direct (0-100, plus haut = plus robuste)
             sentiment_score = scores.components.sentiment
             
-            # 3. Calcul pondéré comme dans calculateIntelligentDecisionIndex  
+            # 3. Calcul pondéré comme dans calculateIntelligentDecisionIndex
             w = strategy_config.weights
             raw_decision_score = (
                 cycle_score * w.cycle +
-                onchain_score * w.onchain + 
-                risk_adjusted_score * w.risk_adjusted +
+                onchain_score * w.onchain +
+                risk_score * w.risk_adjusted +
                 sentiment_score * w.sentiment
             )
             

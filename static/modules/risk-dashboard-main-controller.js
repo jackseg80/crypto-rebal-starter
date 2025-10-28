@@ -1559,7 +1559,7 @@
 
     // Calculate strategic Blended Score (nouvelle formule market-aware)
     function calculateBlendedScore(ccsMixteScore, onchainScore, riskScore) {
-      // Formule stratégique : 50% CCS Mixte + 30% On-Chain + 20% (100-Risk)
+      // Score de Régime: 0.5×CCS + 0.3×OnChain + 0.2×Risk (positif, plus haut = plus robuste)
       if (ccsMixteScore == null && onchainScore == null && riskScore == null) {
         return 50; // Fallback neutre
       }
