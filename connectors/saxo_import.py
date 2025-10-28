@@ -179,12 +179,6 @@ class SaxoImportConnector:
             logger.info(f"Processing Saxo file with {len(df)} positions for user {user_id or 'global'}")
             logger.debug(f"Columns after normalization: {list(df.columns)[:10]}")
 
-            # Debug: afficher premières lignes
-            if len(df) > 0:
-                logger.debug(f"First row Instrument column: {df.iloc[0].get('Instrument')}")
-                logger.debug(f"First row Status column: {df.iloc[0].get('Status')}")
-                logger.debug(f"First row Quantity column: {df.iloc[0].get('Quantity')}")
-
             # Clean and standardize data
             positions = []
             errors = []
@@ -244,6 +238,7 @@ class SaxoImportConnector:
             quantity = self._to_float(row.get('Quantity', 0))
             market_value = self._to_float(row.get('Market Value', 0))
 
+
             # IMPORTANT: The "Currency" column in Saxo CSV indicates the instrument's trading currency,
             # NOT the currency of the "Market Value" column!
             # Market Value is ALWAYS in the account's base currency (typically EUR for Saxo Europe)
@@ -265,13 +260,27 @@ class SaxoImportConnector:
                 logger.debug(f"Skipping summary row: {instrument_raw}")
                 return None
 
+            # P0 Fix Oct 2025: Saxo double-counting prevention
+            # Saxo CSV exports aggregate lines for symbols with multiple lots:
+            # - Single-lot positions: 1 line WITHOUT Position ID (keep it)
+            # - Multi-lot positions: 1 aggregate WITHOUT Position ID + N detail lines WITH Position ID
+            # Strategy: Keep lines WITHOUT Position ID UNLESS there are detail lines for same symbol
+            # This will be handled in post-processing (group by symbol, detect duplicates)
+            # For now, keep ALL lines and let portfolio_adjuster consolidate
+
             # Skip rows with "Ouvert" as instrument (status leaked into instrument column)
             if instrument_raw.lower() in ['ouvert', 'ferme', 'clos', 'open', 'closed']:
                 logger.debug(f"Skipping status row: {instrument_raw}")
                 return None
 
-            # Must have valid instrument name and quantity
-            if not instrument_raw or quantity == 0:
+            # Skip rows with invalid/zero quantity
+            if quantity <= 0:
+                logger.debug(f"Skipping row with zero/negative quantity: {instrument_raw}")
+                return None
+
+            # Must have at least ONE identifier (symbol preferred, then instrument, then ISIN)
+            if not symbol_raw.strip() and not instrument_raw.strip() and not isin_raw.strip():
+                logger.debug(f"Skipping row with no identifiers (all empty)")
                 return None
 
             # Use Symbol column if available, otherwise extract from instrument

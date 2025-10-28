@@ -70,7 +70,8 @@ class PriceTargets:
         support_resistance: Optional[Dict[str, float]] = None,
         volatility: Optional[float] = None,
         price_data: Optional[pd.DataFrame] = None,
-        avg_price: Optional[float] = None
+        avg_price: Optional[float] = None,
+        leverage: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Calculate all price targets
@@ -82,6 +83,7 @@ class PriceTargets:
             volatility: Optional volatility for adaptive sizing
             price_data: Optional historical OHLC data for advanced stop loss calculation
             avg_price: Average entry price (cost basis) for trailing stop calculation
+            leverage: Optional leverage multiplier for CFD/leveraged products (P0 Enhancement)
 
         Returns:
             Dict with entry zone, stop-loss, take-profits, and risk/reward
@@ -92,7 +94,8 @@ class PriceTargets:
                 support_resistance,
                 volatility,
                 price_data,
-                avg_price
+                avg_price,
+                leverage
             )
         elif action in ["STRONG SELL", "SELL"]:
             return self._calculate_sell_targets(
@@ -111,7 +114,8 @@ class PriceTargets:
         sr_levels: Optional[Dict[str, float]],
         volatility: Optional[float],
         price_data: Optional[pd.DataFrame] = None,
-        avg_price: Optional[float] = None
+        avg_price: Optional[float] = None,
+        leverage: Optional[float] = None
     ) -> Dict[str, Any]:
         """Calculate targets for BUY recommendations"""
 
@@ -136,6 +140,15 @@ class PriceTargets:
         # Use recommended stop loss for main calculation
         recommended_method = stop_loss_analysis["recommended_method"]
         stop_loss = stop_loss_analysis["stop_loss_levels"][recommended_method]["price"]
+
+        # CFD/Leverage adjustment (P0 Enhancement - Oct 2025)
+        # For leveraged products, use much tighter stops (divide distance by leverage)
+        if leverage and leverage > 1.0:
+            logger.info(f"Adjusting stop loss for leverage {leverage:.1f}x")
+            stop_distance = current_price - stop_loss
+            adjusted_distance = stop_distance / leverage  # Tighter stop for leverage
+            stop_loss = current_price - adjusted_distance
+            logger.info(f"Stop loss adjusted: {stop_loss:.2f} (original distance reduced by {leverage:.1f}x)")
 
         # Get volatility bucket from stop loss analysis (for adaptive TP calculation)
         vol_bucket = stop_loss_analysis["stop_loss_levels"][recommended_method].get("volatility_bucket", "moderate")

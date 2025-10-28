@@ -178,7 +178,9 @@ class RecommendationsOrchestrator:
             if tag.startswith('asset_class:'):
                 asset_class = tag.split(':')[1]
                 break
-        asset_type = self._detect_asset_type(symbol, asset_class)
+
+        # Detect asset type + CFD status (P0 Enhancement - Oct 2025)
+        asset_type, is_cfd, leverage = self._detect_asset_type(symbol, asset_class, position)
 
         # Regime score
         regime_score = scoring.calculate_regime_score(
@@ -240,7 +242,7 @@ class RecommendationsOrchestrator:
         # Extract avg_price from position (for trailing stop calculation)
         avg_price = position.get('avg_price', None)
 
-        # Calculate price targets
+        # Calculate price targets (with CFD leverage adjustment if applicable)
         sr_levels = tech_analysis.get('support_resistance', {})
         price_targets = targets.calculate_targets(
             current_price=hist_data['close'].iloc[-1],
@@ -248,7 +250,8 @@ class RecommendationsOrchestrator:
             support_resistance=sr_levels,
             volatility=volatility,
             price_data=hist_data,  # Pass historical data for advanced stop loss calculation
-            avg_price=avg_price  # Pass avg_price for trailing stop calculation
+            avg_price=avg_price,  # Pass avg_price for trailing stop calculation
+            leverage=leverage if is_cfd else None  # Pass leverage for CFD stop adjustment (P0 Enhancement)
         )
 
         # Calculate position sizing
@@ -273,6 +276,15 @@ class RecommendationsOrchestrator:
             position_sizing=position_sizing
         )
 
+        # CFD-specific tactical advice adjustment (P0 Enhancement - Oct 2025)
+        if is_cfd:
+            cfd_warning = f"⚠️ CFD/Leveraged Position ({leverage:.0f}x) - Use tighter stops. "
+            if decision_result['action'] in ['STRONG BUY', 'BUY']:
+                cfd_warning += "Reduce position size by 50% due to leverage risk. "
+            elif decision_result['action'] == 'HOLD':
+                cfd_warning += "Monitor closely, consider partial exit on volatility. "
+            decision_result['tactical_advice'] = cfd_warning + decision_result['tactical_advice']
+
         # Compile recommendation
         return {
             "symbol": symbol,
@@ -293,7 +305,11 @@ class RecommendationsOrchestrator:
             },
             "price_targets": price_targets,
             "position_sizing": position_sizing,
-            "score_breakdown": score_result['breakdown']
+            "score_breakdown": score_result['breakdown'],
+            # CFD metadata (P0 Enhancement - Oct 2025)
+            "is_cfd": is_cfd,
+            "leverage": leverage if is_cfd else None,
+            "cfd_warning": is_cfd  # Flag for frontend badge
         }
 
     async def _get_benchmark_data(
@@ -324,24 +340,71 @@ class RecommendationsOrchestrator:
         current = prices.iloc[-1]
         return (current / ath) - 1
 
-    def _detect_asset_type(self, symbol: str, asset_class: str) -> str:
-        """Detect asset type for regime alignment"""
-        # ETF detection
-        if symbol.upper() in ['QQQ', 'TQQQ', 'XLK', 'VGT', 'SOXX']:
-            return 'etf_tech'
-        elif symbol.upper() in ['SPY', 'IVV', 'VOO', 'VTI', 'ACWI', 'WORLD']:
-            return 'etf_growth'
-        elif symbol.upper() in ['GLD', 'IAU', 'XGDU', 'GOLD']:
-            return 'gold'
-        elif symbol.upper() in ['TLT', 'AGG', 'AGGS', 'BND']:
-            return 'bond'
+    def _detect_asset_type(self, symbol: str, asset_class: str, position: Optional[Dict[str, Any]] = None) -> tuple:
+        """
+        Detect asset type for regime alignment
 
-        # Stock sectors
-        if asset_class and 'stock' in asset_class.lower():
-            return 'equity'
+        Returns:
+            tuple: (asset_type, is_cfd, leverage_multiplier)
+            - asset_type: 'equity', 'etf_tech', 'gold', 'bond', etc.
+            - is_cfd: True if CFD/leveraged product
+            - leverage_multiplier: Estimated leverage (1.0 for normal, 5.0 for CFD, etc.)
+        """
+        is_cfd = False
+        leverage = 1.0
 
-        # Default
-        return 'equity'
+        # CFD Detection (P0 Enhancement - Oct 2025)
+        if position:
+            # Check tags for CFD
+            tags = position.get('tags', [])
+            for tag in tags:
+                if 'cfd' in tag.lower() or 'contract_for_difference' in tag.lower():
+                    is_cfd = True
+                    leverage = 5.0  # Default CFD leverage
+                    logger.info(f"CFD detected via tags: {symbol}")
+                    break
+
+            # Check instrument_type
+            instrument_type = position.get('instrument_type', '').lower()
+            if 'cfd' in instrument_type:
+                is_cfd = True
+                leverage = 5.0
+                logger.info(f"CFD detected via instrument_type: {symbol}")
+
+            # Check asset_class
+            if asset_class and 'cfd' in asset_class.lower():
+                is_cfd = True
+                leverage = 5.0
+                logger.info(f"CFD detected via asset_class: {symbol}")
+
+        # Check symbol for CFD indicators
+        symbol_upper = symbol.upper()
+        if 'CFD' in symbol_upper or symbol_upper.endswith(':CFD'):
+            is_cfd = True
+            leverage = 5.0
+            logger.info(f"CFD detected via symbol: {symbol}")
+
+        # Detect leveraged ETFs (TQQQ = 3x leverage)
+        if symbol_upper in ['TQQQ', 'SQQQ', 'UPRO', 'SPXL']:
+            is_cfd = True
+            leverage = 3.0
+            logger.info(f"Leveraged ETF detected: {symbol} (3x)")
+
+        # Asset type detection (unchanged)
+        asset_type = 'equity'  # Default
+
+        if symbol_upper in ['QQQ', 'TQQQ', 'XLK', 'VGT', 'SOXX']:
+            asset_type = 'etf_tech'
+        elif symbol_upper in ['SPY', 'IVV', 'VOO', 'VTI', 'ACWI', 'WORLD']:
+            asset_type = 'etf_growth'
+        elif symbol_upper in ['GLD', 'IAU', 'XGDU', 'GOLD']:
+            asset_type = 'gold'
+        elif symbol_upper in ['TLT', 'AGG', 'AGGS', 'BND']:
+            asset_type = 'bond'
+        elif asset_class and 'stock' in asset_class.lower():
+            asset_type = 'equity'
+
+        return (asset_type, is_cfd, leverage)
 
     def _calculate_sector_weights(
         self,

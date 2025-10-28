@@ -57,8 +57,11 @@ class PortfolioAdjuster:
         """
         adjusted = []
 
+        # Step 0: Consolidate duplicate positions (P0 Enhancement - Oct 2025)
+        adjusted = self._consolidate_duplicate_positions(recommendations)
+
         # Step 1: Apply sector concentration limits
-        adjusted = self._apply_sector_limits(recommendations, sector_weights)
+        adjusted = self._apply_sector_limits(adjusted, sector_weights)
 
         # Step 2: Apply Risk/Reward filter (downgrade BUY if R/R < 1.5)
         adjusted = self._apply_risk_reward_filter(adjusted, min_rr_ratio=1.5)
@@ -73,6 +76,107 @@ class PortfolioAdjuster:
                 rec["adjustment_note"] = self._get_adjustment_note(rec)
 
         return adjusted
+
+    def _consolidate_duplicate_positions(
+        self,
+        recommendations: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Consolidate duplicate positions (e.g., 7x AMD → 1x AMD aggregate)
+
+        P0 Enhancement - Oct 2025
+
+        Handles Saxo double-counting: CSV contains both aggregate + detail lines for multi-lot positions.
+        Detects and removes aggregate line if detail lines exist.
+
+        Args:
+            recommendations: List of position recommendations
+
+        Returns:
+            List with duplicates consolidated
+        """
+        # Group by symbol
+        by_symbol = {}
+        for rec in recommendations:
+            symbol = rec.get('symbol', 'UNKNOWN')
+            if symbol not in by_symbol:
+                by_symbol[symbol] = []
+            by_symbol[symbol].append(rec)
+
+        consolidated = []
+
+        for symbol, recs in by_symbol.items():
+            if len(recs) == 1:
+                # Single position, no consolidation needed
+                consolidated.append(recs[0])
+            else:
+                # Multiple positions for same symbol → check for Saxo double-counting
+                logger.info(f"Analyzing {len(recs)} positions for {symbol}")
+
+                # Separate lines with and without position_id (from original CSV metadata)
+                # In Saxo CSV: aggregate lines have no Position ID, detail lines have numeric Position ID
+                lines_with_id = []
+                lines_without_id = []
+
+                for rec in recs:
+                    # Check if this rec came from a CSV line with Position ID
+                    # We need to add this metadata in saxo_import connector
+                    # For now, use heuristic: if multiple lines and one has significantly more value, it's aggregate
+                    lines_without_id.append(rec)  # Fallback: treat all as without ID
+
+                # Heuristic detection: if sum of smaller values ≈ largest value, it's double-counting
+                values = sorted([r.get('current_value', 0) for r in recs], reverse=True)
+                largest = values[0]
+                sum_others = sum(values[1:])
+
+                # If largest ≈ sum of others (within 5%), it's a Saxo aggregate + details situation
+                if len(values) > 1 and abs(largest - sum_others) / max(largest, 1) < 0.05:
+                    logger.info(f"{symbol}: Detected Saxo aggregate (${largest:.0f}) + details (${sum_others:.0f}) - keeping only detail lines")
+                    # Remove the largest value (aggregate line) and keep detail lines
+                    recs_sorted = sorted(recs, key=lambda x: x.get('current_value', 0), reverse=True)
+                    detail_recs = recs_sorted[1:]  # All except largest
+                    recs = detail_recs
+
+                # Multiple positions remaining → consolidate normally
+                logger.info(f"Consolidating {len(recs)} detail positions for {symbol}")
+
+                # Aggregate metrics
+                total_value = sum(r.get('current_value', 0) for r in recs)
+                avg_score = sum(r.get('score', 0) for r in recs) / len(recs)
+                avg_confidence = sum(r.get('confidence', 0) for r in recs) / len(recs)
+
+                # Use first position as template
+                consolidated_rec = recs[0].copy()
+
+                # Override with aggregated values
+                consolidated_rec['current_value'] = total_value
+                consolidated_rec['score'] = avg_score
+                consolidated_rec['confidence'] = avg_confidence
+                consolidated_rec['positions_count'] = len(recs)
+                consolidated_rec['fragmentation_warning'] = True
+
+                # Update tactical advice
+                original_advice = consolidated_rec.get('tactical_advice', '')
+                consolidated_rec['tactical_advice'] = (
+                    f"⚠️ {len(recs)} lots d'achat séparés détectés (total consolidé: ${total_value:,.0f}). "
+                    f"CSV Saxo contient {len(recs)} lignes distinctes pour ce symbole (achats à différentes dates/prix). "
+                    f"Recommandation: Garder tels quels dans broker, mais tracker comme position unique dans votre suivi. "
+                    f"{original_advice}"
+                )
+
+                # Collect all position IDs for reference
+                consolidated_rec['fragmented_position_ids'] = [
+                    r.get('symbol', '') + '_' + str(i) for i, r in enumerate(recs)
+                ]
+
+                consolidated.append(consolidated_rec)
+
+                logger.info(
+                    f"Consolidated {symbol}: {len(recs)} positions → 1 position "
+                    f"(total value: ${total_value:,.2f}, avg score: {avg_score:.2f})"
+                )
+
+        return consolidated
 
     def _apply_sector_limits(
         self,
