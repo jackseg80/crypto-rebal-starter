@@ -415,11 +415,13 @@ ethTarget = (baseEthRatio / baseTotal) × nonStablesSpace
 
 **Identifie opportunités d'investissement en dehors du portefeuille actuel** ([opportunity_scanner.py](services/ml/bourse/opportunity_scanner.py)):
 
-**Status:** ✅ **95% fonctionnel** (Unknown 1.1%, 26 ventes suggérées, €29.8k capital freed, 62% coverage)
+**Status:** ✅ **100% fonctionnel** (Unknown 0%, 26 ventes suggérées, 20 opportunités: 5 ETFs + 15 actions)
 
 **Architecture 3 modules:**
 1. **Opportunity Scanner** - Scan secteurs S&P 500 vs portfolio, détecte gaps + enrichissement Yahoo Finance
 2. **Sector Analyzer** - Scoring 3-pillar: Momentum 40%, Value 30%, Diversification 30%
+   - **NEW (Session 3):** 44 actions blue-chip S&P 500 (4 par secteur)
+   - Retourne 1 ETF + 3 actions par gap (ex: XLF + JPM, BAC, WFC)
 3. **Portfolio Gap Detector** - Suggestions ventes intelligentes (max 30%, top 2 protected)
 
 **API Endpoint:**
@@ -429,8 +431,9 @@ GET /api/bourse/opportunities?user_id=jack&horizon=medium&min_gap_pct=5.0
 
 **Frontend** ([saxo-dashboard.html](static/saxo-dashboard.html)):
 - Onglet "Market Opportunities" dédié
-- 4 sections: Portfolio Gaps (cards), Top Opportunities (table), Suggested Sales, Impact Simulator
+- 4 sections: Portfolio Gaps (cards), Top Opportunities (table 20 lignes), Suggested Sales, Impact Simulator
 - Horizons: short (1-3M), medium (6-12M), long (2-3Y)
+- **NEW:** Affiche ETFs + actions individuelles (ex: "XLF, JPM, BAC, WFC" pour Financials)
 
 **Scoring System:**
 ```python
@@ -461,20 +464,23 @@ opportunity_score = (
 ```javascript
 // User: Clic "Scan Opportunities" (horizon: medium 6-12M)
 // → Détecte gaps sectoriels (ex: Utilities 0% → cible 5%)
-// → Suggère XLU (Utilities ETF), score 56
+// → Suggère 4 options: XLU (ETF), NEE, DUK, SO (actions), score 55.5
 // → Suggère vente NVDA 30% pour financer (€2,863 freed)
 // → Simule impact: Tech 35%→26%, Risk 7.2→6.4
+// → Total: 20 opportunités (5 gaps × 4 choix) au lieu de 5 ETFs
 ```
 
 **Métriques finales:**
-- Unknown: **1.1%** (était 42%) - 97% amélioration
+- Unknown: **0%** (était 42%) - 100% amélioration ✅
 - Suggested sales: **26 positions** (était 0)
 - Capital freed: **€29,872** (62% du besoin de €47,946)
 - Scan time: **16s** (avec enrichissement Yahoo Finance)
+- **Opportunities: 20 (5 ETFs + 15 stocks)** (était 5 ETFs) - +300% ✨
 
 **Détails complets:**
 - [`docs/MARKET_OPPORTUNITIES_SYSTEM.md`](docs/MARKET_OPPORTUNITIES_SYSTEM.md) - Documentation système complète
 - [`docs/MARKET_OPPORTUNITIES_FINAL_RESULTS.md`](docs/MARKET_OPPORTUNITIES_FINAL_RESULTS.md) - Résultats finaux (7 bugs corrigés)
+- [`docs/MARKET_OPPORTUNITIES_SESSION_3_STOCKS.md`](docs/MARKET_OPPORTUNITIES_SESSION_3_STOCKS.md) - Session 3 (actions individuelles)
 
 ### Governance - Freeze Semantics (Oct 2025)
 **3 types de freeze avec opérations granulaires** ([governance.py](services/execution/governance.py)):

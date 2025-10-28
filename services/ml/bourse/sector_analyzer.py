@@ -22,6 +22,89 @@ from services.ml.bourse.technical_indicators import TechnicalIndicators
 logger = logging.getLogger(__name__)
 
 
+# Static mapping of top blue-chip stocks per sector (S&P 500)
+# Format: {ETF_ticker: [(symbol, company_name, rationale), ...]}
+SECTOR_TOP_STOCKS = {
+    # Technology
+    "XLK": [
+        ("AAPL", "Apple Inc.", "Leading tech hardware & services company"),
+        ("MSFT", "Microsoft Corp.", "Cloud computing & software leader"),
+        ("NVDA", "NVIDIA Corp.", "AI & GPU semiconductor leader"),
+        ("AVGO", "Broadcom Inc.", "Diversified semiconductor & infrastructure")
+    ],
+    # Healthcare
+    "XLV": [
+        ("UNH", "UnitedHealth Group", "Healthcare insurance & services leader"),
+        ("JNJ", "Johnson & Johnson", "Diversified healthcare & pharmaceuticals"),
+        ("LLY", "Eli Lilly", "Pharmaceutical innovation leader"),
+        ("ABBV", "AbbVie Inc.", "Biopharmaceutical research & development")
+    ],
+    # Financials
+    "XLF": [
+        ("JPM", "JPMorgan Chase", "Leading global investment bank"),
+        ("BAC", "Bank of America", "Diversified financial services"),
+        ("WFC", "Wells Fargo", "Consumer & commercial banking"),
+        ("GS", "Goldman Sachs", "Investment banking & asset management")
+    ],
+    # Consumer Discretionary
+    "XLY": [
+        ("AMZN", "Amazon.com", "E-commerce & cloud services leader"),
+        ("TSLA", "Tesla Inc.", "Electric vehicles & clean energy"),
+        ("HD", "Home Depot", "Home improvement retail leader"),
+        ("MCD", "McDonald's", "Global quick-service restaurant chain")
+    ],
+    # Communication Services
+    "XLC": [
+        ("META", "Meta Platforms", "Social media & metaverse leader"),
+        ("GOOGL", "Alphabet Inc.", "Search, advertising & cloud services"),
+        ("NFLX", "Netflix Inc.", "Streaming entertainment leader"),
+        ("DIS", "Walt Disney", "Entertainment & media conglomerate")
+    ],
+    # Industrials
+    "XLI": [
+        ("HON", "Honeywell", "Diversified industrial & aerospace"),
+        ("UNP", "Union Pacific", "Leading railroad transportation"),
+        ("CAT", "Caterpillar", "Construction & mining equipment"),
+        ("BA", "Boeing", "Aerospace & defense manufacturer")
+    ],
+    # Consumer Staples
+    "XLP": [
+        ("PG", "Procter & Gamble", "Consumer goods & household products"),
+        ("KO", "Coca-Cola", "Global beverage leader"),
+        ("PEP", "PepsiCo", "Food & beverage conglomerate"),
+        ("WMT", "Walmart", "Retail & e-commerce leader")
+    ],
+    # Energy
+    "XLE": [
+        ("XOM", "Exxon Mobil", "Integrated oil & gas major"),
+        ("CVX", "Chevron", "Global energy & chemicals"),
+        ("COP", "ConocoPhillips", "Exploration & production leader"),
+        ("SLB", "Schlumberger", "Oilfield services & technology")
+    ],
+    # Utilities
+    "XLU": [
+        ("NEE", "NextEra Energy", "Renewable energy & utilities leader"),
+        ("DUK", "Duke Energy", "Electric utilities & infrastructure"),
+        ("SO", "Southern Company", "Electric & gas utility services"),
+        ("D", "Dominion Energy", "Diversified energy infrastructure")
+    ],
+    # Real Estate
+    "XLRE": [
+        ("AMT", "American Tower", "Cell tower & infrastructure REITs"),
+        ("PLD", "Prologis", "Logistics real estate leader"),
+        ("CCI", "Crown Castle", "Wireless infrastructure provider"),
+        ("EQIX", "Equinix", "Data center REITs leader")
+    ],
+    # Materials
+    "XLB": [
+        ("LIN", "Linde plc", "Industrial gases & engineering"),
+        ("APD", "Air Products", "Industrial gases & chemicals"),
+        ("SHW", "Sherwin-Williams", "Paint & coatings leader"),
+        ("ECL", "Ecolab", "Water treatment & hygiene services")
+    ]
+}
+
+
 class SectorAnalyzer:
     """
     Analyzes sector performance and identifies best opportunities.
@@ -319,22 +402,50 @@ class SectorAnalyzer:
         top_n: int = 3
     ) -> List[Dict[str, Any]]:
         """
-        Get top N stocks in a sector.
+        Get top N stocks in a sector plus the sector ETF.
 
-        Note: This is a simplified version. In production, would fetch ETF holdings
-        and rank by weight/momentum. For MVP, return sector ETF itself.
+        Returns ETF + top blue-chip stocks from SECTOR_TOP_STOCKS mapping.
 
         Args:
-            sector_etf: Sector ETF ticker
-            top_n: Number of top stocks to return
+            sector_etf: Sector ETF ticker (e.g., "XLK", "XLF")
+            top_n: Number of individual stocks to return (default 3)
 
         Returns:
-            List of stock recommendations
+            List of recommendations: [ETF, Stock1, Stock2, Stock3]
         """
         try:
-            # For MVP, return the sector ETF as the primary recommendation
-            # In future: parse ETF holdings from yfinance or external API
+            recommendations = []
 
+            # 1. Always include the sector ETF first (diversified exposure)
+            recommendations.append({
+                "symbol": sector_etf,
+                "type": "ETF",
+                "name": f"Sector ETF {sector_etf}",
+                "weight": 100.0,  # Will be normalized later
+                "rationale": f"Diversified exposure to sector via {sector_etf} ETF"
+            })
+
+            # 2. Add top N individual stocks from static mapping
+            if sector_etf in SECTOR_TOP_STOCKS:
+                stocks = SECTOR_TOP_STOCKS[sector_etf][:top_n]  # Limit to top_n
+                for symbol, name, rationale in stocks:
+                    recommendations.append({
+                        "symbol": symbol,
+                        "type": "Stock",
+                        "name": name,
+                        "weight": 80.0,  # Individual stocks slightly lower weight
+                        "rationale": rationale
+                    })
+
+                logger.info(f"✅ Found {len(stocks)} stocks for {sector_etf}")
+            else:
+                logger.warning(f"⚠️ No stocks mapped for {sector_etf}, returning ETF only")
+
+            return recommendations
+
+        except Exception as e:
+            logger.error(f"Error getting top stocks for {sector_etf}: {e}", exc_info=True)
+            # Fallback: return ETF only
             return [{
                 "symbol": sector_etf,
                 "type": "ETF",
@@ -342,7 +453,3 @@ class SectorAnalyzer:
                 "weight": 100.0,
                 "rationale": f"Diversified exposure to sector via {sector_etf} ETF"
             }]
-
-        except Exception as e:
-            logger.error(f"Error getting top stocks for {sector_etf}: {e}", exc_info=True)
-            return []

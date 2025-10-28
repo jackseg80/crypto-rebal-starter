@@ -792,8 +792,8 @@ async def get_market_opportunities(
             etf = gap.get("etf")
             gap_pct = gap.get("gap_pct", 0)
 
-            # Get top stocks in sector
-            top_stocks = await sector_analyzer.get_top_stocks_in_sector(etf, top_n=1)
+            # Get top stocks in sector (ETF + top 3 individual stocks)
+            top_stocks = await sector_analyzer.get_top_stocks_in_sector(etf, top_n=3)
 
             # Calculate capital needed based on gap and portfolio size
             # Note: Saxo positions use "market_value" field (already in USD)
@@ -821,8 +821,8 @@ async def get_market_opportunities(
         # Sort opportunities by score (descending)
         opportunities.sort(key=lambda x: x.get("score", 0), reverse=True)
 
-        # Limit to top 10
-        opportunities = opportunities[:10]
+        # Limit to top 20 (to show all ETF + stock recommendations)
+        opportunities = opportunities[:20]
 
         # 4. Detect sales to fund opportunities
         from services.ml.bourse.portfolio_gap_detector import PortfolioGapDetector
