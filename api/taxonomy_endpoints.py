@@ -4,6 +4,7 @@ import os
 import json
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Body, HTTPException, Query
+from api.utils import success_response, error_response
 try:
     import taxonomy  # DEFAULT_GROUPS, GROUP_ALIASES (mapping par défaut .py)
 except Exception:
@@ -116,7 +117,7 @@ def upsert_aliases(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     # persist sur disque (JSON)
     _save_disk_aliases({k: cur[k] for k in sorted(cur)})
 
-    return {"ok": True, "written": len(written), "aliases": written}
+    return success_response({"written": len(written), "aliases": written})
 
 @router.delete("/aliases/{alias}")
 def delete_alias(alias: str) -> Dict[str, Any]:
@@ -133,7 +134,7 @@ def delete_alias(alias: str) -> Dict[str, Any]:
 
     cur.pop(alias, None)
     _save_disk_aliases({k: cur[k] for k in sorted(cur)})
-    return {"ok": True, "deleted": alias}
+    return success_response({"deleted": alias})
 
 # alias bulk explicite (compat)
 @router.post("/aliases/bulk")
@@ -204,28 +205,37 @@ def auto_classify_unknowns(payload: Dict[str, Any] = Body(default={})) -> Dict[s
         source = "last_plan_cache"
         
         if not unknown_aliases:
-            return {"ok": False, "message": "Aucun unknown alias trouvé. Générez d'abord un plan de rebalancement ou utilisez le paramètre sample_symbols pour tester", "classified": 0}
-    
+            return error_response(
+                "Aucun unknown alias trouvé. Générez d'abord un plan de rebalancement ou utilisez le paramètre sample_symbols pour tester",
+                code=404,
+                details={"classified": 0}
+            )
+
     if not unknown_aliases:
-        return {"ok": True, "message": "Aucun alias inconnu à classifier", "classified": 0}
-    
+        return success_response({
+            "message": "Aucun alias inconnu à classifier",
+            "classified": 0
+        })
+
     # Générer suggestions
     suggestions = get_classification_suggestions(unknown_aliases)
-    
+
     if not suggestions:
-        return {"ok": True, "message": f"Aucune suggestion automatique trouvée pour les {len(unknown_aliases)} aliases: {', '.join(unknown_aliases[:5])}", "classified": 0}
-    
+        return success_response({
+            "message": f"Aucune suggestion automatique trouvée pour les {len(unknown_aliases)} aliases: {', '.join(unknown_aliases[:5])}",
+            "classified": 0
+        })
+
     # Appliquer les suggestions via l'endpoint existant
     result = upsert_aliases({"aliases": suggestions})
-    
-    return {
-        "ok": True, 
+
+    return success_response({
         "message": f"{len(suggestions)} aliases classifiés automatiquement",
         "classified": len(suggestions),
         "suggestions_applied": suggestions,
         "source": source,
         "upsert_result": result
-    }
+    })
 
 # Nouveaux endpoints pour l'enrichissement CoinGecko
 
@@ -296,22 +306,31 @@ async def auto_classify_enhanced(payload: Dict[str, Any] = Body({})):
         source = "last_plan_cache"
         
         if not unknown_aliases:
-            return {"ok": False, "message": "Aucun unknown alias trouvé. Générez d'abord un plan de rebalancement ou utilisez le paramètre sample_symbols pour tester", "classified": 0}
-    
+            return error_response(
+                "Aucun unknown alias trouvé. Générez d'abord un plan de rebalancement ou utilisez le paramètre sample_symbols pour tester",
+                code=404,
+                details={"classified": 0}
+            )
+
     if not unknown_aliases:
-        return {"ok": True, "message": "Aucun alias inconnu à classifier", "classified": 0}
-    
+        return success_response({
+            "message": "Aucun alias inconnu à classifier",
+            "classified": 0
+        })
+
     # Générer suggestions avec CoinGecko
     suggestions = await get_classification_suggestions_enhanced(unknown_aliases, use_coingecko=True)
-    
+
     if not suggestions:
-        return {"ok": True, "message": f"Aucune suggestion automatique trouvée pour les {len(unknown_aliases)} aliases: {', '.join(unknown_aliases[:5])}", "classified": 0}
-    
+        return success_response({
+            "message": f"Aucune suggestion automatique trouvée pour les {len(unknown_aliases)} aliases: {', '.join(unknown_aliases[:5])}",
+            "classified": 0
+        })
+
     # Appliquer les suggestions via l'endpoint existant
     result = upsert_aliases({"aliases": suggestions})
-    
-    return {
-        "ok": True, 
+
+    return success_response({
         "message": f"{len(suggestions)} aliases classifiés automatiquement (avec CoinGecko)",
         "classified": len(suggestions),
         "suggestions_applied": suggestions,
@@ -319,7 +338,7 @@ async def auto_classify_enhanced(payload: Dict[str, Any] = Body({})):
         "enhanced": True,
         "coingecko_enabled": True,
         "upsert_result": result
-    }
+    })
 
 @router.get("/coingecko-stats")
 async def coingecko_stats():
@@ -329,9 +348,9 @@ async def coingecko_stats():
     try:
         from services.coingecko import coingecko_service
         stats = await coingecko_service.get_enrichment_stats()
-        return {"ok": True, "stats": stats}
+        return success_response({"stats": stats})
     except Exception as e:
-        return {"ok": False, "error": str(e)}
+        return error_response(str(e), code=500)
 
 @router.post("/enrich-from-coingecko")
 async def enrich_from_coingecko(payload: Dict[str, Any] = Body({})):
@@ -340,32 +359,31 @@ async def enrich_from_coingecko(payload: Dict[str, Any] = Body({})):
     """
     sample_symbols = payload.get("sample_symbols", "")
     if not sample_symbols:
-        return {"ok": False, "message": "Le paramètre sample_symbols est requis"}
-    
+        return error_response("Le paramètre sample_symbols est requis", code=400)
+
     symbols_list = [s.strip().upper() for s in sample_symbols.split(",") if s.strip()]
-    
+
     if not symbols_list:
-        return {"ok": False, "message": "Aucun symbole fourni"}
-    
+        return error_response("Aucun symbole fourni", code=400)
+
     try:
         from services.coingecko import coingecko_service
         results = await coingecko_service.classify_symbols_batch(symbols_list)
-        
+
         # Filtrer les résultats non-null
         classifications = {k: v for k, v in results.items() if v is not None}
-        
-        return {
-            "ok": True,
+
+        return success_response({
             "message": f"{len(classifications)} symboles classifiés via CoinGecko sur {len(symbols_list)} demandés",
             "total_requested": len(symbols_list),
             "coingecko_classified": len(classifications),
             "coverage": len(classifications) / len(symbols_list) if symbols_list else 0.0,
             "classifications": classifications,
             "unclassified": [k for k, v in results.items() if v is None]
-        }
-        
+        })
+
     except Exception as e:
-        return {"ok": False, "error": str(e), "message": "Erreur lors de l'enrichissement CoinGecko"}
+        return error_response(f"Erreur lors de l'enrichissement CoinGecko: {str(e)}", code=500)
 
 @router.get("/test-coingecko-api")
 async def test_coingecko_api(api_key: str = None):
@@ -374,7 +392,7 @@ async def test_coingecko_api(api_key: str = None):
     Usage: GET /taxonomy/test-coingecko-api?api_key=YOUR_KEY
     """
     if not api_key:
-        return {"ok": False, "error": "API key required as query parameter"}
+        return error_response("API key required as query parameter", code=400)
 
     import aiohttp
     import asyncio
@@ -392,38 +410,40 @@ async def test_coingecko_api(api_key: str = None):
             async with session.get(url, headers=headers, params=params, timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return {
-                        "ok": True,
+                    return success_response({
                         "status": response.status,
                         "response": data,
                         "message": "API CoinGecko accessible avec cette clé"
-                    }
+                    })
                 elif response.status == 401:
-                    return {
-                        "ok": False,
-                        "status": response.status,
-                        "error": "Unauthorized - clé API invalide",
-                        "message": "La clé API CoinGecko est invalide ou expirée"
-                    }
+                    return error_response(
+                        "Unauthorized - clé API invalide",
+                        code=401,
+                        details={
+                            "status": response.status,
+                            "message": "La clé API CoinGecko est invalide ou expirée"
+                        }
+                    )
                 elif response.status == 429:
-                    return {
-                        "ok": False,
-                        "status": response.status,
-                        "error": "Rate limited",
-                        "message": "Limite de taux API atteinte - essayez plus tard"
-                    }
+                    return error_response(
+                        "Rate limited",
+                        code=429,
+                        details={
+                            "status": response.status,
+                            "message": "Limite de taux API atteinte - essayez plus tard"
+                        }
+                    )
                 else:
                     error_text = await response.text()
-                    return {
-                        "ok": False,
-                        "status": response.status,
-                        "error": error_text,
-                        "message": f"Erreur API CoinGecko: {response.status}"
-                    }
+                    return error_response(
+                        error_text,
+                        code=response.status,
+                        details={"message": f"Erreur API CoinGecko: {response.status}"}
+                    )
 
     except Exception as e:
-        return {
-            "ok": False,
-            "error": str(e),
-            "message": "Erreur de connexion à l'API CoinGecko"
-        }
+        return error_response(
+            str(e),
+            code=500,
+            details={"message": "Erreur de connexion à l'API CoinGecko"}
+        )

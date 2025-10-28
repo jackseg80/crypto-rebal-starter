@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 _MODULE = "banks"
 
 
-def _get_storage_path(user_id: str = "demo") -> Path:
+def _get_storage_path(user_id: str) -> Path:
     """Return user-specific storage path for banks snapshot."""
     return Path(f"data/users/{user_id}/banks/snapshot.json")
 
 
-def _ensure_storage(user_id: str = "demo") -> None:
+def _ensure_storage(user_id: str) -> None:
     """Ensure storage directory and file exist for user."""
     path = _get_storage_path(user_id)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -28,7 +28,7 @@ def _ensure_storage(user_id: str = "demo") -> None:
         path.write_text(json.dumps({"accounts": []}), encoding="utf-8")
 
 
-def _load_snapshot(user_id: str = "demo") -> dict:
+def _load_snapshot(user_id: str) -> dict:
     """Load banks snapshot for specific user."""
     _ensure_storage(user_id)
     path = _get_storage_path(user_id)
@@ -43,7 +43,7 @@ def _load_snapshot(user_id: str = "demo") -> dict:
     return {"accounts": []}
 
 
-def _save_snapshot(data: dict, user_id: str = "demo") -> None:
+def _save_snapshot(data: dict, user_id: str) -> None:
     """Save banks snapshot for specific user (atomic write)."""
     _ensure_storage(user_id)
     path = _get_storage_path(user_id)
@@ -72,7 +72,7 @@ def _total_usd(accounts: List[dict]) -> float:
     return total
 
 
-async def list_accounts(user_id: str = "demo") -> List[AccountModel]:
+async def list_accounts(user_id: str) -> List[AccountModel]:
     """List bank accounts for user (Wealth namespace format)."""
     snapshot = _load_snapshot(user_id)
     accounts: List[AccountModel] = []
@@ -96,7 +96,7 @@ async def list_accounts(user_id: str = "demo") -> List[AccountModel]:
     return accounts
 
 
-async def list_instruments(user_id: str = "demo") -> List[InstrumentModel]:
+async def list_instruments(user_id: str) -> List[InstrumentModel]:
     """List unique currencies as instruments for user."""
     snapshot = _load_snapshot(user_id)
     instruments: dict = {}
@@ -119,7 +119,7 @@ async def list_instruments(user_id: str = "demo") -> List[InstrumentModel]:
     return instrument_list
 
 
-async def list_positions(user_id: str = "demo") -> List[PositionModel]:
+async def list_positions(user_id: str) -> List[PositionModel]:
     """List bank positions aggregated by currency for user."""
     snapshot = _load_snapshot(user_id)
     accounts = snapshot.get("accounts", [])
@@ -166,13 +166,13 @@ async def list_positions(user_id: str = "demo") -> List[PositionModel]:
     return positions
 
 
-async def list_transactions(start: Optional[str] = None, end: Optional[str] = None, user_id: str = "demo") -> List[TransactionModel]:
+async def list_transactions(start: Optional[str] = None, end: Optional[str] = None, user_id: str = None) -> List[TransactionModel]:
     """List bank transactions for user (not implemented yet)."""
     logger.info("[wealth][banks] transactions not mapped yet for user=%s, returning empty list", user_id)
     return []
 
 
-async def get_prices(instrument_ids: Iterable[str], granularity: str = "daily", user_id: str = "demo") -> List[PricePoint]:
+async def get_prices(instrument_ids: Iterable[str], granularity: str = "daily", user_id: str = None) -> List[PricePoint]:
     """Get current FX prices for CASH instruments."""
     price_points: List[PricePoint] = []
     timestamp = datetime.utcnow()
@@ -192,13 +192,13 @@ async def get_prices(instrument_ids: Iterable[str], granularity: str = "daily", 
     return price_points
 
 
-async def preview_rebalance(user_id: str = "demo") -> List[ProposedTrade]:
+async def preview_rebalance(user_id: str) -> List[ProposedTrade]:
     """Preview rebalance for bank accounts (not applicable)."""
     logger.info("[wealth][banks] rebalance preview not implemented for user=%s, returning empty list", user_id)
     return []
 
 
-async def has_data(user_id: str = "demo") -> bool:
+async def has_data(user_id: str) -> bool:
     """Check if user has any bank data."""
     snapshot = _load_snapshot(user_id)
     has_accounts = any(float(account.get("balance") or 0.0) > 0 for account in snapshot.get("accounts", []))
@@ -206,11 +206,11 @@ async def has_data(user_id: str = "demo") -> bool:
     return has_accounts
 
 
-def save_snapshot(data: dict, user_id: str = "demo") -> None:
+def save_snapshot(data: dict, user_id: str) -> None:
     """Public API for saving banks snapshot (wrapper for _save_snapshot)."""
     _save_snapshot(data, user_id)
 
 
-def load_snapshot(user_id: str = "demo") -> dict:
+def load_snapshot(user_id: str) -> dict:
     """Public API for loading banks snapshot (wrapper for _load_snapshot)."""
     return _load_snapshot(user_id)

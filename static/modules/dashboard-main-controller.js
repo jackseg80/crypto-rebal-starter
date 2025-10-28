@@ -2043,20 +2043,20 @@ window.debugPortfolioData = async function () {
     const currentSource = globalConfig.get('data_source');
     debugLogger.debug('Current configured source:', currentSource);
 
-    debugLogger.debug('Testing direct API calls...');
+    debugLogger.debug('Testing data sources via loadBalanceData()...');
+
+    const originalSource = globalConfig.get('data_source');
 
     // Test stub source
     try {
-        const activeUser = localStorage.getItem('activeUser') || 'demo';
-        const stubResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=stub&_t=${Date.now()}`, {
-            headers: { 'X-User': activeUser }
-        });
-        const stubData = await stubResponse.json();
-        const stubTotal = stubData.items?.reduce((sum, item) => sum + (item.value_usd || 0), 0) || 0;
-        debugLogger.debug('✅ Stub source API response:', {
-            success: stubResponse.ok,
-            itemCount: stubData.items?.length,
-            totalValue: stubTotal
+        globalConfig.set('data_source', 'stub');
+        const stubResult = await window.loadBalanceData(true);
+        const stubTotal = stubResult.data?.items?.reduce((sum, item) => sum + (item.value_usd || 0), 0) || 0;
+        debugLogger.debug('✅ Stub source response:', {
+            success: stubResult.success,
+            itemCount: stubResult.data?.items?.length,
+            totalValue: stubTotal,
+            source: stubResult.source
         });
     } catch (e) {
         debugLogger.error('❌ Stub source failed:', e);
@@ -2064,20 +2064,21 @@ window.debugPortfolioData = async function () {
 
     // Test cointracking source
     try {
-        const activeUser = localStorage.getItem('activeUser') || 'demo';
-        const csvResponse = await fetch(`${globalConfig.get('api_base_url')}/balances/current?source=cointracking&_t=${Date.now()}`, {
-            headers: { 'X-User': activeUser }
-        });
-        const csvData = await csvResponse.json();
-        const csvTotal = csvData.items?.reduce((sum, item) => sum + (item.value_usd || 0), 0) || 0;
-        debugLogger.debug('✅ CoinTracking source API response:', {
-            success: csvResponse.ok,
-            itemCount: csvData.items?.length,
-            totalValue: csvTotal
+        globalConfig.set('data_source', 'cointracking');
+        const csvResult = await window.loadBalanceData(true);
+        const csvTotal = csvResult.data?.items?.reduce((sum, item) => sum + (item.value_usd || 0), 0) || 0;
+        debugLogger.debug('✅ CoinTracking source response:', {
+            success: csvResult.success,
+            itemCount: csvResult.data?.items?.length,
+            totalValue: csvTotal,
+            source: csvResult.source
         });
     } catch (e) {
         debugLogger.error('❌ CoinTracking source failed:', e);
     }
+
+    // Restore original source
+    globalConfig.set('data_source', originalSource);
 
     // Test current configured source
     debugLogger.debug(`Testing current configured source: ${currentSource}`);

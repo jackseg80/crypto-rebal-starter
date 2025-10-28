@@ -1153,11 +1153,11 @@ async function testApiKeys() {
   // Test CoinTracking API
   if (globalSettings.cointracking_api_key && globalSettings.cointracking_api_secret) {
     try {
-      const response = await fetch(`${globalSettings.api_base_url}/balances/current?source=cointracking_api&limit=1`, {
-        headers: { 'X-User': getActiveUser() }
-      });
-      const data = await response.json();
-      results.push(`📊 CoinTracking API: ${response.ok && data.items ? '✅ OK' : '❌ Erreur'}`);
+      const originalSource = globalConfig.get('data_source');
+      globalConfig.set('data_source', 'cointracking_api');
+      const result = await window.loadBalanceData(true);
+      globalConfig.set('data_source', originalSource);
+      results.push(`📊 CoinTracking API: ${result.success && result.data?.items ? '✅ OK' : '❌ Erreur'}`);
     } catch (e) {
       results.push(`📊 CoinTracking API: ❌ ${e.message}`);
     }
@@ -1212,8 +1212,9 @@ async function runFullSystemTest() {
 
   // Test portfolio analytics
   try {
-    const metricsResponse = await fetch(`${globalSettings.api_base_url}/portfolio/metrics?source=${globalSettings.data_source}`, { headers: { 'X-User': getActiveUser() } });
-    const metricsData = await metricsResponse.json();
+    const metricsData = await globalConfig.apiRequest('/portfolio/metrics', {
+      params: { source: globalSettings.data_source }
+    });
     // Accept ok:true even with zero balances (endpoint is working)
     results.push(`📈 Analytics: ${metricsData.ok ? '✅ OK' : '❌ Erreur'}`);
     if (!metricsData.ok && metricsData.error) {
@@ -1225,9 +1226,8 @@ async function runFullSystemTest() {
 
   // Test taxonomie
   try {
-    const taxResponse = await fetch(`${globalSettings.api_base_url}/taxonomy/suggestions`, { headers: { 'X-User': getActiveUser() } });
-    const taxData = await taxResponse.json();
-    results.push(`🏷️ Taxonomie: ${taxResponse.ok ? '✅ OK' : '❌ Erreur'}`);
+    const taxData = await globalConfig.apiRequest('/taxonomy/suggestions');
+    results.push(`🏷️ Taxonomie: ${taxData ? '✅ OK' : '❌ Erreur'}`);
   } catch (e) {
     results.push(`🏷️ Taxonomie: ❌ ${e.message}`);
   }
@@ -1596,23 +1596,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadSaxoIntegrationStatus() {
   try {
-    const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/api/saxo/portfolios`, {
-      timeout: 5000,
-      headers: { 'X-User': getActiveUser() }
-    });
-
-    if (!response.ok) {
-      if (response.status === 500) {
-        console.debug('Saxo API endpoint non disponible (500), utilisation fallback');
-      } else if (response.status === 404) {
-        console.debug('Saxo endpoint non trouvé (404), fonctionnalité non activée');
-      } else {
-        console.debug(`Erreur Saxo API: ${response.status} ${response.statusText}`);
-      }
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data = await response.json();
+    const data = await globalConfig.apiRequest('/api/saxo/portfolios');
     updateSaxoStatus(data);
 
   } catch (error) {

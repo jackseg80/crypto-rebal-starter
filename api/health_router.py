@@ -8,6 +8,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
+from api.utils import success_response, error_response
 
 # Import configuration
 from config import get_settings
@@ -28,7 +29,7 @@ async def health():
 @router.get("/healthz")
 async def healthz():
     """Kubernetes-style health probe"""
-    return {"ok": True}
+    return success_response({})
 
 
 @router.get("/favicon.ico")
@@ -56,11 +57,10 @@ async def test_simple():
 @router.get("/health/detailed")
 async def health_detailed():
     """Endpoint de santé détaillé avec métriques complètes"""
-    return {
-        "ok": True,
+    return success_response({
         "message": "Health detailed endpoint working!",
         "server_running": True
-    }
+    })
 
 
 @router.get("/api/scheduler/health")
@@ -77,12 +77,11 @@ async def scheduler_health():
         scheduler = get_scheduler()
 
         if scheduler is None:
-            return {
-                "ok": False,
-                "enabled": False,
-                "message": "Scheduler not running (RUN_SCHEDULER != 1)",
-                "jobs": {}
-            }
+            return error_response(
+                "Scheduler not running (RUN_SCHEDULER != 1)",
+                code=503,
+                details={"enabled": False, "jobs": {}}
+            )
 
         # Get job status
         job_status = get_job_status()
@@ -102,20 +101,16 @@ async def scheduler_health():
                 status["next_run"] = next_runs[job_id]["next_run"]
                 status["name"] = next_runs[job_id]["name"]
 
-        return {
-            "ok": True,
+        return success_response({
             "enabled": True,
             "jobs_count": len(jobs),
             "jobs": job_status,
             "next_runs": next_runs
-        }
+        })
 
     except Exception as e:
         logger.exception("Failed to get scheduler health")
-        return {
-            "ok": False,
-            "error": str(e)
-        }
+        return error_response(str(e), code=500)
 
 
 @router.get("/schema")

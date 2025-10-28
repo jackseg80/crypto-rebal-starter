@@ -703,16 +703,13 @@ class InteractiveDashboard {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-                const response = await fetch(`${apiBaseUrl}/portfolio/metrics`, {
+                const performanceData = await window.globalConfig.apiRequest('/portfolio/metrics', {
                     signal: controller.signal
                 });
                 clearTimeout(timeoutId);
 
-                if (response.ok) {
-                    const performanceData = await response.json();
-                    (window.debugLogger?.info || console.log)('✅ Real performance data loaded:', performanceData);
-                    return performanceData;
-                }
+                (window.debugLogger?.info || console.log)('✅ Real performance data loaded:', performanceData);
+                return performanceData;
             } catch (apiError) {
                 if (apiError.name === 'AbortError') {
                     (window.debugLogger?.debug || console.log)('⏰ Performance API timeout, calculating from portfolio');

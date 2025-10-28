@@ -30,8 +30,8 @@ async def pricing_diagnostic(
       - effective_price (selon la logique 'auto' actuelle assimilée à 'hybrid')
       - price_source (local|market)
     """
-    # Import des helpers depuis main.py
-    from api.main import _get_data_age_minutes
+    # Import des helpers depuis price_enricher (évite dépendance circulaire)
+    from api.services.price_enricher import get_data_age_minutes
 
     try:
         # Récupérer holdings unifiés avec filtrage homogène
@@ -76,7 +76,7 @@ async def pricing_diagnostic(
 
         # Décision effective (même logique que 'auto' => hybride)
         max_age_min = float(os.getenv("PRICE_HYBRID_MAX_AGE_MIN", "30"))
-        data_age_min = _get_data_age_minutes(source_used)
+        data_age_min = get_data_age_minutes(source_used)
         needs_market_correction = data_age_min > max_age_min
 
         results = []
