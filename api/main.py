@@ -238,14 +238,14 @@ async def generic_exception_handler(request: Request, exc: Exception):
     )
 
 # CORS sécurisé avec configuration dynamique
+# Note: file:// et null retirés pour sécurité (risque CSRF)
+# Pour fichiers HTML locaux, utiliser un serveur HTTP local (ex: python -m http.server)
 default_origins = [
     "http://localhost:3000",
     "http://localhost:8000",
     "http://localhost:8080",
     "http://127.0.0.1:8000",
     "http://127.0.0.1:8080",
-    "file://",  # Pour les fichiers HTML statiques (certains navigateurs envoient Origin: null)
-    "null",
 ]
 app.add_middleware(
     CORSMiddleware,

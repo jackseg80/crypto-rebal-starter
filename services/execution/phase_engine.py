@@ -147,10 +147,11 @@ class PhaseEngine:
         """
         try:
             signals = PhaseSignals(as_of=datetime.now())
-            
-            # 1. Dominance BTC depuis CoinGecko global data
-            try:
-                async with httpx.AsyncClient() as client:
+
+            # Réutiliser une seule session AsyncClient pour tous les appels (évite 3 handshakes SSL)
+            async with httpx.AsyncClient() as client:
+                # 1. Dominance BTC depuis CoinGecko global data
+                try:
                     resp = await client.get(
                         "https://api.coingecko.com/api/v3/global",
                         timeout=5.0
@@ -160,45 +161,43 @@ class PhaseEngine:
                         btc_dominance = data.get("data", {}).get("market_cap_percentage", {}).get("btc", 0)
                         signals.btc_dominance = float(btc_dominance)
                         logger.debug(f"BTC dominance fetched: {btc_dominance:.1f}%")
-            except Exception as e:
-                logger.warning(f"Failed to fetch BTC dominance: {e}, using fallback")
-                signals.btc_dominance = 45.0  # Fallback historique
-            
-            # 2. Force relative depuis notre API de prix
-            try:
-                async with httpx.AsyncClient() as client:
+                except Exception as e:
+                    logger.warning(f"Failed to fetch BTC dominance: {e}, using fallback")
+                    signals.btc_dominance = 45.0  # Fallback historique
+
+                # 2. Force relative depuis notre API de prix
+                try:
                     price_url = f"{self.api_base_url}/api/market/prices"
                     resp = await client.get(price_url, params={"days": 30}, timeout=8.0)
-                    
+
                     if resp.status_code == 200:
                         price_data = resp.json()
                         rs_signals = self._calculate_relative_strength(price_data)
-                        
+
                         signals.rs_eth_btc_7d = rs_signals.get('eth_btc_7d', 1.0)
-                        signals.rs_eth_btc_30d = rs_signals.get('eth_btc_30d', 1.0) 
+                        signals.rs_eth_btc_30d = rs_signals.get('eth_btc_30d', 1.0)
                         signals.rs_large_btc_7d = rs_signals.get('large_btc_7d', 1.0)
                         signals.rs_large_btc_30d = rs_signals.get('large_btc_30d', 1.0)
                         signals.rs_alt_btc_7d = rs_signals.get('alt_btc_7d', 1.0)
                         signals.rs_alt_btc_30d = rs_signals.get('alt_btc_30d', 1.0)
 
                         logger.debug(f"Relative strength calculated: ETH/BTC 7d={signals.rs_eth_btc_7d:.3f}")
-            except Exception as e:
-                logger.warning(f"Failed to fetch price data for RS calculation: {e}")
-            
-            # 3. Breadth et momentum depuis analytics endpoint
-            try:
-                async with httpx.AsyncClient() as client:
+                except Exception as e:
+                    logger.warning(f"Failed to fetch price data for RS calculation: {e}")
+
+                # 3. Breadth et momentum depuis analytics endpoint
+                try:
                     analytics_url = f"{self.api_base_url}/api/analytics/market-breadth"
                     resp = await client.get(analytics_url, timeout=5.0)
-                    
+
                     if resp.status_code == 200:
                         breadth_data = resp.json()
                         signals.breadth_advance_decline = breadth_data.get("advance_decline_ratio", 0.5)
                         signals.breadth_new_highs = breadth_data.get("new_highs_count", 0)
                         signals.volume_concentration = breadth_data.get("volume_concentration", 0.5)
                         signals.momentum_dispersion = breadth_data.get("momentum_dispersion", 0.5)
-            except Exception as e:
-                logger.debug(f"Market breadth endpoint not available: {e}, using defaults")
+                except Exception as e:
+                    logger.debug(f"Market breadth endpoint not available: {e}, using defaults")
             
             # Calculer dominance delta et quality score
             signals.btc_dominance_delta_7d = self._calculate_dominance_delta(signals.btc_dominance)
