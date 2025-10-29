@@ -47,7 +47,8 @@ class ConfigHotReloadTester:
             response = self.session.get(f"{self.base_url}/api/alerts/health")
             if response.status_code == 200:
                 return "health_ok"  # Proxy pour version
-        except:
+        except Exception as e:
+            print(f"Warning: Failed to get config version: {e}")
             pass
         return "unknown"
     

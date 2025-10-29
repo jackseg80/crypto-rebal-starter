@@ -52,7 +52,8 @@ def test_localStorage_communication():
             resp = requests.get(f"{BASE_URL}/static/{module}", timeout=5)
             if resp.status_code == 200:
                 modules_ok += 1
-        except:
+        except Exception as e:
+            print(f"   Warning: Failed to load module {module}: {e}")
             pass
     
     print(f"   CCS Modules: {'PASS' if modules_ok == len(modules) else 'FAIL'} ({modules_ok}/{len(modules)})")
@@ -100,7 +101,8 @@ def test_localStorage_communication():
         coord_resp = requests.get(f"{BASE_URL}/static/modules/targets-coordinator.js", timeout=5)
         coord_has_save = ("localStorage.setItem('last_targets'" in coord_resp.text and
                          "source: 'risk-dashboard-ccs'" in coord_resp.text)
-    except:
+    except Exception as e:
+        print(f"   Warning: Failed to check targets-coordinator: {e}")
         coord_has_save = False
     
     print(f"   localStorage polling: {'PASS' if rebalance_has_polling else 'FAIL'}")

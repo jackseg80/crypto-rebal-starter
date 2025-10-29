@@ -46,7 +46,8 @@ def test_all():
             resp = requests.get(f"{BASE_URL}/static/{module}", timeout=5)
             if resp.status_code == 200:
                 modules_ok += 1
-        except:
+        except Exception as e:
+            print(f"  Warning: Failed to load module {module}: {e}")
             pass
     
     if modules_ok == len(modules):

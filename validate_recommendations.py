@@ -257,7 +257,8 @@ class RecommendationsValidator:
                             if price > 0 and price < 100000:  # Reasonable price range
                                 price_value = price
                                 break
-                        except:
+                        except Exception as e:
+                            # Price parsing can fail for various reasons (empty cells, bad format, etc)
                             pass
 
                 if price_value:

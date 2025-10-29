@@ -89,7 +89,8 @@ def check_cache_freshness() -> dict[str, int]:
             last_update = price_history._last_update.get(symbol, 0)
             age_hours = (now.timestamp() - last_update) / 3600
             freshness[symbol] = int(age_hours)
-        except:
+        except Exception as e:
+            logger.debug(f"Failed to get freshness for {symbol}: {e}")
             freshness[symbol] = 999  # Très ancien
             
     return freshness

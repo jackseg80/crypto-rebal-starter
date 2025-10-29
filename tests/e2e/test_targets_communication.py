@@ -61,13 +61,13 @@ def test_targets_communication():
             try:
                 button = driver.find_element(By.CSS_SELECTOR, f"button[onclick*='applyStrategy(\\'#{mode}\\')']")
                 print(f"   ✅ {name} button found and clickable")
-            except:
+            except Exception as e:
                 # Try alternative selector
                 try:
                     button = driver.find_element(By.XPATH, f"//button[contains(text(), '{name.split()[0]}')]")
                     print(f"   ✅ {name} button found (alternative selector)")
-                except:
-                    print(f"   ❌ {name} button not found")
+                except Exception as e2:
+                    print(f"   ❌ {name} button not found: {e2}")
         
         # 4. Open rebalance.html in new tab
         print("4. Opening rebalance.html in new tab...")

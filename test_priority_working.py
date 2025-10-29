@@ -87,7 +87,8 @@ def check_server_running():
     try:
         response = requests.get("http://localhost:8000/docs", timeout=5)
         return response.status_code == 200
-    except:
+    except Exception as e:
+        print(f"Warning: Server check failed: {e}")
         return False
 
 def main():

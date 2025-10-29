@@ -79,7 +79,8 @@ def set_deterministic_seeds(seed=42, deterministic=False):
         import torch._dynamo
         torch._dynamo.config.suppress_errors = True
         torch._dynamo.config.disable = True
-    except:
+    except Exception as e:
+        logger.debug(f"TorchDynamo not available or failed to configure: {e}")
         pass
         
     if deterministic:
