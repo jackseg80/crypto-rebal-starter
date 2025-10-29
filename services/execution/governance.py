@@ -15,6 +15,14 @@ import logging
 import asyncio
 import httpx
 
+# Custom exceptions for better error handling
+from api.exceptions import (
+    ConfigurationException,
+    APIException,
+    GovernanceException,
+    DataException
+)
+
 # Logger setup
 logger = logging.getLogger(__name__)
 
@@ -274,8 +282,12 @@ class GovernanceEngine:
                 self.feedback_learning = FeedbackLearningEngine()
                 self.hybrid_orchestrator = HybridOrchestrator()
                 logger.info("Phase 3C Hybrid Intelligence components initialized")
+            except (AttributeError, TypeError, ValueError) as e:
+                logger.warning(f"Failed to initialize Phase 3C components: {e}")
+                self.hybrid_intelligence_enabled = False
             except Exception as e:
-                logger.error(f"Failed to initialize Phase 3C components: {e}")
+                # Unexpected error during init - log with full stacktrace and disable
+                logger.exception(f"Unexpected error initializing Phase 3C components: {e}")
                 self.hybrid_intelligence_enabled = False
         else:
             self.explainable_ai = None
@@ -396,7 +408,7 @@ class GovernanceEngine:
                 signals_response = await client.get(f"{self.api_base_url}/api/ml/status", timeout=5.0)
                 if signals_response.status_code == 200:
                     ml_status = signals_response.json()
-                    
+
                     # Fallback to simulated signals
                     self.current_state.signals = MLSignals(
                         as_of=datetime.now(),
@@ -409,13 +421,34 @@ class GovernanceEngine:
                         contradiction_index=self._compute_contradiction_index(ml_status),
                         sources_used=["volatility_fallback", "regime_fallback", "correlation_fallback", "sentiment_fallback"]
                     )
-                    
+
                     self._last_signals_fetch = datetime.now()
                     logger.debug("ML signals refreshed via fallback API")
-                    
-        except Exception as e:
-            logger.warning(f"Failed to refresh ML signals: {e}")
+
+        except httpx.HTTPError as e:
+            logger.warning(f"HTTP error refreshing ML signals: {e}")
             # Keep previous signals or create minimal default
+            if not self.current_state.signals:
+                self.current_state.signals = MLSignals(
+                    as_of=datetime.now(),
+                    decision_score=0.5,
+                    confidence=0.5,
+                    contradiction_index=0.3,
+                    sources_used=["fallback"]
+                )
+        except (ValueError, KeyError) as e:
+            logger.warning(f"Data parsing error in ML signals: {e}")
+            if not self.current_state.signals:
+                self.current_state.signals = MLSignals(
+                    as_of=datetime.now(),
+                    decision_score=0.5,
+                    confidence=0.5,
+                    contradiction_index=0.3,
+                    sources_used=["fallback"]
+                )
+        except Exception as e:
+            # Unexpected error - log with stacktrace for debugging
+            logger.exception(f"Unexpected error refreshing ML signals: {e}")
             if not self.current_state.signals:
                 self.current_state.signals = MLSignals(
                     as_of=datetime.now(),

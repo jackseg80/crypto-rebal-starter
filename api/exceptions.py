@@ -48,6 +48,36 @@ class DataException(CryptoRebalancerException):
         super().__init__(f"Data error from {source}: {message}", details)
 
 
+class StorageException(CryptoRebalancerException):
+    """Exception pour les erreurs de stockage (Redis, fichiers, etc.)"""
+    def __init__(self, storage_type: str, operation: str, message: str, details: Optional[Any] = None):
+        self.storage_type = storage_type
+        self.operation = operation
+        super().__init__(f"{storage_type} storage error during {operation}: {message}", details)
+
+
+class GovernanceException(CryptoRebalancerException):
+    """Exception pour les erreurs de gouvernance et decision engine"""
+    def __init__(self, rule: str, message: str, details: Optional[Any] = None):
+        self.rule = rule
+        super().__init__(f"Governance rule '{rule}' violation: {message}", details)
+
+
+class MonitoringException(CryptoRebalancerException):
+    """Exception pour les erreurs de monitoring et health checks"""
+    def __init__(self, component: str, message: str, details: Optional[Any] = None):
+        self.component = component
+        super().__init__(f"Monitoring error in {component}: {message}", details)
+
+
+class ExchangeException(CryptoRebalancerException):
+    """Exception pour les erreurs d'exchange adapters"""
+    def __init__(self, exchange: str, operation: str, message: str, details: Optional[Any] = None):
+        self.exchange = exchange
+        self.operation = operation
+        super().__init__(f"{exchange} error during {operation}: {message}", details)
+
+
 # Convertisseurs pour FastAPI
 def create_http_exception(exc: CryptoRebalancerException, status_code: int = 400) -> HTTPException:
     """Convertit une exception personnalisée en HTTPException"""
