@@ -738,9 +738,10 @@ class GovernanceEngine:
                     )
 
             return policy
-            
-        except Exception as e:
-            logger.error(f"Error deriving execution policy: {e}")
+
+        except (AttributeError, KeyError, TypeError, ValueError) as e:
+            # Known data structure/validation errors - apply graceful fallback
+            logger.warning(f"Data error deriving execution policy: {e}")
 
             health_state = getattr(self.current_state, "system_status", "unknown")
             normalized_health = "healthy" if health_state == "operational" else health_state
@@ -774,7 +775,12 @@ class GovernanceEngine:
                 )
                 return self._enforce_policy_bounds(Policy(**degraded_policy))
 
-            return self._enforce_policy_bounds(Policy(mode="Freeze", cap_daily=0.08, notes=f"Error fallback: {e}"))  # FIX Oct 2025: 8% safe fallback
+            return self._enforce_policy_bounds(Policy(mode="Freeze", cap_daily=0.08, notes=f"Error fallback: {e}"))
+
+        except Exception as e:
+            # Unexpected critical error in policy derivation - freeze with full logging
+            logger.exception(f"Unexpected critical error deriving execution policy: {e}")
+            return self._enforce_policy_bounds(Policy(mode="Freeze", cap_daily=0.08, notes=f"Critical error fallback: {e}"))
 
     def apply_alert_cap_reduction(self, reduction_percentage: float, alert_id: str, reason: str) -> bool:
         """
@@ -809,8 +815,11 @@ class GovernanceEngine:
                           f"(current: {self._alert_cap_reduction:.1%} is higher)")
                 return False
 
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Invalid alert cap reduction parameters: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Error applying alert cap reduction: {e}")
+            logger.exception(f"Unexpected error applying alert cap reduction: {e}")
             return False
 
     def clear_alert_cap_reduction(self, progressive: bool = True) -> bool:
@@ -836,8 +845,11 @@ class GovernanceEngine:
 
             return True
 
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Invalid parameters clearing alert cap reduction: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Error clearing alert cap reduction: {e}")
+            logger.exception(f"Unexpected error clearing alert cap reduction: {e}")
             return False
 
     def _update_hysteresis_state(self, signals: Any, signals_age: float) -> Tuple[str, str]:
@@ -920,9 +932,12 @@ class GovernanceEngine:
 
             return self._var_hysteresis_state, self._stale_hysteresis_state
 
-        except Exception as e:
-            logger.error(f"Error in hysteresis state update: {e}")
+        except (AttributeError, KeyError, TypeError) as e:
+            logger.debug(f"Data error in hysteresis state update: {e}")
             return "normal", "normal"  # Safe fallback
+        except Exception as e:
+            logger.exception(f"Unexpected error in hysteresis state update: {e}")
+            return "normal", "normal"
 
     def _extract_volatility_signals(self, ml_status: Dict[str, Any]) -> Dict[str, float]:
         """Extrait les signaux de volatilité depuis le ML status"""
@@ -939,17 +954,17 @@ class GovernanceEngine:
                     "SOL": 0.15 + (loaded_count * 0.010)
                 }
             return {}
-            
-        except Exception as e:
-            logger.warning(f"Error extracting volatility signals: {e}")
+
+        except (KeyError, TypeError, ValueError) as e:
+            logger.debug(f"Data parsing error extracting volatility signals: {e}")
             return {}
-    
+
     def _extract_regime_signals(self, ml_status: Dict[str, Any]) -> Dict[str, float]:
         """Extrait les signaux de régime depuis le ML status"""
         try:
             pipeline = ml_status.get("pipeline_status", {})
             regime_models = pipeline.get("regime_models", {})
-            
+
             if regime_models.get("model_loaded", False):
                 return {
                     "bull": 0.4,
@@ -957,45 +972,45 @@ class GovernanceEngine:
                     "bear": 0.25
                 }
             return {"neutral": 1.0}
-            
-        except Exception as e:
-            logger.warning(f"Error extracting regime signals: {e}")
+
+        except (KeyError, TypeError, ValueError) as e:
+            logger.debug(f"Data parsing error extracting regime signals: {e}")
             return {"neutral": 1.0}
-    
+
     def _extract_correlation_signals(self, ml_status: Dict[str, Any]) -> Dict[str, Any]:
         """Extrait les signaux de corrélation depuis le ML status"""
         try:
             pipeline = ml_status.get("pipeline_status", {})
             cache_stats = pipeline.get("cache_stats", {})
-            
+
             models_loaded = cache_stats.get("cached_models", 0)
             avg_correlation = min(0.8, 0.4 + (models_loaded * 0.05))
-            
+
             return {
                 "avg_correlation": avg_correlation,
                 "systemic_risk": "medium" if avg_correlation > 0.6 else "low"
             }
-            
-        except Exception as e:
-            logger.warning(f"Error extracting correlation signals: {e}")
+
+        except (KeyError, TypeError, ValueError) as e:
+            logger.debug(f"Data parsing error extracting correlation signals: {e}")
             return {"avg_correlation": 0.5, "systemic_risk": "unknown"}
-    
+
     def _extract_sentiment_signals(self, ml_status: Dict[str, Any]) -> Dict[str, float]:
         """Extrait les signaux de sentiment (Fear & Greed, etc.)"""
         try:
             # Simulation stable basée sur l'heure pour éviter le bruit
             import time
             hour_seed = int(time.time() / 3600) % 100
-            
+
             fear_greed = 45 + (hour_seed % 30)  # 45-75, stable par heure
-            
+
             return {
                 "fear_greed": fear_greed,
                 "sentiment_score": (fear_greed - 50) / 50  # [-1, 1]
             }
-            
-        except Exception as e:
-            logger.warning(f"Error extracting sentiment signals: {e}")
+
+        except (KeyError, TypeError, ValueError, ImportError) as e:
+            logger.debug(f"Error extracting sentiment signals: {e}")
             return {"fear_greed": 50, "sentiment_score": 0.0}
 
     async def get_current_ml_signals(self) -> Optional[MLSignals]:
@@ -1003,8 +1018,11 @@ class GovernanceEngine:
         try:
             state = await self.get_current_state()
             return state.signals if state else None
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"State error getting current ML signals: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Error getting current ML signals: {e}")
+            logger.exception(f"Unexpected error getting current ML signals: {e}")
             return None
 
     async def freeze_system(self, reason: str, duration_minutes: Optional[int] = None, freeze_type: str = None) -> bool:
@@ -1072,8 +1090,11 @@ class GovernanceEngine:
             logger.info(f"System frozen with {freeze_type}: allowed operations: {ops_summary}")
             return True
 
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.warning(f"Invalid parameters freezing system: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Error freezing system: {e}")
+            logger.exception(f"Unexpected error freezing system: {e}")
             return False
 
     async def unfreeze_system(self) -> bool:
@@ -1094,9 +1115,12 @@ class GovernanceEngine:
 
             logger.info(f"System successfully unfrozen from {previous_freeze_type}")
             return True
-            
+
+        except (AttributeError, TypeError) as e:
+            logger.warning(f"State error unfreezing system: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Error unfreezing system: {e}")
+            logger.exception(f"Unexpected error unfreezing system: {e}")
             return False
 
     def validate_operation(self, operation_type: str) -> Tuple[bool, str]:
