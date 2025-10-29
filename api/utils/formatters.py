@@ -4,9 +4,10 @@ Data formatting utilities and standard API response formatters.
 This module provides:
 1. CSV/currency/percentage formatters (existing)
 2. Standard API response formatters (new) - success_response(), error_response()
+3. JSON sanitization utilities - sanitize_for_json()
 
 Usage:
-    from api.utils.formatters import success_response, error_response
+    from api.utils.formatters import success_response, error_response, sanitize_for_json
 
     @app.get("/endpoint")
     async def endpoint():
@@ -19,6 +20,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import csv
 import io
+import math
 
 def to_csv(actions: List[Dict[str, Any]]) -> str:
     """Convert list of actions to CSV string"""
@@ -79,6 +81,53 @@ def format_action_summary(actions: List[Dict[str, Any]]) -> Dict[str, Any]:
         "total_value_formatted": format_currency(total_value),
         "summary": f"{len(actions)} actions totaling {format_currency(total_value)}"
     }
+
+
+# ============================================================================
+# JSON Sanitization Utilities
+# ============================================================================
+
+def sanitize_for_json(data: Any, replace_inf_with: Optional[float] = None) -> Any:
+    """
+    Recursively sanitize data to be JSON-compliant by replacing inf/nan values.
+
+    JSON does not support infinity or NaN values. This function recursively
+    traverses data structures and replaces problematic float values with
+    JSON-safe alternatives.
+
+    Args:
+        data: Data to sanitize (dict, list, float, or any JSON-serializable type)
+        replace_inf_with: Value to use instead of inf/-inf (default: None)
+
+    Returns:
+        Sanitized copy of data with inf/nan replaced
+
+    Examples:
+        >>> sanitize_for_json({"score": float('inf'), "value": 42})
+        {"score": None, "value": 42}
+
+        >>> sanitize_for_json([1.5, float('nan'), float('-inf')], replace_inf_with=0)
+        [1.5, None, 0]
+
+        >>> sanitize_for_json(float('inf'))
+        None
+    """
+    if isinstance(data, dict):
+        return {k: sanitize_for_json(v, replace_inf_with) for k, v in data.items()}
+
+    elif isinstance(data, list):
+        return [sanitize_for_json(item, replace_inf_with) for item in data]
+
+    elif isinstance(data, float):
+        if math.isnan(data):
+            return None
+        elif math.isinf(data):
+            return replace_inf_with
+        else:
+            return data
+
+    else:
+        return data
 
 
 # ============================================================================

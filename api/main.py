@@ -226,6 +226,12 @@ async def crypto_exception_handler(request: Request, exc: CryptoRebalancerExcept
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     """Gestionnaire pour toutes les autres exceptions"""
+    # Log l'exception complète avec stacktrace pour debugging
+    logger.error(
+        f"Unhandled exception on {request.method} {request.url.path}: {exc}",
+        exc_info=True
+    )
+
     return JSONResponse(
         status_code=500,
         content={

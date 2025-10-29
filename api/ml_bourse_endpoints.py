@@ -9,16 +9,45 @@ Provides ML-powered predictions:
 """
 
 from fastapi import APIRouter, Query, HTTPException
+from fastapi.responses import Response
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 import logging
+import json
+import math
 
 from services.ml.bourse.stocks_adapter import StocksMLAdapter
 from services.ml.bourse.recommendations_orchestrator import RecommendationsOrchestrator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def sanitize_inf_nan(obj):
+    """
+    Recursively sanitize inf/nan values to None for JSON compatibility.
+
+    Args:
+        obj: Object to sanitize (dict, list, tuple, float, or any other type)
+
+    Returns:
+        Sanitized copy with inf/nan replaced by None
+    """
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    elif isinstance(obj, dict):
+        return {k: sanitize_inf_nan(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        # Convert tuples to lists (JSON doesn't have tuples)
+        return [sanitize_inf_nan(item) for item in obj]
+    elif isinstance(obj, (int, str, bool, type(None))):
+        return obj
+    else:
+        # For other types, try to convert to string or return as-is
+        return obj
 
 # Global adapter instance (shared across requests for performance)
 stocks_ml_adapter = StocksMLAdapter(models_dir="models/stocks")
@@ -703,7 +732,27 @@ async def get_portfolio_recommendations(
             lookback_days=lookback_days
         )
 
-        return result
+        # Sanitize inf/nan values
+        result = sanitize_inf_nan(result)
+        logger.info(f"✅ Portfolio recommendations sanitized ({len(result.get('recommendations', []))} positions)")
+
+        # Serialize to JSON string manually with strict inf/nan handling
+        # allow_nan=False will raise an error if any inf/nan slipped through
+        # This forces us to catch any remaining inf/nan values
+        try:
+            json_str = json.dumps(result, ensure_ascii=False, indent=None, allow_nan=False)
+        except ValueError as e:
+            logger.error(f"❌ Inf/nan values still present after sanitization: {e}")
+            # Force a second sanitization pass
+            result = sanitize_inf_nan(result)
+            json_str = json.dumps(result, ensure_ascii=False, indent=None, allow_nan=False)
+
+        # Return as Response with explicit JSON content-type
+        return Response(
+            content=json_str,
+            media_type="application/json",
+            status_code=200
+        )
 
     except HTTPException:
         raise
