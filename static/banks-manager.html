@@ -499,6 +499,25 @@
             updateSummary();
             updateTable();
             updateCurrencyTotals();
+
+            // Add export button once (check if already exists to avoid duplicates)
+            const summarySection = document.querySelector('.summary-cards');
+            if (summarySection && !summarySection.querySelector('.export-btn')) {
+                // Dynamic import for ES module
+                import('./modules/export-button.js').then(({ renderExportButton }) => {
+                    const exportContainer = document.createElement('div');
+                    exportContainer.className = 'summary-card';
+                    exportContainer.style.cssText = 'display: flex; align-items: center; justify-content: center;';
+                    summarySection.appendChild(exportContainer);
+
+                    renderExportButton(exportContainer, 'banks', {
+                        endpoint: '/api/wealth/banks/export-lists',
+                        filename: 'bank-accounts'
+                    });
+                }).catch(err => {
+                    console.warn('Failed to load export button:', err);
+                });
+            }
         }
 
         // Update summary cards

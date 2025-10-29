@@ -387,6 +387,48 @@ let giRefreshInterval = null;
 // ✅ AbortController for event listeners cleanup
 let eventListenersController = null;
 
+/**
+ * Setup export buttons for Crypto, Saxo, and Banks modules
+ */
+function setupExportButtons() {
+    // Crypto export button
+    const cryptoExportBtn = document.getElementById('crypto-export-btn');
+    if (cryptoExportBtn) {
+        cryptoExportBtn.addEventListener('click', () => {
+            import('./export-button.js').then(({ openExportModal }) => {
+                const cryptoSource = window.globalConfig?.get('data_source') ||
+                                    localStorage.getItem('data_source') ||
+                                    'cointracking';
+                openExportModal('crypto', '/api/portfolio/export-lists', 'crypto-portfolio', cryptoSource);
+            });
+        });
+        console.debug('✅ Crypto export button initialized');
+    }
+
+    // Saxo export button
+    const saxoExportBtn = document.getElementById('saxo-export-btn');
+    if (saxoExportBtn) {
+        saxoExportBtn.addEventListener('click', () => {
+            import('./export-button.js').then(({ openExportModal }) => {
+                const fileKey = window.currentFileKey || null;
+                openExportModal('saxo', '/api/saxo/export-lists', 'saxo-portfolio', null, fileKey);
+            });
+        });
+        console.debug('✅ Saxo export button initialized');
+    }
+
+    // Banks export button
+    const banksExportBtn = document.getElementById('banks-export-btn');
+    if (banksExportBtn) {
+        banksExportBtn.addEventListener('click', () => {
+            import('./export-button.js').then(({ openExportModal }) => {
+                openExportModal('banks', '/api/wealth/banks/export-lists', 'bank-accounts');
+            });
+        });
+        console.debug('✅ Banks export button initialized');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.debug('📊 Dashboard unifié initialisé');
     // Navigation thématique initialisée automatiquement
@@ -436,6 +478,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ✅ Setup AbortController for event listeners cleanup
     eventListenersController = new AbortController();
     const signal = eventListenersController.signal;
+
+    // ✅ Setup export buttons click handlers
+    setupExportButtons();
 
     // Écouter les changements de thème et source pour synchronisation cross-tab
     window.addEventListener('storage', function (e) {

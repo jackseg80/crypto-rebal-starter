@@ -3429,6 +3429,20 @@
 
                 debugLogger.debug('✅ Saxo data loaded successfully');
 
+                // Add export button once (check if already exists to avoid duplicates)
+                const overviewSection = document.getElementById('overview');
+                if (overviewSection && !overviewSection.querySelector('.export-btn')) {
+                    // Dynamic import for ES module
+                    import('./modules/export-button.js').then(({ renderExportButton }) => {
+                        renderExportButton(overviewSection, 'saxo', {
+                            endpoint: '/api/saxo/export-lists',
+                            filename: 'saxo-portfolio'
+                        });
+                    }).catch(err => {
+                        debugLogger.warn('Failed to load export button:', err);
+                    });
+                }
+
             } catch (error) {
                 debugLogger.error('Error loading Saxo data:', error);
                 showError('❌ Erreur lors du chargement des données: ' + error.message);

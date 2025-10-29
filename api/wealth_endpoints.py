@@ -519,3 +519,75 @@ async def global_summary(
         "user_id": user,
         "timestamp": datetime.utcnow().isoformat(),
     }
+
+
+# ==================== EXPORT LISTS ====================
+
+@router.get("/banks/export-lists")
+async def export_bank_lists(
+    user: str = Depends(get_active_user),
+    format: str = Query("json", regex="^(json|csv|markdown)$")
+):
+    """
+    Export bank accounts list in multiple formats.
+
+    Args:
+        user: ID utilisateur (from authenticated context)
+        format: Format de sortie (json, csv, markdown)
+
+    Returns:
+        Exported data in requested format with Content-Type header
+    """
+    try:
+        from services.export_formatter import ExportFormatter
+        from services.fx_service import convert as fx_convert
+        from fastapi.responses import PlainTextResponse
+
+        # Récupérer les comptes bancaires
+        snapshot = banks_adapter.load_snapshot(user)
+        accounts = snapshot.get("accounts", [])
+
+        # Enrichir avec conversions USD
+        accounts_list = []
+        total_value_usd = 0
+
+        for acc in accounts:
+            balance = acc.get("balance", 0)
+            currency = acc.get("currency", "USD").upper()
+            balance_usd = fx_convert(balance, currency, "USD")
+
+            accounts_list.append({
+                "bank_name": acc.get("bank_name", ""),
+                "account_type": acc.get("account_type", ""),
+                "balance": balance,
+                "currency": currency,
+                "balance_usd": balance_usd
+            })
+
+            total_value_usd += balance_usd
+
+        # Structure finale
+        export_data = {
+            "accounts": accounts_list,
+            "summary": {
+                "total_value_usd": total_value_usd,
+                "accounts_count": len(accounts_list)
+            }
+        }
+
+        # Formater selon le format demandé
+        formatter = ExportFormatter('banks')
+
+        if format == 'json':
+            content = formatter.to_json(export_data)
+            return PlainTextResponse(content, media_type="application/json")
+        elif format == 'csv':
+            content = formatter.to_csv(export_data)
+            return PlainTextResponse(content, media_type="text/csv")
+        elif format == 'markdown':
+            content = formatter.to_markdown(export_data)
+            return PlainTextResponse(content, media_type="text/markdown")
+
+    except Exception as e:
+        logger.exception("Error exporting bank lists")
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")

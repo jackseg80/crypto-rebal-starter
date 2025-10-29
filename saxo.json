@@ -1,0 +1,80 @@
+{
+  "module": "saxo",
+  "exported_at": "2025-10-29T11:34:09.343563Z",
+  "data": {
+    "positions": [],
+    "sectors": [
+      {
+        "name": "Technology",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      },
+      {
+        "name": "Healthcare",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      },
+      {
+        "name": "Financials",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      },
+      {
+        "name": "Consumer Discretionary",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      },
+      {
+        "name": "Communication Services",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      },
+      {
+        "name": "Industrials",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      },
+      {
+        "name": "Consumer Staples",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      },
+      {
+        "name": "Energy",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      },
+      {
+        "name": "Utilities",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      },
+      {
+        "name": "Real Estate",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      },
+      {
+        "name": "Materials",
+        "value_usd": 0,
+        "percentage": 0,
+        "asset_count": 0
+      }
+    ],
+    "summary": {
+      "total_value_usd": 0,
+      "positions_count": 0,
+      "sectors_count": 11
+    }
+  }
+}

@@ -338,3 +338,162 @@ async def save_portfolio_cash(
         logger.error(f"Failed to save cash amount for user {user_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save cash amount: {str(e)}")
 
+
+# ==================== EXPORT LISTS ====================
+
+@router.get("/export-lists")
+async def export_saxo_lists(
+    user: str = Depends(get_active_user),
+    format: str = Query("json", regex="^(json|csv|markdown)$"),
+    file_key: Optional[str] = Query(None, description="Specific Saxo CSV file to load")
+):
+    """
+    Export Saxo positions and sectors lists in multiple formats.
+
+    Args:
+        user: ID utilisateur (from authenticated context)
+        format: Format de sortie (json, csv, markdown)
+        file_key: Specific Saxo CSV file identifier
+
+    Returns:
+        Exported data in requested format with Content-Type header
+    """
+    try:
+        from services.export_formatter import ExportFormatter
+        from fastapi.responses import PlainTextResponse
+
+        # 11 secteurs GICS standard
+        GICS_SECTORS = [
+            'Technology', 'Healthcare', 'Financials', 'Consumer Discretionary',
+            'Communication Services', 'Industrials', 'Consumer Staples',
+            'Energy', 'Utilities', 'Real Estate', 'Materials'
+        ]
+
+        # Sector mapping (from specialized_analytics.py)
+        SECTOR_MAP = {
+            # Tech
+            'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology', 'GOOG': 'Technology',
+            'META': 'Technology', 'NVDA': 'Technology', 'TSLA': 'Technology', 'AMZN': 'Technology',
+            'NFLX': 'Technology', 'AMD': 'Technology', 'INTC': 'Technology', 'CRM': 'Technology',
+            'PLTR': 'Technology', 'COIN': 'Technology', 'CDR': 'Technology', 'IFX': 'Technology',
+            # Financials
+            'JPM': 'Financials', 'BAC': 'Financials', 'WFC': 'Financials', 'GS': 'Financials',
+            'MS': 'Financials', 'C': 'Financials', 'BLK': 'Financials', 'SCHW': 'Financials',
+            'UBSG': 'Financials', 'BRKb': 'Financials', 'SLHn': 'Financials',
+            # Healthcare
+            'JNJ': 'Healthcare', 'UNH': 'Healthcare', 'PFE': 'Healthcare', 'ABBV': 'Healthcare',
+            'TMO': 'Healthcare', 'ABT': 'Healthcare', 'LLY': 'Healthcare', 'MRK': 'Healthcare',
+            'BAX': 'Healthcare', 'ROG': 'Healthcare',
+            # Consumer
+            'WMT': 'Consumer Staples', 'PG': 'Consumer Staples', 'KO': 'Consumer Staples',
+            'PEP': 'Consumer Staples', 'MCD': 'Consumer Discretionary', 'NKE': 'Consumer Discretionary',
+            'COST': 'Consumer Staples', 'SBUX': 'Consumer Discretionary', 'UHRN': 'Consumer Discretionary',
+            # Energy
+            'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy', 'SLB': 'Energy',
+            # Industrials
+            'BA': 'Industrials', 'CAT': 'Industrials', 'GE': 'Industrials', 'MMM': 'Industrials',
+        }
+
+        def get_sector_from_symbol(symbol: str) -> str:
+            """Extract ticker and map to GICS sector."""
+            ticker = symbol.split(':')[0] if ':' in symbol else symbol
+            return SECTOR_MAP.get(ticker, 'Unknown')
+
+        # Récupérer les positions brutes depuis l'adapter (contient toutes les infos)
+        from adapters import saxo_adapter
+
+        # Accéder directement aux positions brutes avec toutes les métadonnées
+        raw_positions = list(saxo_adapter._iter_positions(user_id=user, file_key=file_key))
+
+        # Normaliser les positions
+        positions_list = []
+        sector_totals = {}
+        total_portfolio_value = 0
+
+        for pos in raw_positions:
+            symbol = pos.get('symbol', '')
+            instrument = pos.get('instrument', '') or pos.get('instrument_name', '')
+            asset_class = pos.get('asset_class', 'Unknown')
+            quantity = float(pos.get('quantity', 0))
+            market_value = float(pos.get('market_value_usd', 0))
+            currency = pos.get('currency', 'USD')
+
+            # Get sector from mapping (extract ticker and map)
+            sector = get_sector_from_symbol(symbol)
+
+            entry_price = float(pos.get('avg_price', 0)) or float(pos.get('entry_price', 0))
+
+            positions_list.append({
+                'symbol': symbol,
+                'instrument': instrument,
+                'asset_class': asset_class,
+                'quantity': quantity,
+                'market_value': market_value,
+                'currency': currency,
+                'sector': sector,
+                'entry_price': entry_price
+            })
+
+            # Calculer totaux par secteur
+            if sector not in sector_totals:
+                sector_totals[sector] = {'value_usd': 0, 'count': 0}
+            sector_totals[sector]['value_usd'] += market_value
+            sector_totals[sector]['count'] += 1
+
+            total_portfolio_value += market_value
+
+        # Construire la structure des secteurs (inclure tous les 11 secteurs GICS)
+        sectors_list = []
+        for sector_name in GICS_SECTORS:
+            sector_data = sector_totals.get(sector_name, {'value_usd': 0, 'count': 0})
+            value_usd = sector_data['value_usd']
+            percentage = (value_usd / total_portfolio_value * 100) if total_portfolio_value > 0 else 0
+
+            sectors_list.append({
+                'name': sector_name,
+                'value_usd': value_usd,
+                'percentage': percentage,
+                'asset_count': sector_data['count']
+            })
+
+        # Ajouter les secteurs inconnus/autres
+        for sector_name, sector_data in sector_totals.items():
+            if sector_name not in GICS_SECTORS:
+                value_usd = sector_data['value_usd']
+                percentage = (value_usd / total_portfolio_value * 100) if total_portfolio_value > 0 else 0
+
+                sectors_list.append({
+                    'name': sector_name,
+                    'value_usd': value_usd,
+                    'percentage': percentage,
+                    'asset_count': sector_data['count']
+                })
+
+        # Structure finale
+        export_data = {
+            'positions': positions_list,
+            'sectors': sectors_list,
+            'summary': {
+                'total_value_usd': total_portfolio_value,
+                'positions_count': len(positions_list),
+                'sectors_count': len(GICS_SECTORS)
+            }
+        }
+
+        # Formater selon le format demandé
+        formatter = ExportFormatter('saxo')
+
+        if format == 'json':
+            content = formatter.to_json(export_data)
+            return PlainTextResponse(content, media_type="application/json")
+        elif format == 'csv':
+            content = formatter.to_csv(export_data)
+            return PlainTextResponse(content, media_type="text/csv")
+        elif format == 'markdown':
+            content = formatter.to_markdown(export_data)
+            return PlainTextResponse(content, media_type="text/markdown")
+
+    except Exception as e:
+        logger.exception("Error exporting Saxo lists")
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+

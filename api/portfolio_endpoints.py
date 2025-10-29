@@ -22,7 +22,7 @@ from api.utils.formatters import success_response, error_response
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="", tags=["Portfolio"])
+router = APIRouter(prefix="/api", tags=["Portfolio"])
 
 # Shared instances
 portfolio_analytics = PortfolioAnalytics()
@@ -258,4 +258,98 @@ async def get_portfolio_alerts(
         )
     except Exception as e:
         logger.exception("Error calculating portfolio alerts")
+        return error_response(str(e), code=500)
+
+
+@router.get("/portfolio/export-lists")
+async def export_crypto_lists(
+    user: str = Depends(get_active_user),
+    source: str = Query("cointracking"),
+    format: str = Query("json", regex="^(json|csv|markdown)$"),
+    min_usd: float = Query(1.0)
+):
+    """
+    Export crypto assets and groups lists in multiple formats.
+
+    Args:
+        user: ID utilisateur (from authenticated context)
+        source: Source de données (cointracking, cointracking_api, etc.)
+        format: Format de sortie (json, csv, markdown)
+        min_usd: Seuil minimal USD (1.0 par défaut)
+
+    Returns:
+        Exported data in requested format with Content-Type header
+    """
+    try:
+        from services.export_formatter import ExportFormatter
+        from shared.asset_groups import ASSET_GROUPS, get_asset_group
+        from fastapi.responses import PlainTextResponse
+
+        # Récupérer les données de portfolio
+        resolve_func = _get_resolve_balances()
+        res = await resolve_func(source=source, user_id=user, min_usd=min_usd)
+        items = res.get("items", [])
+
+        # Enrichir avec les groupes
+        enriched_items = []
+        for item in items:
+            symbol = item.get("symbol", "")
+            group = get_asset_group(symbol)
+            enriched_items.append({
+                "symbol": symbol,
+                "group": group,
+                "amount": item.get("amount", 0),
+                "value_usd": item.get("value_usd", 0),
+                "location": item.get("location", "")
+            })
+
+        # Calculer les totaux par groupe
+        group_totals = {}
+        total_portfolio_value = sum(item["value_usd"] for item in enriched_items)
+
+        for item in enriched_items:
+            group = item["group"]
+            if group not in group_totals:
+                group_totals[group] = 0
+            group_totals[group] += item["value_usd"]
+
+        # Construire la structure des groupes
+        groups_list = []
+        for group_name, symbols_list in ASSET_GROUPS.items():
+            total_usd = group_totals.get(group_name, 0)
+            percentage = (total_usd / total_portfolio_value * 100) if total_portfolio_value > 0 else 0
+
+            groups_list.append({
+                "name": group_name,
+                "symbols": symbols_list,
+                "portfolio_total_usd": total_usd,
+                "portfolio_percentage": percentage
+            })
+
+        # Structure finale
+        export_data = {
+            "items": enriched_items,
+            "groups": groups_list,
+            "summary": {
+                "total_value_usd": total_portfolio_value,
+                "assets_count": len(enriched_items),
+                "groups_count": len(ASSET_GROUPS)
+            }
+        }
+
+        # Formater selon le format demandé
+        formatter = ExportFormatter('crypto')
+
+        if format == 'json':
+            content = formatter.to_json(export_data)
+            return PlainTextResponse(content, media_type="application/json")
+        elif format == 'csv':
+            content = formatter.to_csv(export_data)
+            return PlainTextResponse(content, media_type="text/csv")
+        elif format == 'markdown':
+            content = formatter.to_markdown(export_data)
+            return PlainTextResponse(content, media_type="text/markdown")
+
+    except Exception as e:
+        logger.exception("Error exporting crypto lists")
         return error_response(str(e), code=500)
