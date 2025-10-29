@@ -777,7 +777,8 @@ class AdvancedRiskEngine:
             try:
                 _, _, df = stats.t.fit(returns_data[col].dropna())
                 dfs.append(max(3, min(30, df)))  # Borner entre 3 et 30
-            except:
+            except Exception as e:
+                logger.warning(f"Failed to fit t-distribution for {col}: {e}, using default")
                 dfs.append(5)  # Default conservateur
         
         return np.mean(dfs)

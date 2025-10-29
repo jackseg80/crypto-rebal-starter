@@ -519,7 +519,8 @@ class MLAlertPredictor:
                 idx1 = assets.index(asset1)
                 idx2 = assets.index(asset2)
                 return float(matrix_1h[idx1, idx2])
-        except:
+        except Exception as e:
+            logger.debug(f"Failed to get correlation for {asset1}/{asset2}: {e}")
             pass
         return 0.0
     

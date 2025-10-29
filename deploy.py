@@ -443,7 +443,8 @@ class DeploymentManager:
         try:
             response = requests.get('http://localhost:8000/static/ai-dashboard.html', timeout=5)
             return response.status_code == 200
-        except:
+        except Exception as e:
+            self.log(f"Failed to check static files access: {e}", 'WARNING')
             return False
 
     def check_api_endpoints(self) -> bool:
@@ -458,7 +459,8 @@ class DeploymentManager:
                 response = requests.get(f'http://localhost:8000{endpoint}', timeout=5)
                 if response.status_code not in [200, 404]:  # 404 acceptable si pas encore implémenté
                     return False
-            except:
+            except Exception as e:
+                self.log(f"Failed to check endpoint {endpoint}: {e}", 'WARNING')
                 return False
         
         return True
@@ -469,7 +471,8 @@ class DeploymentManager:
         try:
             response = requests.get('http://localhost:8000/static/ai-components-demo.html', timeout=5)
             return response.status_code == 200
-        except:
+        except Exception as e:
+            self.log(f"Failed to check UI components: {e}", 'WARNING')
             return False
 
     def cleanup_deployment(self) -> bool:

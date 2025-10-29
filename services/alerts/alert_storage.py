@@ -667,7 +667,8 @@ class AlertStorage:
                             snooze_until = datetime.fromisoformat(alert['snooze_until'])
                             if now < snooze_until:
                                 snoozed_count += 1
-                        except:
+                        except Exception as e:
+                            logger.debug(f"Failed to parse snooze_until for alert: {e}")
                             pass
             
             return {
@@ -1186,7 +1187,8 @@ class AlertStorage:
                         snooze_until = datetime.fromisoformat(alert_dict['snooze_until'])
                         if now < snooze_until:
                             continue
-                    except:
+                    except Exception as e:
+                        logger.debug(f"Failed to parse snooze_until: {e}")
                         pass
                 
                 # Convert to Alert object

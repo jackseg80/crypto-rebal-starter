@@ -160,8 +160,8 @@ class PhaseEngine:
                         btc_dominance = data.get("data", {}).get("market_cap_percentage", {}).get("btc", 0)
                         signals.btc_dominance = float(btc_dominance)
                         logger.debug(f"BTC dominance fetched: {btc_dominance:.1f}%")
-            except:
-                logger.warning("Failed to fetch BTC dominance, using fallback")
+            except Exception as e:
+                logger.warning(f"Failed to fetch BTC dominance: {e}, using fallback")
                 signals.btc_dominance = 45.0  # Fallback historique
             
             # 2. Force relative depuis notre API de prix
@@ -180,10 +180,10 @@ class PhaseEngine:
                         signals.rs_large_btc_30d = rs_signals.get('large_btc_30d', 1.0)
                         signals.rs_alt_btc_7d = rs_signals.get('alt_btc_7d', 1.0)
                         signals.rs_alt_btc_30d = rs_signals.get('alt_btc_30d', 1.0)
-                        
+
                         logger.debug(f"Relative strength calculated: ETH/BTC 7d={signals.rs_eth_btc_7d:.3f}")
-            except:
-                logger.warning("Failed to fetch price data for RS calculation")
+            except Exception as e:
+                logger.warning(f"Failed to fetch price data for RS calculation: {e}")
             
             # 3. Breadth et momentum depuis analytics endpoint
             try:
@@ -197,8 +197,8 @@ class PhaseEngine:
                         signals.breadth_new_highs = breadth_data.get("new_highs_count", 0)
                         signals.volume_concentration = breadth_data.get("volume_concentration", 0.5)
                         signals.momentum_dispersion = breadth_data.get("momentum_dispersion", 0.5)
-            except:
-                logger.debug("Market breadth endpoint not available, using defaults")
+            except Exception as e:
+                logger.debug(f"Market breadth endpoint not available: {e}, using defaults")
             
             # Calculer dominance delta et quality score
             signals.btc_dominance_delta_7d = self._calculate_dominance_delta(signals.btc_dominance)
@@ -294,8 +294,9 @@ class PhaseEngine:
             
             # Score global = moyenne pondérée
             return sum(quality_factors) / len(quality_factors)
-            
-        except:
+
+        except Exception as e:
+            logger.warning(f"Error assessing signal quality: {e}, returning default")
             return 0.5
     
     async def _detect_phase(self, signals: PhaseSignals) -> PhaseState:
@@ -522,10 +523,11 @@ class PhaseEngine:
             sorted_phases = sorted(scores.items(), key=lambda x: x[1], reverse=True)
             if len(sorted_phases) >= 2 and sorted_phases[1][1] > 0.2:
                 return sorted_phases[1][0]
-            
+
             return typical_sequence[current]  # Fallback à la séquence typique
-            
-        except:
+
+        except Exception as e:
+            logger.warning(f"Error predicting next phase: {e}")
             return None
 
 # Instance globale

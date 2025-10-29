@@ -577,7 +577,8 @@ async def get_health_status(
         # Vérifier storage
         try:
             storage_healthy = engine.storage.ping()
-        except:
+        except Exception as e:
+            logger.error(f"Storage health check failed: {e}")
             storage_healthy = False
         
         # Statut global

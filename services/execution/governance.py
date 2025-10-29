@@ -592,7 +592,8 @@ class GovernanceEngine:
                     mode = "Normal"  # Downgrade si VaR élevé persistant
                     cap = min(cap, 0.08)  # Plafonner cap
 
-            except:
+            except Exception as e:
+                logger.warning(f"Error updating hysteresis state: {e}, using defaults")
                 signals_age = 0
                 var_state, stale_state = "normal", "normal"
 

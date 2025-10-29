@@ -263,7 +263,8 @@ class ScoreRegistry:
         try:
             config = self.config or self.fallback_config
             return config.phase_factors.get(alert_type, {}).get(phase, 1.0)
-        except:
+        except Exception as e:
+            logger.warning(f"Failed to get phase factor for {alert_type}/{phase}: {e}, using default")
             return 1.0
     
     async def health_check(self) -> Dict[str, Any]:
