@@ -434,6 +434,7 @@ GET /api/bourse/opportunities?user_id=jack&horizon=medium&min_gap_pct=5.0
 - 4 sections: Portfolio Gaps (cards), Top Opportunities (table 20 lignes), Suggested Sales, Impact Simulator
 - Horizons: short (1-3M), medium (6-12M), long (2-3Y)
 - **NEW:** Affiche ETFs + actions individuelles (ex: "XLF, JPM, BAC, WFC" pour Financials)
+- **Export Text:** Bouton "Export Text (All Timeframes)" génère fichier markdown avec les 3 horizons (gaps, opportunités, ventes, impact) pour analyse externe
 
 **Scoring System:**
 ```python

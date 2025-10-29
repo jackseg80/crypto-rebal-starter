@@ -839,9 +839,12 @@
                             </button>
                         </div>
                     </div>
-                    <div style="padding: 1rem; border-top: 1px solid var(--theme-border);">
-                        <button id="btnScanOpportunities" class="btn primary" style="width: 100%;">
+                    <div style="padding: 1rem; border-top: 1px solid var(--theme-border); display: flex; gap: 0.75rem;">
+                        <button id="btnScanOpportunities" class="btn primary" style="flex: 1;">
                             🔍 Scan for Opportunities
+                        </button>
+                        <button id="btnExportTextOpps" class="btn secondary" style="flex: 1;">
+                            📄 Export Text (All Timeframes)
                         </button>
                     </div>
                 </div>
@@ -5578,6 +5581,14 @@
                     await loadMarketOpportunities();
                 });
             }
+
+            // Export text button
+            const exportBtn = document.getElementById('btnExportTextOpps');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', async () => {
+                    await exportOpportunitiesToText();
+                });
+            }
         }
 
         /**
@@ -5657,6 +5668,195 @@
                     scanBtn.textContent = originalText;
                     scanBtn.disabled = false;
                 }, 2000);
+            }
+        }
+
+        /**
+         * Export market opportunities to text (Markdown format for AI analysis)
+         * Fetches all 3 horizons and generates structured text
+         */
+        async function exportOpportunitiesToText() {
+            const btn = document.getElementById('btnExportTextOpps');
+            const originalText = btn.textContent;
+
+            try {
+                btn.disabled = true;
+                btn.textContent = '⏳ Generating...';
+
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+                const horizons = [
+                    { id: 'short', name: 'SHORT TERM (1-3 Months)', description: 'Short-term opportunities' },
+                    { id: 'medium', name: 'MEDIUM TERM (6-12 Months)', description: 'Mid-term opportunities' },
+                    { id: 'long', name: 'LONG TERM (2-3 Years)', description: 'Long-term opportunities' }
+                ];
+
+                let markdownText = `# Market Opportunities Export\n\n`;
+                markdownText += `**Generated:** ${new Date().toLocaleString()}\n`;
+                markdownText += `**User:** ${activeUser}\n`;
+                markdownText += `**Portfolio:** ${currentFileKey || 'Latest'}\n\n`;
+                markdownText += `---\n\n`;
+
+                // Fetch all horizons
+                for (const horizon of horizons) {
+                    debugLogger.info(`Fetching ${horizon.id} horizon opportunities...`);
+
+                    let url = `/api/bourse/opportunities?user_id=${activeUser}&horizon=${horizon.id}`;
+                    if (currentFileKey) {
+                        url += `&file_key=${encodeURIComponent(currentFileKey)}`;
+                    }
+
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`Failed to fetch ${horizon.id} opportunities`);
+
+                    const data = await response.json();
+                    const gaps = data.gaps || [];
+                    const opportunities = data.opportunities || [];
+                    const suggestedSales = data.suggested_sales || [];
+                    const impact = data.impact || {};
+
+                    // Add horizon section
+                    markdownText += `## ${horizon.name} - ${horizon.description}\n\n`;
+
+                    // Portfolio Gaps section
+                    markdownText += `### 📊 Portfolio Gaps (Underweight Sectors)\n\n`;
+                    if (gaps.length > 0) {
+                        markdownText += `**Total Gaps:** ${gaps.length}\n\n`;
+                        gaps.forEach((gap, idx) => {
+                            const sector = gap.sector || 'N/A';
+                            const current = gap.current_pct ? gap.current_pct.toFixed(1) : '0.0';
+                            const target = gap.target_pct ? gap.target_pct.toFixed(1) : 'N/A';
+                            const gapPct = gap.gap_pct ? gap.gap_pct.toFixed(1) : '0.0';
+                            const score = gap.score ? gap.score.toFixed(0) : 'N/A';
+                            const etf = gap.etf || 'N/A';
+                            const rationale = gap.rationale || 'Sector underweight relative to target allocation';
+
+                            markdownText += `#### ${idx + 1}. ${sector} (Score: ${score})\n`;
+                            markdownText += `- **Current Allocation:** ${current}%\n`;
+                            markdownText += `- **Target Allocation:** ${target}%\n`;
+                            markdownText += `- **Gap:** ${gapPct}%\n`;
+                            markdownText += `- **Suggested ETF:** ${etf}\n`;
+                            markdownText += `- **Rationale:** ${rationale}\n\n`;
+                        });
+                    } else {
+                        markdownText += `No significant portfolio gaps identified.\n\n`;
+                    }
+
+                    // Top Opportunities section
+                    markdownText += `### 🎯 Top Opportunities\n\n`;
+                    if (opportunities.length > 0) {
+                        markdownText += `**Total Opportunities:** ${opportunities.length}\n\n`;
+                        opportunities.forEach((opp, idx) => {
+                            const symbol = opp.symbol || 'N/A';
+                            const name = opp.name || 'N/A';
+                            const sector = opp.sector || 'N/A';
+                            const score = opp.score ? opp.score.toFixed(0) : 'N/A';
+                            const type = opp.type || 'N/A';
+                            const capitalNeeded = opp.capital_needed ? `€${opp.capital_needed.toLocaleString()}` : 'N/A';
+                            const rationale = opp.rationale || 'No rationale provided';
+
+                            markdownText += `#### ${idx + 1}. ${symbol} - ${name}\n`;
+                            markdownText += `- **Sector:** ${sector}\n`;
+                            markdownText += `- **Opportunity Score:** ${score}\n`;
+                            markdownText += `- **Type:** ${type}\n`;
+                            markdownText += `- **Capital Needed:** ${capitalNeeded}\n`;
+                            markdownText += `- **Rationale:** ${rationale}\n\n`;
+                        });
+                    } else {
+                        markdownText += `No opportunities identified for this horizon.\n\n`;
+                    }
+
+                    // Suggested Sales section
+                    markdownText += `### 💰 Suggested Sales\n\n`;
+                    if (suggestedSales.length > 0) {
+                        markdownText += `**Total Suggestions:** ${suggestedSales.length}\n\n`;
+                        suggestedSales.forEach((sale, idx) => {
+                            const symbol = sale.symbol || 'N/A';
+                            const currentVal = sale.current_value ? `€${sale.current_value.toLocaleString()}` : 'N/A';
+                            const saleVal = sale.sale_value ? `€${sale.sale_value.toLocaleString()}` : 'N/A';
+                            const pct = sale.sale_pct ? sale.sale_pct.toFixed(0) : '0';
+                            const rationale = sale.rationale || 'No rationale provided';
+
+                            markdownText += `#### ${idx + 1}. ${symbol}\n`;
+                            markdownText += `- **Current Value:** ${currentVal}\n`;
+                            markdownText += `- **Sell Amount:** ${saleVal} (${pct}%)\n`;
+                            markdownText += `- **Rationale:** ${rationale}\n\n`;
+                        });
+                    } else {
+                        markdownText += `No suggested sales for this horizon.\n\n`;
+                    }
+
+                    // Impact Simulation section
+                    markdownText += `### 📈 Impact Simulation\n\n`;
+                    if (impact && Object.keys(impact).length > 0) {
+                        // Risk metrics
+                        if (impact.risk_before !== undefined && impact.risk_after !== undefined) {
+                            const riskBefore = impact.risk_before.toFixed(1);
+                            const riskAfter = impact.risk_after.toFixed(1);
+                            markdownText += `**Risk Score:** ${riskBefore} → ${riskAfter}\n`;
+                        }
+
+                        // Capital freed
+                        if (impact.total_freed !== undefined) {
+                            const capitalFreed = `€${Math.round(impact.total_freed).toLocaleString()}`;
+                            markdownText += `**Capital Freed:** ${capitalFreed}\n`;
+                        }
+
+                        // Capital invested
+                        if (impact.total_invested !== undefined) {
+                            const capitalInvested = `€${Math.round(impact.total_invested).toLocaleString()}`;
+                            markdownText += `**Capital Invested:** ${capitalInvested}\n`;
+                        }
+
+                        // Before vs After allocations
+                        if (impact.before && impact.after) {
+                            markdownText += `\n**Sector Allocation Changes:**\n`;
+                            const allSectors = new Set([...Object.keys(impact.before), ...Object.keys(impact.after)]);
+                            allSectors.forEach(sector => {
+                                const beforeVal = impact.before[sector] ? impact.before[sector].toFixed(1) : '0.0';
+                                const afterVal = impact.after[sector] ? impact.after[sector].toFixed(1) : '0.0';
+                                const change = (impact.after[sector] || 0) - (impact.before[sector] || 0);
+                                const changeStr = change > 0 ? `+${change.toFixed(1)}` : change.toFixed(1);
+                                markdownText += `  - ${sector}: ${beforeVal}% → ${afterVal}% (${changeStr}%)\n`;
+                            });
+                        }
+
+                        markdownText += `\n`;
+                    } else {
+                        markdownText += `No impact simulation data available.\n\n`;
+                    }
+
+                    markdownText += `---\n\n`;
+                }
+
+                // Footer
+                markdownText += `*Generated by Crypto Rebal Starter - Saxo Dashboard*\n`;
+                markdownText += `*Export includes all 3 investment horizons with gaps, opportunities, suggested sales, and impact analysis*\n`;
+
+                // Download as .txt file
+                const blob = new Blob([markdownText], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `market-opportunities-${new Date().toISOString().split('T')[0]}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                debugLogger.info('✅ Market opportunities exported successfully');
+                btn.textContent = '✅ Downloaded!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }, 2000);
+
+            } catch (error) {
+                debugLogger.error('Failed to export market opportunities:', error);
+                btn.textContent = '❌ Error';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }, 3000);
             }
         }
 
