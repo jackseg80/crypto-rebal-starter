@@ -6,7 +6,7 @@ utilisés par le système de gouvernance.
 """
 
 from fastapi import APIRouter, HTTPException, Header, Depends
-from typing import Optional
+from typing import Optional, List
 import logging
 import asyncio
 from datetime import datetime
