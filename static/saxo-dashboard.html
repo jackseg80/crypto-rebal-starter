@@ -5939,6 +5939,7 @@
                         <thead>
                             <tr style="border-bottom: 2px solid var(--theme-border); background: var(--theme-bg-subtle);">
                                 <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Symbol</th>
+                                <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Name</th>
                                 <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Sector</th>
                                 <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Score</th>
                                 <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--theme-text-muted);">Type</th>
@@ -5952,6 +5953,7 @@
                                 return `
                                     <tr style="border-bottom: 1px solid var(--theme-border);">
                                         <td style="padding: 0.75rem; font-weight: 600;">${opp.symbol}</td>
+                                        <td style="padding: 0.75rem; color: var(--theme-text);">${opp.name || opp.symbol}</td>
                                         <td style="padding: 0.75rem;">${opp.sector}</td>
                                         <td style="padding: 0.75rem; text-align: center;">
                                             <span style="color: ${scoreColor}; font-weight: 600;">${opp.score.toFixed(0)}</span>
