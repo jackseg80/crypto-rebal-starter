@@ -128,7 +128,8 @@ async def calculate_var(
         )
         
     except ValueError as e:
-        raise HTTPException(400, f"invalid_parameter: {str(e)}")
+        log.warning(f"Invalid VaR parameter: {e}")
+        raise HTTPException(400, "invalid_parameter")
     except Exception as e:
         log.exception(f"VaR calculation failed: {e}")
         raise HTTPException(500, "var_calculation_failed")
@@ -162,7 +163,8 @@ async def run_stress_test(
         )
         
     except ValueError as e:
-        raise HTTPException(400, f"invalid_scenario: {str(e)}")
+        log.warning(f"Invalid stress test scenario: {e}")
+        raise HTTPException(400, "invalid_scenario")
     except Exception as e:
         log.exception(f"Stress test failed: {e}")
         raise HTTPException(500, "stress_test_failed")
