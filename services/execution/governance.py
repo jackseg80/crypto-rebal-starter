@@ -501,12 +501,16 @@ class GovernanceEngine:
             
             logger.debug(f"Contradiction index computed: {contradiction_index:.3f} "
                         f"(vol_high={vol_high}, regime_bull={regime_bull}, high_corr={high_correlation})")
-            
+
             return contradiction_index
-            
-        except Exception as e:
-            logger.warning(f"Error computing contradiction index: {e}")
+
+        except (KeyError, TypeError, ValueError) as e:
+            logger.warning(f"Data error computing contradiction index: {e}")
             return 0.5  # Valeur neutre par défaut
+        except Exception as e:
+            # Unexpected error - log with stacktrace for debugging
+            logger.exception(f"Unexpected error computing contradiction index: {e}")
+            return 0.5
     
     def _derive_execution_policy(self) -> Policy:
         """
@@ -587,7 +591,9 @@ class GovernanceEngine:
                         mode = "Normal"
                         cap = min(cap, 0.08)
                         ramp_hours = max(ramp_hours, 12)
-            except Exception:
+            except (AttributeError, TypeError) as e:
+                # Silently continue if blended_score not available - this is expected
+                logger.debug(f"Blended score not available for aggressive mode check: {e}")
                 pass
 
             # Ajustements selon governance mode
@@ -625,8 +631,13 @@ class GovernanceEngine:
                     mode = "Normal"  # Downgrade si VaR élevé persistant
                     cap = min(cap, 0.08)  # Plafonner cap
 
+            except (AttributeError, TypeError) as e:
+                logger.debug(f"Signals timing not available for hysteresis: {e}, using defaults")
+                signals_age = 0
+                var_state, stale_state = "normal", "normal"
             except Exception as e:
-                logger.warning(f"Error updating hysteresis state: {e}, using defaults")
+                # Unexpected error in hysteresis logic
+                logger.exception(f"Unexpected error updating hysteresis state: {e}")
                 signals_age = 0
                 var_state, stale_state = "normal", "normal"
 
