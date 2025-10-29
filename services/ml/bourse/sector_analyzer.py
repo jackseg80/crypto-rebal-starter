@@ -35,85 +35,201 @@ except ImportError:
 STOCK_SCORE_CACHE_TTL = 4 * 3600  # 14400 seconds
 
 
-# Static mapping of top blue-chip stocks per sector (S&P 500)
+# ETF Full Names (for better UI display)
+ETF_NAMES = {
+    # Sector ETFs (SPDR Select Sector)
+    "XLK": "SPDR Technology Select Sector",
+    "XLV": "SPDR Healthcare Select Sector",
+    "XLF": "SPDR Financials Select Sector",
+    "XLY": "SPDR Consumer Discretionary",
+    "XLC": "SPDR Communication Services",
+    "XLI": "SPDR Industrials Select Sector",
+    "XLP": "SPDR Consumer Staples",
+    "XLE": "SPDR Energy Select Sector",
+    "XLU": "SPDR Utilities Select Sector",
+    "XLRE": "SPDR Real Estate Select Sector",
+    "XLB": "SPDR Materials Select Sector",
+
+    # Geographic ETFs
+    "VGK": "Vanguard FTSE Europe",
+    "VPL": "Vanguard FTSE Pacific",
+    "VWO": "Vanguard FTSE Emerging Markets",
+    "EWJ": "iShares MSCI Japan",
+    "FEZ": "SPDR Euro Stoxx 50",
+    "EWU": "iShares MSCI United Kingdom",
+    "EWG": "iShares MSCI Germany",
+    "EWQ": "iShares MSCI France",
+
+    # Diversified
+    "VT": "Vanguard Total World Stock",
+    "ACWI": "iShares MSCI ACWI",
+    "IWDA": "iShares Core MSCI World",
+
+    # Alternative Assets
+    "GLD": "SPDR Gold Shares",
+    "SLV": "iShares Silver Trust",
+    "AGGS": "iShares Core Global Aggregate Bond",
+}
+
+
+# Static mapping of top blue-chip stocks per sector (Global Blue-Chips)
 # Format: {ETF_ticker: [(symbol, company_name, rationale), ...]}
+# Expanded: 4 US + 2-3 Europe + 1-2 Asia per sector = ~80 total stocks
 SECTOR_TOP_STOCKS = {
     # Technology
     "XLK": [
+        # US Leaders
         ("AAPL", "Apple Inc.", "Leading tech hardware & services company"),
         ("MSFT", "Microsoft Corp.", "Cloud computing & software leader"),
         ("NVDA", "NVIDIA Corp.", "AI & GPU semiconductor leader"),
-        ("AVGO", "Broadcom Inc.", "Diversified semiconductor & infrastructure")
+        ("AVGO", "Broadcom Inc.", "Diversified semiconductor & infrastructure"),
+        # Europe Leaders
+        ("SAP", "SAP SE", "German enterprise software & cloud leader"),
+        ("ASML", "ASML Holding", "Dutch semiconductor equipment monopoly"),
+        ("SIE.DE", "Siemens AG", "German industrial automation & digitalization"),
+        # Asia Leaders
+        ("TSM", "Taiwan Semiconductor", "World's largest chip foundry"),
+        ("005930.KS", "Samsung Electronics", "Korean tech & semiconductor giant")
     ],
     # Healthcare
     "XLV": [
+        # US Leaders
         ("UNH", "UnitedHealth Group", "Healthcare insurance & services leader"),
         ("JNJ", "Johnson & Johnson", "Diversified healthcare & pharmaceuticals"),
         ("LLY", "Eli Lilly", "Pharmaceutical innovation leader"),
-        ("ABBV", "AbbVie Inc.", "Biopharmaceutical research & development")
+        ("ABBV", "AbbVie Inc.", "Biopharmaceutical research & development"),
+        # Europe Leaders
+        ("NVO", "Novo Nordisk", "Danish diabetes & obesity care leader"),
+        ("ROG.SW", "Roche Holding", "Swiss pharmaceutical & diagnostics giant"),
+        ("NESN.SW", "Nestlé SA", "Swiss nutrition, health & wellness leader"),
+        # Asia Leaders
+        ("4568.T", "Daiichi Sankyo", "Japanese pharmaceutical innovation leader")
     ],
     # Financials
     "XLF": [
+        # US Leaders
         ("JPM", "JPMorgan Chase", "Leading global investment bank"),
         ("BAC", "Bank of America", "Diversified financial services"),
         ("WFC", "Wells Fargo", "Consumer & commercial banking"),
-        ("GS", "Goldman Sachs", "Investment banking & asset management")
+        ("GS", "Goldman Sachs", "Investment banking & asset management"),
+        # Europe Leaders
+        ("HSBA.L", "HSBC Holdings", "British multinational banking giant"),
+        ("BNP.PA", "BNP Paribas", "French global banking leader"),
+        ("SAN.MC", "Banco Santander", "Spanish multinational banking group"),
+        # Asia Leaders
+        ("8306.T", "Mitsubishi UFJ", "Japanese megabank & financial services")
     ],
     # Consumer Discretionary
     "XLY": [
+        # US Leaders
         ("AMZN", "Amazon.com", "E-commerce & cloud services leader"),
         ("TSLA", "Tesla Inc.", "Electric vehicles & clean energy"),
         ("HD", "Home Depot", "Home improvement retail leader"),
-        ("MCD", "McDonald's", "Global quick-service restaurant chain")
+        ("MCD", "McDonald's", "Global quick-service restaurant chain"),
+        # Europe Leaders
+        ("MC.PA", "LVMH", "French luxury goods conglomerate"),
+        ("VWAGY", "Volkswagen", "German automotive giant"),
+        ("ITX.MC", "Inditex", "Spanish fashion retail (Zara)"),
+        # Asia Leaders
+        ("7203.T", "Toyota Motor", "Japanese automotive & hybrid leader"),
+        ("BABA", "Alibaba Group", "Chinese e-commerce & cloud giant")
     ],
     # Communication Services
     "XLC": [
+        # US Leaders
         ("META", "Meta Platforms", "Social media & metaverse leader"),
         ("GOOGL", "Alphabet Inc.", "Search, advertising & cloud services"),
         ("NFLX", "Netflix Inc.", "Streaming entertainment leader"),
-        ("DIS", "Walt Disney", "Entertainment & media conglomerate")
+        ("DIS", "Walt Disney", "Entertainment & media conglomerate"),
+        # Europe Leaders
+        ("VOD.L", "Vodafone Group", "British telecommunications leader"),
+        ("TEF.MC", "Telefónica", "Spanish telecommunications giant"),
+        # Asia Leaders
+        ("9984.T", "SoftBank Group", "Japanese telecom & tech investor"),
+        ("TCEHY", "Tencent Holdings", "Chinese internet & gaming giant")
     ],
     # Industrials
     "XLI": [
+        # US Leaders
         ("HON", "Honeywell", "Diversified industrial & aerospace"),
         ("UNP", "Union Pacific", "Leading railroad transportation"),
         ("CAT", "Caterpillar", "Construction & mining equipment"),
-        ("BA", "Boeing", "Aerospace & defense manufacturer")
+        ("BA", "Boeing", "Aerospace & defense manufacturer"),
+        # Europe Leaders
+        ("AIR.PA", "Airbus SE", "European aerospace & defense leader"),
+        ("RR.L", "Rolls-Royce", "British aerospace engines & power systems"),
+        ("ABB", "ABB Ltd", "Swiss-Swedish industrial automation"),
+        # Asia Leaders
+        ("6954.T", "Fanuc Corp", "Japanese robotics & automation leader")
     ],
     # Consumer Staples
     "XLP": [
+        # US Leaders
         ("PG", "Procter & Gamble", "Consumer goods & household products"),
         ("KO", "Coca-Cola", "Global beverage leader"),
         ("PEP", "PepsiCo", "Food & beverage conglomerate"),
-        ("WMT", "Walmart", "Retail & e-commerce leader")
+        ("WMT", "Walmart", "Retail & e-commerce leader"),
+        # Europe Leaders
+        ("UL", "Unilever", "British-Dutch consumer goods giant"),
+        ("OR.PA", "L'Oréal", "French beauty & cosmetics leader"),
+        ("DGE.L", "Diageo", "British spirits & beverage leader"),
+        # Asia Leaders
+        ("2801.HK", "ANTA Sports", "Chinese sportswear leader")
     ],
     # Energy
     "XLE": [
+        # US Leaders
         ("XOM", "Exxon Mobil", "Integrated oil & gas major"),
         ("CVX", "Chevron", "Global energy & chemicals"),
         ("COP", "ConocoPhillips", "Exploration & production leader"),
-        ("SLB", "Schlumberger", "Oilfield services & technology")
+        ("SLB", "Schlumberger", "Oilfield services & technology"),
+        # Europe Leaders
+        ("SHEL.L", "Shell plc", "British-Dutch integrated energy giant"),
+        ("TTE.PA", "TotalEnergies", "French integrated oil & renewables"),
+        ("EQNR", "Equinor", "Norwegian oil & offshore wind leader"),
+        # Asia Leaders
+        ("1301.T", "Kyushu Electric", "Japanese electric power utility")
     ],
     # Utilities
     "XLU": [
+        # US Leaders
         ("NEE", "NextEra Energy", "Renewable energy & utilities leader"),
         ("DUK", "Duke Energy", "Electric utilities & infrastructure"),
         ("SO", "Southern Company", "Electric & gas utility services"),
-        ("D", "Dominion Energy", "Diversified energy infrastructure")
+        ("D", "Dominion Energy", "Diversified energy infrastructure"),
+        # Europe Leaders
+        ("EDF.PA", "Électricité de France", "French electric utility leader"),
+        ("ENEL.MI", "Enel SpA", "Italian multinational energy company"),
+        ("NG.L", "National Grid", "British electricity & gas transmission"),
+        # Asia Leaders
+        ("9501.T", "Tokyo Electric Power", "Japanese electric utility leader")
     ],
     # Real Estate
     "XLRE": [
+        # US Leaders
         ("AMT", "American Tower", "Cell tower & infrastructure REITs"),
         ("PLD", "Prologis", "Logistics real estate leader"),
         ("CCI", "Crown Castle", "Wireless infrastructure provider"),
-        ("EQIX", "Equinix", "Data center REITs leader")
+        ("EQIX", "Equinix", "Data center REITs leader"),
+        # Europe Leaders
+        ("LAND.L", "Land Securities", "British commercial property REIT"),
+        ("URW.AS", "Unibail-Rodamco-Westfield", "European retail property REIT"),
+        # Asia Leaders
+        ("8591.T", "ORIX Corp", "Japanese diversified financial & real estate")
     ],
     # Materials
     "XLB": [
+        # US Leaders
         ("LIN", "Linde plc", "Industrial gases & engineering"),
         ("APD", "Air Products", "Industrial gases & chemicals"),
         ("SHW", "Sherwin-Williams", "Paint & coatings leader"),
-        ("ECL", "Ecolab", "Water treatment & hygiene services")
+        ("ECL", "Ecolab", "Water treatment & hygiene services"),
+        # Europe Leaders
+        ("AIR.PA", "Air Liquide", "French industrial gases leader"),
+        ("RIO.L", "Rio Tinto", "British-Australian mining giant"),
+        ("BHP", "BHP Group", "Australian diversified resources leader"),
+        # Asia Leaders
+        ("4063.T", "Shin-Etsu Chemical", "Japanese chemicals & materials leader")
     ]
 }
 
@@ -661,12 +777,13 @@ class SectorAnalyzer:
             recommendations = []
 
             # 1. Always include the sector ETF first (diversified exposure)
+            etf_full_name = ETF_NAMES.get(sector_etf, f"{sector_etf} ETF")
             recommendations.append({
                 "symbol": sector_etf,
                 "type": "ETF",
-                "name": f"Sector ETF {sector_etf}",
+                "name": etf_full_name,
                 "weight": 100.0,  # Will be normalized later
-                "rationale": f"Diversified exposure to sector via {sector_etf} ETF"
+                "rationale": f"Diversified exposure via {etf_full_name}"
             })
 
             # 2. Add top N individual stocks from static mapping

@@ -19,8 +19,9 @@ from services.ml.bourse.sector_analyzer import SectorAnalyzer
 logger = logging.getLogger(__name__)
 
 
-# GICS Level 1 Sectors (11 Standard S&P 500 Sectors)
+# GICS Level 1 Sectors (11 Standard S&P 500 Sectors) + Geographic Sectors
 STANDARD_SECTORS = {
+    # === INDUSTRY SECTORS (GICS) ===
     "Technology": {
         "target_range": (15, 30),
         "etf": "XLK",
@@ -75,6 +76,28 @@ STANDARD_SECTORS = {
         "target_range": (2, 8),
         "etf": "XLB",
         "description": "Materials"
+    },
+
+    # === GEOGRAPHIC SECTORS (NEW - Oct 2025) ===
+    "Europe": {
+        "target_range": (10, 20),
+        "etf": "VGK",  # Vanguard FTSE Europe ETF
+        "description": "European developed markets"
+    },
+    "Asia Pacific": {
+        "target_range": (5, 15),
+        "etf": "VPL",  # Vanguard FTSE Pacific ETF
+        "description": "Asia-Pacific ex-Japan"
+    },
+    "Emerging Markets": {
+        "target_range": (5, 15),
+        "etf": "VWO",  # Vanguard FTSE Emerging Markets ETF
+        "description": "Emerging markets exposure"
+    },
+    "Japan": {
+        "target_range": (3, 10),
+        "etf": "EWJ",  # iShares MSCI Japan ETF
+        "description": "Japanese equities"
     }
 }
 
@@ -155,14 +178,44 @@ ETF_SECTOR_MAPPING = {
     "IWDA": "Diversified",      # iShares Core MSCI World UCITS ETF
     "ACWI": "Diversified",      # iShares MSCI ACWI ETF
     "WORLD": "Diversified",     # UBS MSCI World UCITS ETF
+    "VT": "Diversified",        # Vanguard Total World Stock ETF
 
     # Sector-Specific ETFs
     "ITEK": "Technology",       # HAN-GINS Tech Megatrend Equal Weight UCITS ETF
     "BTEC": "Healthcare",       # iShares NASDAQ US Biotechnology UCITS ETF
+    "XLK": "Technology",        # SPDR Technology Select Sector
+    "XLV": "Healthcare",        # SPDR Healthcare Select Sector
+    "XLF": "Financials",        # SPDR Financials Select Sector
+    "XLY": "Consumer Discretionary",  # SPDR Consumer Discretionary
+    "XLC": "Communication Services",  # SPDR Communication Services
+    "XLI": "Industrials",       # SPDR Industrials Select Sector
+    "XLP": "Consumer Staples",  # SPDR Consumer Staples
+    "XLE": "Energy",            # SPDR Energy Select Sector
+    "XLU": "Utilities",         # SPDR Utilities Select Sector
+    "XLRE": "Real Estate",      # SPDR Real Estate Select Sector
+    "XLB": "Materials",         # SPDR Materials Select Sector
+
+    # Geographic ETFs (NEW - Oct 2025)
+    "VGK": "Europe",            # Vanguard FTSE Europe ETF
+    "VPL": "Asia Pacific",      # Vanguard FTSE Pacific ETF
+    "VWO": "Emerging Markets",  # Vanguard FTSE Emerging Markets ETF
+    "EWJ": "Japan",             # iShares MSCI Japan ETF
+    "FEZ": "Europe",            # SPDR Euro Stoxx 50 ETF
+    "EWU": "Europe",            # iShares MSCI United Kingdom ETF
+    "EWG": "Europe",            # iShares MSCI Germany ETF
+    "EWQ": "Europe",            # iShares MSCI France ETF
+    "EWI": "Europe",            # iShares MSCI Italy ETF
+    "EWP": "Europe",            # iShares MSCI Spain ETF
+    "ASHR": "Emerging Markets", # Xtrackers Harvest CSI 300 China A-Shares
+    "INDA": "Emerging Markets", # iShares MSCI India ETF
+    "EWZ": "Emerging Markets",  # iShares MSCI Brazil ETF
 
     # Alternative Assets
     "AGGS": "Fixed Income",     # iShares Core Global Aggregate Bond UCITS ETF
     "XGDU": "Commodities",      # Xtrackers IE Physical Gold ETC
+    "GLD": "Commodities",       # SPDR Gold Shares
+    "SLV": "Commodities",       # iShares Silver Trust
+    "DBC": "Commodities",       # Invesco DB Commodity Index
 }
 
 

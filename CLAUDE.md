@@ -411,80 +411,95 @@ ethTarget = (baseEthRatio / baseTotal) × nonStablesSpace
 - [`docs/STOP_LOSS_BACKTEST_RESULTS.md`](docs/STOP_LOSS_BACKTEST_RESULTS.md) - Backtest validation
 - [`docs/STOP_LOSS_SYSTEM.md`](docs/STOP_LOSS_SYSTEM.md) - Architecture système
 
-### Market Opportunities System (Oct 2025)
+### Market Opportunities System - Global Edition (Oct 2025)
 
-**Identifie opportunités d'investissement en dehors du portefeuille actuel** ([opportunity_scanner.py](services/ml/bourse/opportunity_scanner.py)):
+**Identifie opportunités d'investissement mondiales** en dehors du portefeuille actuel ([opportunity_scanner.py](services/ml/bourse/opportunity_scanner.py), [sector_analyzer.py](services/ml/bourse/sector_analyzer.py)):
 
-**Status:** ✅ **100% fonctionnel** (Unknown 0%, 26 ventes suggérées, 20 opportunités: 5 ETFs + 15 actions)
+**Status:** ✅ **100% fonctionnel** - Système mondial avec 88 actions blue-chip (US + Europe + Asia) + 45+ ETFs
 
 **Architecture 3 modules:**
-1. **Opportunity Scanner** - Scan secteurs S&P 500 vs portfolio, détecte gaps + enrichissement Yahoo Finance
+1. **Opportunity Scanner** - Scan 11 secteurs GICS + 4 secteurs géographiques vs portfolio, détecte gaps + enrichissement Yahoo Finance
 2. **Sector Analyzer** - Scoring 3-pillar: Momentum 40%, Value 30%, Diversification 30%
-   - **NEW (Session 3):** 44 actions blue-chip S&P 500 (4 par secteur)
-   - Retourne 1 ETF + 3 actions par gap (ex: XLF + JPM, BAC, WFC)
+   - **GLOBAL (Oct 2025):** 88 actions blue-chip (44 US + 25 Europe + 19 Asia) - 8-9 actions par secteur
+   - Retourne 1 ETF + 6 actions par gap (ex: XLF + JPM, BAC, WFC, GS, HSBC, BNP)
 3. **Portfolio Gap Detector** - Suggestions ventes intelligentes (max 30%, top 2 protected)
+
+**Univers d'Investissement Mondial:**
+
+**11 Secteurs GICS** (Industry):
+- Technology, Healthcare, Financials, Consumer Discretionary, Communication Services
+- Industrials, Consumer Staples, Energy, Utilities, Real Estate, Materials
+- **Exemples actions internationales:** SAP, ASML, Siemens (Europe), TSM, Samsung (Asia)
+
+**4 Secteurs Géographiques** (NEW - Oct 2025):
+- **Europe** (10-20%) - VGK (Vanguard FTSE Europe)
+- **Asia Pacific** (5-15%) - VPL (Vanguard FTSE Pacific)
+- **Emerging Markets** (5-15%) - VWO (Vanguard FTSE Emerging Markets)
+- **Japan** (3-10%) - EWJ (iShares MSCI Japan)
+
+**45+ ETFs Reconnus:**
+- Sectoriels: XLK, XLV, XLF, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB
+- Géographiques: VGK, VPL, VWO, EWJ, FEZ, EWU, EWG, EWQ, EWI, EWP
+- Diversifiés: IWDA, ACWI, VT, WORLD
+- Commodities: GLD, SLV, AGGS, XGDU
 
 **API Endpoint:**
 ```bash
 GET /api/bourse/opportunities?user_id=jack&horizon=medium&min_gap_pct=5.0
+# Returns: 35 opportunities (ETFs + international stocks), scored dynamically
 ```
 
 **Frontend** ([saxo-dashboard.html](static/saxo-dashboard.html)):
 - Onglet "Market Opportunities" dédié
-- 4 sections: Portfolio Gaps (cards), Top Opportunities (table 20 lignes), Suggested Sales, Impact Simulator
+- 4 sections: Portfolio Gaps (cards), Top Opportunities (table 35 lignes), Suggested Sales, Impact Simulator
 - Horizons: short (1-3M), medium (6-12M), long (2-3Y)
-- **NEW:** Affiche ETFs + actions individuelles (ex: "XLF, JPM, BAC, WFC" pour Financials)
-- **Export Text:** Bouton "Export Text (All Timeframes)" génère fichier markdown avec les 3 horizons (gaps, opportunités, ventes, impact) pour analyse externe
+- **Colonne "Name"** affiche noms complets (ex: "Vanguard FTSE Europe", "Airbus SE")
+- **Export Text:** Bouton "Export Text (All Timeframes)" génère fichier markdown avec les 3 horizons
 
-**Scoring System:**
+**Scoring System Dynamique:**
 ```python
+# Fraîcheur données: Temps réel (ou cache Redis 4h)
 opportunity_score = (
-    momentum_score * 0.40 +  # Price momentum, RSI, relative strength vs SPY
-    value_score * 0.30 +      # P/E, PEG, dividend yield
-    diversification_score * 0.30  # Corrélation portfolio, volatilité
+    momentum_score * weight_momentum +  # Price momentum, RSI, relative strength vs SPY
+    value_score * weight_value +        # P/E, PEG, dividend yield
+    diversification_score * weight_div  # Corrélation portfolio, volatilité
 )
+
+# Poids adaptatifs selon horizon:
+# Short (1-3M): (0.70, 0.10, 0.20) → Momentum++
+# Medium (6-12M): (0.40, 0.30, 0.30) → Équilibré
+# Long (2-3Y): (0.20, 0.50, 0.30) → Value++
 ```
 
 **Contraintes réallocation:**
 - Max 30% vente par position
-- **Top 2 holdings protégés** (jamais vendus) - optimisé Oct 2025
+- **Top 2 holdings protégés** (jamais vendus)
 - Détention min 30 jours
 - Max 25% par secteur
 - Validation stops (respect trailing stops)
 
-**Features clés:**
-- **ETF mapping manuel** (7 ETFs): IWDA/ACWI/WORLD (Diversified), ITEK (Tech), BTEC (Healthcare), AGGS (Fixed Income), XGDU (Commodities)
-- **Symboles européens** (6 actions): Mapping Saxo→Yahoo (.SW, .DE, .WA, .PA, .AS, .MI, .L)
-- **BRKb mapping** (Berkshire Hathaway): "BRKb" → "BRK-B" (Yahoo Finance format)
-- **Normalisation yfinance**: Retire suffix `:xexchange` avant fetch (plus d'erreurs format)
-
-**Secteurs standard:**
-11 secteurs GICS (Technology, Healthcare, Financials, Consumer Discretionary, Communication Services, Industrials, Consumer Staples, Energy, Utilities, Real Estate, Materials) avec targets ranges (ex: Tech 15-30%, Utilities 2-8%)
-
-**Usage:**
+**Exemple Résultat Mondial:**
 ```javascript
-// User: Clic "Scan Opportunities" (horizon: medium 6-12M)
-// → Détecte gaps sectoriels (ex: Utilities 0% → cible 5%)
-// → Suggère 4 options: XLU (ETF), NEE, DUK, SO (actions), score 55.5
-// → Suggère vente NVDA 30% pour financer (€2,863 freed)
-// → Simule impact: Tech 35%→26%, Risk 7.2→6.4
-// → Total: 20 opportunités (5 gaps × 4 choix) au lieu de 5 ETFs
+// Gap détecté: Europe 0% vs target 10-20% → GAP -15%
+// Top Opportunities (scorées dynamiquement):
+// 1. VGK (Vanguard FTSE Europe) - Score 61 - ETF - €19,183
+// 2. ENEL.MI (Enel SpA - Italie) - Score 60 - Stock - €6,394
+// 3. RR.L (Rolls-Royce - UK) - Score 59 - Stock - €14,707
+// 4. AIR.PA (Airbus - France) - Score 53 - Stock - €14,707
+// → Mix US + Europe + Asia selon meilleurs scores du moment
 ```
 
-**Métriques finales:**
-- Unknown: **0%** (était 42%) - 100% amélioration ✅
-- Suggested sales: **26 positions** (était 0)
-- Capital freed: **€29,872** (62% du besoin de €47,946)
-- Scan time: **16s** (avec enrichissement Yahoo Finance)
-- **Opportunities: 20 (5 ETFs + 15 stocks)** (était 5 ETFs) - +300% ✨
-- **Individual stock scoring** (P1 - Oct 2025) - Chaque action a ses propres scores
-  - JPM: 61.0 (meilleur choix Financials), BAC: 60.6, WFC: 50.3
-  - Tri automatique par score (meilleurs opportunités en premier)
-  - Guidance stratégique par secteur (ETF vs actions individuelles)
-- **Redis cache optimization** (P2 - Oct 2025) - Cache scores 4h TTL
-  - WSL2: -32% scan time (27s → 18.7s)
-  - Linux attendu: -63% scan time (27s → 10s)
-  - Graceful degradation (fonctionne sans Redis)
+**Métriques typiques:**
+- Opportunities: **17-35** (5-8 gaps × 7 choix) selon portfolio
+- **Actions internationales:** 30-40% des recommandations (vs 0% avant)
+- Scoring dynamique: Favorise les meilleures opportunités réelles (ex: Airbus 53 > Boeing 25)
+- Unknown sectors: **0%** (enrichissement Yahoo Finance automatique)
+- Redis cache: -32% scan time sur WSL2 (18s), -63% attendu sur Linux (10s)
+
+**Sources Données:**
+- **Yahoo Finance (yfinance)** - 100% gratuit - Prix, fondamentaux, secteurs
+- **Liste statique 88 blue-chips** - Mise à jour 1x/an (blue-chips stables)
+- **Scoring temps réel** - Recalculé toutes les 4h (cache Redis) ou à la demande
 
 **Détails complets:**
 - [`docs/MARKET_OPPORTUNITIES_SYSTEM.md`](docs/MARKET_OPPORTUNITIES_SYSTEM.md) - Documentation système complète
@@ -565,6 +580,23 @@ if memecoins_pct >= 0.48 and memecoins_pct <= 0.52:
 - Change source depuis n'importe quelle page
 - Menu "Compte" → Sélection CSV/API → Reload auto
 - Synchronise localStorage + backend
+
+### Export System (Oct 2025)
+**Système d'export unifié** pour listes assets/classifications multi-modules :
+
+**3 Modules** : Crypto (assets + 11 groupes), Saxo (positions + 11 secteurs GICS), Banks (comptes + conversions USD)
+
+**3 Formats** : JSON (API/dev), CSV (Excel), Markdown (docs)
+
+**UI** : Boutons "Export Lists" dans tuiles dashboard → Modal sélection format → Download automatique
+
+**Backend** : `services/export_formatter.py` + endpoints `/api/portfolio/export-lists`, `/api/saxo/export-lists`, `/api/wealth/banks/export-lists`
+
+**Frontend** : `static/modules/export-button.js` (module réutilisable) + event listeners dans dashboard
+
+**Multi-tenant** : Header `X-User` + isolation `user_id` + source-aware (crypto) + file_key (Saxo)
+
+**Docs** : [`docs/EXPORT_SYSTEM.md`](docs/EXPORT_SYSTEM.md)
 
 ---
 

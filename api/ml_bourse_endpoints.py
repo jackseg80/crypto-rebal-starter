@@ -841,10 +841,11 @@ async def get_market_opportunities(
             etf = gap.get("etf")
             gap_pct = gap.get("gap_pct", 0)
 
-            # Get top stocks in sector (ETF + top 3 individual stocks with scores)
+            # Get top stocks in sector (ETF + top 6 individual stocks with scores)
+            # Increased from 3 to 6 to include international blue-chips (US + Europe + Asia)
             top_stocks = await sector_analyzer.get_top_stocks_in_sector(
                 sector_etf=etf,
-                top_n=3,
+                top_n=6,
                 horizon=horizon,
                 score_individually=True  # Enable individual stock scoring
             )
@@ -882,8 +883,9 @@ async def get_market_opportunities(
         # Sort opportunities by score (descending)
         opportunities.sort(key=lambda x: x.get("score", 0), reverse=True)
 
-        # Limit to top 20 (to show all ETF + stock recommendations)
-        opportunities = opportunities[:20]
+        # Limit to top 35 (to show ETF + international stock recommendations)
+        # Increased from 20 to 35 to accommodate 6 stocks per gap (was 3)
+        opportunities = opportunities[:35]
 
         # 4. Detect sales to fund opportunities
         from services.ml.bourse.portfolio_gap_detector import PortfolioGapDetector
