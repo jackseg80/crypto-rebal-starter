@@ -194,12 +194,12 @@ async def job_ohlcv_hourly():
 
         script_path = Path(__file__).parent.parent / "scripts" / "update_price_history.py"
 
-        # Run with --incremental flag for hourly updates
+        # Run update_price_history.py (incremental by default)
         result = subprocess.run(
-            [sys.executable, str(script_path), "--incremental"],
+            [sys.executable, str(script_path)],
             capture_output=True,
             text=True,
-            timeout=120  # 2 min max for incremental
+            timeout=120  # 2 min max for update
         )
 
         duration_ms = (datetime.now() - start).total_seconds() * 1000

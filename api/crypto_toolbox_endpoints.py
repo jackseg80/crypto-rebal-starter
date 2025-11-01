@@ -60,6 +60,7 @@ Scrapes crypto-toolbox.vercel.app indicators with Playwright and exposes them vi
 """
 
 import asyncio
+import json
 import logging
 import time
 from datetime import datetime
@@ -70,6 +71,15 @@ from playwright.async_api import async_playwright, Browser, Page
 
 logger = logging.getLogger(__name__)
 
+# Optional Redis support
+try:
+    import redis.asyncio as aioredis
+    from config.settings import get_settings
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    logger.debug("Redis not available for crypto-toolbox caching")
+
 # Router
 router = APIRouter(prefix="/api/crypto-toolbox", tags=["Crypto Toolbox"])
 
@@ -79,10 +89,12 @@ _playwright_instance = None
 _lock_refresh = asyncio.Lock()
 _cache: Dict[str, Any] = {"data": None, "timestamp": 0.0}
 _concurrency = asyncio.Semaphore(2)  # Max 2 concurrent scrapes
+_redis_client: Optional[aioredis.Redis] = None if REDIS_AVAILABLE else None
 
 # Configuration
-CACHE_TTL = 1800  # 30 minutes
+CACHE_TTL = 7200  # 2 hours (extended from 30min to reduce scraping frequency)
 CRYPTO_TOOLBOX_URL = "https://crypto-toolbox.vercel.app/signaux"
+REDIS_CACHE_KEY = "crypto_toolbox:data"
 
 
 # ============================================================================
@@ -97,8 +109,9 @@ async def startup_playwright():
     - Launches Chromium in headless mode
     - Reuses single browser instance across requests
     - Safe for single-worker Uvicorn deployment
+    - Also initializes Redis cache if available
     """
-    global _browser, _playwright_instance
+    global _browser, _playwright_instance, _redis_client
 
     if _browser is not None:
         logger.warning("Playwright browser already initialized")
@@ -112,6 +125,21 @@ async def startup_playwright():
             args=["--no-sandbox", "--disable-dev-shm-usage"]
         )
         logger.info("✅ Playwright browser launched successfully")
+
+        # Initialize Redis if available
+        if REDIS_AVAILABLE:
+            try:
+                settings = get_settings()
+                _redis_client = await aioredis.from_url(
+                    settings.REDIS_URL,
+                    encoding="utf-8",
+                    decode_responses=True
+                )
+                await _redis_client.ping()
+                logger.info("✅ Redis cache initialized for crypto-toolbox")
+            except Exception as e:
+                logger.warning(f"⚠️ Redis cache not available: {e}")
+                _redis_client = None
     except Exception as e:
         logger.error(f"❌ Failed to launch Playwright browser: {e}")
         raise
@@ -121,10 +149,20 @@ async def shutdown_playwright():
     """
     Close browser and cleanup Playwright (called at app shutdown).
     """
-    global _browser, _playwright_instance
+    global _browser, _playwright_instance, _redis_client
 
     # Only log if browser was actually initialized
     browser_was_active = _browser is not None or _playwright_instance is not None
+
+    # Close Redis connection
+    if _redis_client:
+        try:
+            await _redis_client.close()
+            logger.info("✅ Redis connection closed")
+        except Exception as e:
+            logger.warning(f"⚠️ Error closing Redis: {e}")
+        finally:
+            _redis_client = None
 
     if _browser:
         try:
@@ -223,8 +261,9 @@ async def _scrape_crypto_toolbox() -> Dict[str, Any]:
         try:
             logger.info(f"🌐 Loading {CRYPTO_TOOLBOX_URL}")
             await page.goto(CRYPTO_TOOLBOX_URL, timeout=15000)
-            await page.wait_for_load_state("networkidle")
-            await asyncio.sleep(2)  # Extra delay for client-side hydration
+            # Wait for table instead of networkidle (faster)
+            await page.wait_for_selector("table tbody tr", timeout=10000)
+            await asyncio.sleep(0.5)  # Reduced delay for client-side hydration
 
             # Parse table rows
             rows = await page.locator("table tbody tr").all()
@@ -310,6 +349,11 @@ async def _get_data(force: bool = False) -> Dict[str, Any]:
     """
     Get crypto-toolbox data (cached or fresh).
 
+    Cache strategy:
+    1. Check Redis cache (if available) - persists across restarts
+    2. Check memory cache - faster but volatile
+    3. Scrape fresh data if needed
+
     Args:
         force: Force refresh bypassing cache
 
@@ -318,14 +362,33 @@ async def _get_data(force: bool = False) -> Dict[str, Any]:
     """
     now = time.time()
 
-    # Check cache (unless force refresh)
+    # Check Redis cache first (if available and not forcing)
+    if not force and _redis_client:
+        try:
+            cached_json = await _redis_client.get(REDIS_CACHE_KEY)
+            if cached_json:
+                cached_data = json.loads(cached_json)
+                ttl = await _redis_client.ttl(REDIS_CACHE_KEY)
+                age = CACHE_TTL - ttl if ttl > 0 else 0
+                logger.info(f"💾 Returning Redis cached data (age: {age}s)")
+                return {
+                    **cached_data,
+                    "cached": True,
+                    "cache_age_seconds": age,
+                    "cache_source": "redis"
+                }
+        except Exception as e:
+            logger.warning(f"⚠️ Redis cache read error: {e}")
+
+    # Check memory cache (unless force refresh)
     if not force and _cache["data"] and (now - _cache["timestamp"] < CACHE_TTL):
         age = int(now - _cache["timestamp"])
-        logger.info(f"💾 Returning cached data (age: {age}s)")
+        logger.info(f"💾 Returning memory cached data (age: {age}s)")
         return {
             **_cache["data"],
             "cached": True,
-            "cache_age_seconds": age
+            "cache_age_seconds": age,
+            "cache_source": "memory"
         }
 
     # Prevent thundering herd during refresh
@@ -337,16 +400,29 @@ async def _get_data(force: bool = False) -> Dict[str, Any]:
             return {
                 **_cache["data"],
                 "cached": True,
-                "cache_age_seconds": age
+                "cache_age_seconds": age,
+                "cache_source": "memory"
             }
 
         # Scrape fresh data
         logger.info("🔄 Scraping fresh data...")
         data = await _scrape_crypto_toolbox()
 
-        # Update cache
+        # Update memory cache
         _cache["data"] = data
         _cache["timestamp"] = time.time()
+
+        # Update Redis cache (if available)
+        if _redis_client:
+            try:
+                await _redis_client.setex(
+                    REDIS_CACHE_KEY,
+                    CACHE_TTL,
+                    json.dumps(data)
+                )
+                logger.debug("✅ Data cached in Redis")
+            except Exception as e:
+                logger.warning(f"⚠️ Redis cache write error: {e}")
 
         return {
             **data,
@@ -419,10 +495,21 @@ async def clear_cache():
     """
     Clear cache (admin/debug endpoint).
 
+    Clears both memory and Redis cache.
+
     Returns:
         Success message
     """
     global _cache
     _cache = {"data": None, "timestamp": 0.0}
-    logger.info("🧹 Cache cleared")
-    return {"message": "Cache cleared successfully"}
+
+    # Clear Redis cache if available
+    if _redis_client:
+        try:
+            await _redis_client.delete(REDIS_CACHE_KEY)
+            logger.info("🧹 Redis cache cleared")
+        except Exception as e:
+            logger.warning(f"⚠️ Redis cache clear error: {e}")
+
+    logger.info("🧹 Memory cache cleared")
+    return {"message": "Cache cleared successfully (memory + redis)"}

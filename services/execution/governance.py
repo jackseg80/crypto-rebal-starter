@@ -219,7 +219,8 @@ class DecisionState(BaseModel):
     
     # Signaux ML
     signals: MLSignals = Field(default_factory=MLSignals, description="Signaux ML actuels")
-    
+    raw_signals: Dict[str, Any] = Field(default_factory=dict, description="Signaux ML bruts pour XAI (structure orchestrator)")
+
     # Métadonnées
     last_update: datetime = Field(default_factory=datetime.now, description="Dernière MAJ")
     system_status: str = Field(default="operational", description="Statut système")
@@ -396,7 +397,10 @@ class GovernanceEngine:
                         contradiction_index=self._compute_real_contradiction_index(ml_predictions),
                         sources_used=list(ml_predictions.get('models', {}).keys())
                     )
-                    
+
+                    # Store raw signals for XAI (Phase 3C)
+                    self.current_state.raw_signals = ml_predictions
+
                     self._last_signals_fetch = datetime.now()
                     logger.debug("Real ML signals refreshed successfully")
                     return
@@ -421,6 +425,9 @@ class GovernanceEngine:
                         contradiction_index=self._compute_contradiction_index(ml_status),
                         sources_used=["volatility_fallback", "regime_fallback", "correlation_fallback", "sentiment_fallback"]
                     )
+
+                    # Store raw signals for XAI (Phase 3C) - fallback format
+                    self.current_state.raw_signals = ml_status
 
                     self._last_signals_fetch = datetime.now()
                     logger.debug("ML signals refreshed via fallback API")
@@ -1791,7 +1798,7 @@ class GovernanceEngine:
                 risk_score += 0.1
             
             # Check market volatility from ML signals
-            if hasattr(self.current_state, 'raw_signals') and self.current_state.raw_signals:
+            if self.current_state.raw_signals:
                 volatility_data = self.current_state.raw_signals.get('models', {}).get('volatility', {})
                 high_vol_assets = []
                 

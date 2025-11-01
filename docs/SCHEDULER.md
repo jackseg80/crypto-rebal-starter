@@ -113,9 +113,9 @@ minute=5, timezone="Europe/Zurich", jitter=30
 ```
 
 **Implementation:**
-- Runs `update_price_history.py --incremental`
+- Runs `update_price_history.py` (automatically incremental)
 - Timeout: 2 minutes max
-- Lighter than daily full update
+- Updates only existing cached symbols
 
 ---
 
@@ -189,11 +189,11 @@ python scripts/pnl_snapshot.py --eod
 ### Run OHLCV Update Manually
 
 ```bash
-# Full update
+# Update price history (incremental by default)
 python scripts/update_price_history.py
 
-# Incremental update
-python scripts/update_price_history.py --incremental
+# Update specific symbols only
+python scripts/update_price_history.py --symbols BTC ETH SOL
 ```
 
 ## Monitoring & Health
@@ -340,7 +340,7 @@ uvicorn api.main:app --reload
 
 **Solutions:**
 - Reduce number of tracked assets
-- Use `--incremental` flag for hourly updates
+- Script runs incrementally by default (updates only cached symbols)
 - Increase timeout in [api/scheduler.py:221](../api/scheduler.py) (daily) or [api/scheduler.py:266](../api/scheduler.py) (hourly)
 
 ---
