@@ -210,7 +210,7 @@ Si la page ne fonctionne pas correctement :
 
 ### Option 1 : Restaurer le Backup
 ```bash
-cd D:\Python\crypto-rebal-starter\static
+cd D:\Python\smartfolio\static
 cp risk-dashboard.html.backup.20251009_222532 risk-dashboard.html
 ```
 

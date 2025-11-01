@@ -1,5 +1,5 @@
 """
-Performance tests for crypto-rebal-starter
+Performance tests for smartfolio
 
 Contains benchmarks and performance monitoring for:
 - Phase 2A: Phase-Aware Alerting System

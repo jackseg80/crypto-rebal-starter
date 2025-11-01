@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple starter for crypto-rebal-starter without heavy dependencies
+Simple starter for smartfolio without heavy dependencies
 Just serves the static files and basic endpoints for HTTP testing
 """
 

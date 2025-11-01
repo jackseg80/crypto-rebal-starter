@@ -3,8 +3,8 @@ import zipfile
 from pathlib import Path
 
 # Dossier source et dossier de sortie
-source_dir = Path(r"D:\Python\crypto-rebal-starter")
-output_zip = Path(r"D:\Python\crypto-rebal-starter.zip")
+source_dir = Path(r"D:\Python\smartfolio")
+output_zip = Path(r"D:\Python\smartfolio.zip")
 
 # Patterns/dossiers à exclure
 EXCLUDE_DIRS = {

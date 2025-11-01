@@ -29,19 +29,19 @@ After P1, scan time was **~27s** due to:
 
 **Code changes:**
 
-1. **Added Redis connection** ([sector_analyzer.py:131-162](d:\Python\crypto-rebal-starter\services\ml\bourse\sector_analyzer.py))
+1. **Added Redis connection** ([sector_analyzer.py:131-162](d:\Python\smartfolio\services\ml\bourse\sector_analyzer.py))
    - Optional Redis client with 5s timeout
    - Auto-detects REDIS_URL from environment
    - Logs if cache enabled/disabled
 
-2. **Cache methods** ([sector_analyzer.py:164-277](d:\Python\crypto-rebal-starter\services\ml\bourse\sector_analyzer.py))
+2. **Cache methods** ([sector_analyzer.py:164-277](d:\Python\smartfolio\services\ml\bourse\sector_analyzer.py))
    - `_get_cache_key()` - Generate Redis key
    - `_get_cached_score()` - Check cache, return if hit
    - `_cache_score()` - Save score with TTL
    - `get_cache_stats()` - Monitor cache status
    - `clear_cache()` - Manual cache flush
 
-3. **Integrated caching in `analyze_individual_stock()`** ([sector_analyzer.py:279-302](d:\Python\crypto-rebal-starter\services\ml\bourse\sector_analyzer.py))
+3. **Integrated caching in `analyze_individual_stock()`** ([sector_analyzer.py:279-302](d:\Python\smartfolio\services\ml\bourse\sector_analyzer.py))
    - Check cache BEFORE fetching from Yahoo Finance
    - If cache hit → Return immediately (saves ~2s per stock)
    - If cache miss → Fetch, score, then cache result

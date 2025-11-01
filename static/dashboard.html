@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>📊 Dashboard - Crypto Rebalancer</title>
+    <title>📊 Dashboard - SmartFolio</title>
     <link rel="stylesheet" href="shared-theme.css">
     <link rel="stylesheet" href="theme-compat.css">
     <script type="module" src="components/nav.js"></script>
@@ -472,6 +472,13 @@
                     <div id="global-total-value" style="font-size:2rem;font-weight:900;color:var(--theme-text);">--
                     </div>
                     <div id="global-pnl-today" style="font-size:0.95rem;font-weight:600;margin-top:4px;">--</div>
+
+                    <!-- Valeurs en EUR et CHF -->
+                    <div id="global-currency-conversions"
+                        style="margin-top:8px;font-size:0.75rem;color:var(--theme-text-muted);">
+                        <div id="global-total-eur">-- EUR</div>
+                        <div id="global-total-chf">-- CHF</div>
+                    </div>
                 </div>
 
                 <!-- Modules avec graphiques intégrés -->

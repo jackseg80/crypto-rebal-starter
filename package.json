@@ -1,7 +1,7 @@
 {
-  "name": "crypto-rebal-starter",
+  "name": "smartfolio",
   "version": "1.0.0",
-  "description": "Crypto Portfolio Rebalancing System",
+  "description": "Smart Multi-Asset Portfolio Management with AI",
   "type": "module",
   "scripts": {
     "test": "vitest run",

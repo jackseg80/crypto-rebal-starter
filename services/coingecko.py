@@ -68,7 +68,7 @@ class CoinGeckoService:
         # Préparer les headers
         headers = {
             'accept': 'application/json',
-            'User-Agent': 'crypto-rebal-starter/1.0'
+            'User-Agent': 'smartfolio/1.0'
         }
 
         # Préparer les paramètres avec la clé API

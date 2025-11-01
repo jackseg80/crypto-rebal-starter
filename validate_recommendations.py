@@ -313,8 +313,8 @@ async def main():
     """Main validation function"""
     validator = RecommendationsValidator()
 
-    recs_file = "d:/Python/crypto-rebal-starter/long_recs.json"
-    positions_file = "d:/Python/crypto-rebal-starter/data/users/jack/saxobank/data/20251025_103840_Positions_25-oct.-2025_10_37_13.csv"
+    recs_file = "d:/Python/smartfolio/long_recs.json"
+    positions_file = "d:/Python/smartfolio/data/users/jack/saxobank/data/20251025_103840_Positions_25-oct.-2025_10_37_13.csv"
 
     print("\n" + "="*80)
     print("VALIDATION DES RECOMMANDATIONS - USER: jack")
@@ -327,7 +327,7 @@ async def main():
     print("\n" + report)
 
     # Save report to file
-    report_file = "d:/Python/crypto-rebal-starter/validation_report.txt"
+    report_file = "d:/Python/smartfolio/validation_report.txt"
     with open(report_file, 'w', encoding='utf-8') as f:
         f.write(report)
 

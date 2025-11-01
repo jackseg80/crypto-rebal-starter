@@ -216,7 +216,7 @@ class TestSecurityVulnerabilities:
                 # Vérifier qu'on n'expose pas de chemins système
                 assert "/python/" not in response_text
                 assert "\\python\\" not in response_text.replace("/", "\\")
-                assert "crypto-rebal-starter" not in response_text
+                assert "smartfolio" not in response_text
 
 
 if __name__ == "__main__":

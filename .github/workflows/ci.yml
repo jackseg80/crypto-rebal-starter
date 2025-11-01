@@ -69,8 +69,8 @@ jobs:
       
     - name: Build Docker image
       run: |
-        docker build -t crypto-rebal-starter .
+        docker build -t smartfolio .
         
     - name: Archive project
       run: |
-        Compress-Archive -Path .\* -DestinationPath .\crypto-rebal-starter.zip -Force -Exclude .venv,**\__pycache__\,**\.ruff_cache\,**\*.tmp
+        Compress-Archive -Path .\* -DestinationPath .\smartfolio.zip -Force -Exclude .venv,**\__pycache__\,**\.ruff_cache\,**\*.tmp

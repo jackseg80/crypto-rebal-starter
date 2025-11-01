@@ -1,4 +1,4 @@
-# CLAUDE.md — Guide Agent Crypto Rebal Starter
+# CLAUDE.md — Guide Agent SmartFolio
 
 > Version condensée pour agents IA. Source canonique: `AGENTS.md`
 > Dernière mise à jour: Oct 2025

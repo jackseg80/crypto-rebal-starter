@@ -209,7 +209,7 @@ services/alerts/alert_engine.py
 
 ### Collection Complète
 ```bash
-cd d:/Python/crypto-rebal-starter
+cd d:/Python/smartfolio
 .venv\Scripts\python.exe -m pytest --collect-only tests/
 # Résultat: 455 tests collected in 4.79s
 ```

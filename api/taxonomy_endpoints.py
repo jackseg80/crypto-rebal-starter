@@ -401,7 +401,7 @@ async def test_coingecko_api(api_key: str = None):
     url = "https://api.coingecko.com/api/v3/ping"
     headers = {
         'accept': 'application/json',
-        'User-Agent': 'crypto-rebal-starter/1.0'
+        'User-Agent': 'smartfolio/1.0'
     }
     params = {'x_cg_demo_api_key': api_key}
 

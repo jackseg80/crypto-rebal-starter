@@ -1,6 +1,6 @@
 /**
- * Configuration Globale Centralisée - Crypto Rebalancer
- * 
+ * Configuration Globale Centralisée - SmartFolio
+ *
  * Ce module gère la configuration partagée entre toutes les pages.
  * Utilise localStorage pour la persistance.
  */
@@ -115,7 +115,7 @@ class GlobalConfig {
    */
   load() {
     try {
-      const saved = localStorage.getItem('crypto_rebalancer_settings');
+      const saved = localStorage.getItem('smartfolio_settings');
       if (saved) {
         const parsed = JSON.parse(saved);
         this.settings = { ...DEFAULT_SETTINGS, ...parsed };
@@ -135,7 +135,7 @@ class GlobalConfig {
    */
   save() {
     try {
-      localStorage.setItem('crypto_rebalancer_settings', JSON.stringify(this.settings));
+      localStorage.setItem('smartfolio_settings', JSON.stringify(this.settings));
       console.debug('Configuration sauvegardée');
     } catch (error) {
       debugLogger.error('Erreur sauvegarde configuration:', error);
@@ -233,7 +233,7 @@ class GlobalConfig {
    */
   reset() {
     this.settings = { ...DEFAULT_SETTINGS };
-    localStorage.removeItem('crypto_rebalancer_settings');
+    localStorage.removeItem('smartfolio_settings');
   }
 
   /**
@@ -347,7 +347,7 @@ class GlobalConfig {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `crypto-rebalancer-config-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `smartfolio-config-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -787,7 +787,7 @@ window.parseCSVLine = function(line) {
 
 // Événements pour synchronisation cross-tab
 window.addEventListener('storage', (e) => {
-  if (e.key === 'crypto_rebalancer_settings') {
+  if (e.key === 'smartfolio_settings') {
     globalConfig.load();
     // Déclencher événement personnalisé pour les pages qui écoutent
     window.dispatchEvent(new CustomEvent('configChanged', {

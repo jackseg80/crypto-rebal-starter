@@ -19,7 +19,7 @@ Clic droit sur PowerShell > **"Exécuter en tant qu'administrateur"**
 ### 2. Exécuter le script de configuration
 
 ```powershell
-cd D:\Python\crypto-rebal-starter
+cd D:\Python\smartfolio
 .\scripts\setup_daily_snapshot_task.ps1
 ```
 

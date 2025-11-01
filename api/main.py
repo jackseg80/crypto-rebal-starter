@@ -307,8 +307,8 @@ app.middleware("http")(request_logger_middleware)
 app.middleware("http")(no_cache_dev_middleware)
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # répertoire du repo (niveau au-dessus d'api/)
-STATIC_DIR = BASE_DIR / "static"                    # D:\Python\crypto-rebal-starter\static
-DATA_DIR = BASE_DIR / "data"                        # D:\Python\crypto-rebal-starter\data
+STATIC_DIR = BASE_DIR / "static"                    # D:\Python\smartfolio\static
+DATA_DIR = BASE_DIR / "data"                        # D:\Python\smartfolio\data
 
 logger.debug(f"BASE_DIR = {BASE_DIR}")
 logger.debug(f"STATIC_DIR = {STATIC_DIR}, exists = {STATIC_DIR.exists()}")

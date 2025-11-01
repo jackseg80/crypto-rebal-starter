@@ -1,6 +1,6 @@
 # Redis Setup Guide
 
-> Installation et configuration de Redis pour crypto-rebal-starter
+> Installation et configuration de Redis pour smartfolio
 > Date: Oct 2025
 
 ## 🎯 Pourquoi Redis ?

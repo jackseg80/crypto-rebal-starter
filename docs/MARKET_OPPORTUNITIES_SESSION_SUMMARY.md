@@ -347,7 +347,7 @@ pos["sector"] = sector_raw  # Cache pour éviter re-fetch
 
 **Fichier CSV:**
 ```
-D:\Python\crypto-rebal-starter\data\users\jack\saxobank\data\20251028_101518_Positions_28-oct.-2025_10_14_52.csv
+D:\Python\smartfolio\data\users\jack\saxobank\data\20251028_101518_Positions_28-oct.-2025_10_14_52.csv
 ```
 
 **Actions européennes probables (à confirmer):**

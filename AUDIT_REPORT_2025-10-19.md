@@ -1386,7 +1386,7 @@ find . -name "*.py" -exec wc -l {} + | sort -rn | head -20
 ### C. Contacts & Support
 
 **Projet:** Crypto Rebalancing Platform
-**Repository:** D:\Python\crypto-rebal-starter
+**Repository:** D:\Python\smartfolio
 **Date Audit:** 19 Octobre 2025
 **Auditeur:** Claude Code Agent
 

@@ -271,7 +271,7 @@ def _post_api(method: str, params: Optional[Dict[str, Any]] = None,
             "Key": key,
             "Sign": sign,
             "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "crypto-rebal-starter/1.0",
+            "User-Agent": "smartfolio/1.0",
         },
         method="POST",
     )

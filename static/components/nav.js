@@ -207,7 +207,7 @@ const initUnifiedNav = () => {
     // Injecter le contenu de la navigation
     header.innerHTML = `
       <div class="nav-inner">
-        <div class="brand">Crypto Rebal</div>
+        <div class="brand">SmartFolio</div>
         <nav class="main-nav" aria-label="Navigation principale">
           <ul class="menu">
             <li><a href="dashboard.html" data-route="dashboard.html">Portfolio</a></li>

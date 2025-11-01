@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script pour lancer les tests ML du crypto-rebal-starter
+Script pour lancer les tests ML du smartfolio
 Usage: python run_ml_tests.py [options]
 """
 

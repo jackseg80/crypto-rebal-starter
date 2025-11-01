@@ -267,5 +267,5 @@ print(plan.get("priority_meta"))
 
 ---
 
-**Documentation générée pour crypto-rebal-starter v1.0**
+**Documentation générée pour smartfolio v1.0**
 **Mode priority implémenté en septembre 2025** 🚀

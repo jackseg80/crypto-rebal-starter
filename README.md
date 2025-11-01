@@ -1,6 +1,6 @@
-# Crypto Rebal Starter
+# SmartFolio
 
-Plateforme de gestion de patrimoine cross-asset (Crypto, Bourse, Banque) avec IA, ML avancé et gestion unifiée des risques. Architecture modulaire autour de 6 pages canoniques optimisées pour la prise de décision en temps réel.
+Plateforme intelligente de gestion de patrimoine cross-asset (Crypto, Bourse, Banque) avec IA, ML avancé et gestion unifiée des risques. Architecture modulaire autour de 6 pages canoniques optimisées pour la prise de décision en temps réel.
 
 ## 🎯 Features Principales
 

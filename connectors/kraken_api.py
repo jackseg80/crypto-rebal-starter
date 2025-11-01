@@ -94,7 +94,7 @@ class KrakenAPI:
             self.session = aiohttp.ClientSession(
                 connector=connector,
                 timeout=timeout,
-                headers={'User-Agent': 'crypto-rebal-starter/1.0'}
+                headers={'User-Agent': 'smartfolio/1.0'}
             )
             
         # Test de connectivité

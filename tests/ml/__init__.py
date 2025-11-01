@@ -1,3 +1,3 @@
 """
-Tests ML pour le crypto-rebal-starter
+Tests ML pour le smartfolio
 """

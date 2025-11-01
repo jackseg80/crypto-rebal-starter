@@ -58,14 +58,14 @@ Si les imports posent problème, voici un script minimal standalone :
 ```python
 # test_minimal.py
 import sys
-sys.path.insert(0, 'd:\\Python\\crypto-rebal-starter')
+sys.path.insert(0, 'd:\\Python\\smartfolio')
 
 # Import direct (bypass __init__.py)
 import importlib.util
 
 spec = importlib.util.spec_from_file_location(
     "stop_loss_backtest",
-    "d:\\Python\\crypto-rebal-starter\\services\\ml\\bourse\\stop_loss_backtest.py"
+    "d:\\Python\\smartfolio\\services\\ml\\bourse\\stop_loss_backtest.py"
 )
 stop_loss_backtest = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(stop_loss_backtest)

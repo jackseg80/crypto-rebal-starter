@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script de validation du mode Priority pour crypto-rebal-starter.
+Script de validation du mode Priority pour smartfolio.
 
 Vérifie que tous les composants fonctionnent correctement :
 - Imports et configuration
@@ -250,7 +250,7 @@ def generate_summary_report():
 
 def main():
     """Point d'entrée principal."""
-    print("Validation du mode Priority - crypto-rebal-starter")
+    print("Validation du mode Priority - smartfolio")
     print("=" * 60)
 
     success = generate_summary_report()

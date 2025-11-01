@@ -92,7 +92,7 @@ class RefreshApiResponse(BaseModel):
 
 def get_user_fs(user: str = Depends(get_active_user)) -> UserScopedFS:
     """Dependency pour obtenir le UserScopedFS de l'utilisateur actuel"""
-    project_root = str(Path(__file__).parent.parent)  # api/sources_endpoints.py -> crypto-rebal-starter/
+    project_root = str(Path(__file__).parent.parent)  # api/sources_endpoints.py -> smartfolio/
     return UserScopedFS(project_root, user)
 
 def get_config_migrator(user_fs: UserScopedFS = Depends(get_user_fs)) -> ConfigMigrator:

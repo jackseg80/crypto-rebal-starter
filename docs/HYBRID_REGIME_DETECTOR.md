@@ -348,7 +348,7 @@ if drawdown <= -0.10 and latest['market_volatility'] > 0.40:
 
 ## 📞 Support
 
-**Issues:** https://github.com/anthropics/crypto-rebal-starter/issues
+**Issues:** https://github.com/anthropics/smartfolio/issues
 **Docs:** `docs/`
 **Logs:** `logs/app.log` (check for "detection_method" messages)
 
