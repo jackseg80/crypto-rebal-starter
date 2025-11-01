@@ -76,7 +76,7 @@ class PhaseEngine:
     4. ALT : Breadth élevé + dispersion momentum + RS alt fort
     """
     
-    def __init__(self, api_base_url: str = "http://localhost:8000"):
+    def __init__(self, api_base_url: str = "http://localhost:8080"):
         self.api_base_url = api_base_url.rstrip("/")
         
         # Cache avec TTL

@@ -24,9 +24,9 @@ logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 # Configuration
-API_BASE = "http://127.0.0.1:8000/api/execution/history"
-DASHBOARD_API = "http://127.0.0.1:8000/api/execution/orders/execute"
-HISTORY_UI_URL = "http://127.0.0.1:8000/static/execution_history.html"
+API_BASE = "http://127.0.0.1:8080/api/execution/history"
+DASHBOARD_API = "http://127.0.0.1:8080/api/execution/orders/execute"
+HISTORY_UI_URL = "http://127.0.0.1:8080/static/execution_history.html"
 
 class ExecutionHistoryTester:
     def __init__(self):

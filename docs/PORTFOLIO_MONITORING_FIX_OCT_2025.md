@@ -103,7 +103,7 @@ async def get_real_portfolio_data(source, user_id):
 
 **Exemple requête** :
 ```bash
-curl "http://localhost:8000/api/portfolio/metrics?source=cointracking&user_id=demo"
+curl "http://localhost:8080/api/portfolio/metrics?source=cointracking&user_id=demo"
 ```
 
 **Réponse** :
@@ -134,7 +134,7 @@ curl "http://localhost:8000/api/portfolio/metrics?source=cointracking&user_id=de
 
 **Exemple requête** :
 ```bash
-curl "http://localhost:8000/api/portfolio/alerts?source=cointracking&user_id=jack&active_only=true"
+curl "http://localhost:8080/api/portfolio/alerts?source=cointracking&user_id=jack&active_only=true"
 ```
 
 **Réponse** :
@@ -178,7 +178,7 @@ curl "http://localhost:8000/api/portfolio/alerts?source=cointracking&user_id=jac
 
 **Exemple requête** :
 ```bash
-curl "http://localhost:8000/api/portfolio/performance?source=cointracking&user_id=demo&period_days=30"
+curl "http://localhost:8080/api/portfolio/performance?source=cointracking&user_id=demo&period_days=30"
 ```
 
 **Réponse** :
@@ -216,7 +216,7 @@ curl "http://localhost:8000/api/portfolio/performance?source=cointracking&user_i
 
 **Exemple requête** :
 ```bash
-curl "http://localhost:8000/api/portfolio/dashboard-summary?source=cointracking&user_id=demo"
+curl "http://localhost:8080/api/portfolio/dashboard-summary?source=cointracking&user_id=demo"
 ```
 
 **Réponse** :
@@ -298,32 +298,32 @@ pkill -f uvicorn
 ### Test Rapide (Mock Data)
 
 ```bash
-# Serveur doit être lancé sur http://localhost:8000
+# Serveur doit être lancé sur http://localhost:8080
 
 # Test 1: Métriques portfolio
-curl "http://localhost:8000/api/portfolio/metrics?source=cointracking&user_id=demo" | python -m json.tool
+curl "http://localhost:8080/api/portfolio/metrics?source=cointracking&user_id=demo" | python -m json.tool
 
 # Test 2: Alertes
-curl "http://localhost:8000/api/portfolio/alerts?source=cointracking&user_id=demo" | python -m json.tool
+curl "http://localhost:8080/api/portfolio/alerts?source=cointracking&user_id=demo" | python -m json.tool
 
 # Test 3: Performance (30 jours)
-curl "http://localhost:8000/api/portfolio/performance?source=cointracking&user_id=demo&period_days=30" | python -m json.tool
+curl "http://localhost:8080/api/portfolio/performance?source=cointracking&user_id=demo&period_days=30" | python -m json.tool
 
 # Test 4: Dashboard summary
-curl "http://localhost:8000/api/portfolio/dashboard-summary?source=cointracking&user_id=demo" | python -m json.tool
+curl "http://localhost:8080/api/portfolio/dashboard-summary?source=cointracking&user_id=demo" | python -m json.tool
 ```
 
 ### Test Multi-User
 
 ```bash
 # User demo (portfolio principal)
-curl "http://localhost:8000/api/portfolio/metrics?source=cointracking&user_id=demo"
+curl "http://localhost:8080/api/portfolio/metrics?source=cointracking&user_id=demo"
 
 # User jack (autre portfolio)
-curl "http://localhost:8000/api/portfolio/metrics?source=cointracking&user_id=jack"
+curl "http://localhost:8080/api/portfolio/metrics?source=cointracking&user_id=jack"
 
 # User jack (source API CoinTracking)
-curl "http://localhost:8000/api/portfolio/metrics?source=cointracking_api&user_id=jack"
+curl "http://localhost:8080/api/portfolio/metrics?source=cointracking_api&user_id=jack"
 
 # ✅ Chaque combinaison (user_id, source) est isolée
 ```
@@ -339,7 +339,7 @@ taskkill /F /IM python.exe
 .\start-dev.ps1
 
 # 3. Vérifier que données réelles sont chargées
-curl "http://localhost:8000/api/portfolio/metrics?source=cointracking&user_id=demo" | python -m json.tool
+curl "http://localhost:8080/api/portfolio/metrics?source=cointracking&user_id=demo" | python -m json.tool
 
 # 4. Logs serveur doivent afficher :
 # INFO: Using REAL data for portfolio metrics (user=demo, source=cointracking)
@@ -534,10 +534,10 @@ taskkill /F /IM python.exe
 .\start-dev.ps1
 
 # 6. Smoke tests
-curl http://localhost:8000/api/portfolio/metrics?user_id=demo
-curl http://localhost:8000/api/portfolio/alerts?user_id=demo
-curl http://localhost:8000/api/portfolio/performance?user_id=demo&period_days=7
-curl http://localhost:8000/api/portfolio/dashboard-summary?user_id=demo
+curl http://localhost:8080/api/portfolio/metrics?user_id=demo
+curl http://localhost:8080/api/portfolio/alerts?user_id=demo
+curl http://localhost:8080/api/portfolio/performance?user_id=demo&period_days=7
+curl http://localhost:8080/api/portfolio/dashboard-summary?user_id=demo
 
 # 7. Si OK → Activer mode réel graduellement
 echo "USE_MOCK_MONITORING=false" >> .env
@@ -569,3 +569,4 @@ mv api/portfolio_monitoring.py.backup api/portfolio_monitoring.py
 **Auteur** : Claude Code
 **Reviewer** : À assigner
 **Status** : ✅ Ready for Review
+

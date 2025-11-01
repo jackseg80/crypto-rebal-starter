@@ -51,18 +51,18 @@ class TestRealCSVExtraction:
         """Verify test CSV file exists"""
         assert real_saxo_csv_path.exists(), f"CSV file not found: {real_saxo_csv_path}"
 
-    def test_process_real_saxo_file(self, saxo_connector, real_saxo_csv_path):
+    def test_process_real_saxo_file(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """Process real Saxo CSV and verify basic structure"""
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
 
         assert 'positions' in result
         assert 'total_positions' in result
         assert len(result['positions']) > 0
         assert result['source'] == 'saxo_bank'
 
-    def test_aapl_avg_price_extracted(self, saxo_connector, real_saxo_csv_path):
+    def test_aapl_avg_price_extracted(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """Verify AAPL avg_price is correctly extracted"""
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
 
         # Find AAPL position
         aapl = next((p for p in result['positions'] if 'AAPL' in p['symbol']), None)
@@ -73,9 +73,9 @@ class TestRealCSVExtraction:
         assert aapl['avg_price'] == pytest.approx(91.90, rel=0.01)
         assert aapl['avg_price'] > 0
 
-    def test_tsla_avg_price_extracted(self, saxo_connector, real_saxo_csv_path):
+    def test_tsla_avg_price_extracted(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """Verify TSLA avg_price is correctly extracted"""
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
 
         # Find TSLA stock position (not CFD)
         tsla_positions = [p for p in result['positions'] if 'TSLA' in p['symbol']]
@@ -86,9 +86,9 @@ class TestRealCSVExtraction:
         assert tsla_stock['avg_price'] is not None
         assert tsla_stock['avg_price'] == pytest.approx(343.64, rel=0.01)
 
-    def test_meta_avg_price_extracted(self, saxo_connector, real_saxo_csv_path):
+    def test_meta_avg_price_extracted(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """Verify META avg_price is correctly extracted"""
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
 
         # Find META position
         meta = next((p for p in result['positions'] if 'META' in p['symbol']), None)
@@ -98,9 +98,9 @@ class TestRealCSVExtraction:
         assert meta['avg_price'] is not None
         assert meta['avg_price'] == pytest.approx(240.95, rel=0.01)
 
-    def test_all_positions_have_avg_price_field(self, saxo_connector, real_saxo_csv_path):
+    def test_all_positions_have_avg_price_field(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """All positions should have avg_price field (even if None)"""
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
 
         for position in result['positions']:
             assert 'avg_price' in position, f"Position {position.get('symbol')} missing avg_price field"
@@ -155,9 +155,9 @@ class TestColumnAliases:
 class TestDataValidation:
     """Test data validation and edge cases"""
 
-    def test_avg_price_positive_values(self, saxo_connector, real_saxo_csv_path):
+    def test_avg_price_positive_values(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """avg_price should always be positive when present"""
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
 
         for position in result['positions']:
             if position['avg_price'] is not None:
@@ -277,9 +277,9 @@ class TestNormalizationPreservation:
 class TestPositionStructure:
     """Test that avg_price integrates correctly with position structure"""
 
-    def test_position_dict_structure(self, saxo_connector, real_saxo_csv_path):
+    def test_position_dict_structure(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """Position dict should have all required fields including avg_price"""
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
         position = result['positions'][0]
 
         required_fields = [
@@ -290,9 +290,9 @@ class TestPositionStructure:
         for field in required_fields:
             assert field in position, f"Missing field: {field}"
 
-    def test_avg_price_used_for_gain_calculation(self, saxo_connector, real_saxo_csv_path):
+    def test_avg_price_used_for_gain_calculation(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """avg_price enables unrealized gain calculation"""
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
 
         # Find AAPL position
         aapl = next((p for p in result['positions'] if 'AAPL' in p['symbol']), None)
@@ -315,9 +315,9 @@ class TestPositionStructure:
 class TestMultiUserIsolation:
     """Test that avg_price works with multi-user setup"""
 
-    def test_user_id_passed_correctly(self, saxo_connector, real_saxo_csv_path):
+    def test_user_id_passed_correctly(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """user_id should be passed through processing"""
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
 
         # Result should contain positions
         assert len(result['positions']) > 0
@@ -325,10 +325,14 @@ class TestMultiUserIsolation:
         # Each position should have been processed with user_id
         # (verified by no exceptions during processing)
 
-    def test_different_users_same_file(self, saxo_connector, real_saxo_csv_path):
+    def test_different_users_same_file(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """Same CSV processed for different users should work"""
-        result1 = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
-        result2 = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='demo')
+        # Generate second user_id for isolation test
+        import uuid
+        test_user_id_2 = f"test_user2_{uuid.uuid4().hex[:8]}"
+
+        result1 = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
+        result2 = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id_2)
 
         # Both should succeed
         assert len(result1['positions']) > 0
@@ -396,22 +400,22 @@ class TestErrorHandling:
 class TestPerformance:
     """Test performance with large CSV files"""
 
-    def test_process_real_file_performance(self, saxo_connector, real_saxo_csv_path):
+    def test_process_real_file_performance(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """Processing real CSV should complete in reasonable time"""
         import time
 
         start = time.time()
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
         elapsed = time.time() - start
 
         # Should complete in less than 5 seconds
         assert elapsed < 5.0, f"Processing took {elapsed:.2f}s (expected <5s)"
         assert len(result['positions']) > 0
 
-    def test_avg_price_extraction_no_significant_overhead(self, saxo_connector, real_saxo_csv_path):
+    def test_avg_price_extraction_no_significant_overhead(self, saxo_connector, real_saxo_csv_path, test_user_id):
         """Adding avg_price extraction should not add significant overhead"""
         # Just verify it processes successfully
-        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id='jack')
+        result = saxo_connector.process_saxo_file(real_saxo_csv_path, user_id=test_user_id)
 
         # Verify avg_price is extracted for at least some positions
         positions_with_avg_price = [p for p in result['positions'] if p.get('avg_price')]

@@ -249,7 +249,7 @@ SECTOR_MAPPING = {
 ```powershell
 # Ctrl+C pour arrêter
 .venv\Scripts\Activate.ps1
-python -m uvicorn api.main:app --port 8000
+python -m uvicorn api.main:app --port 8080
 ```
 
 ### Voir logs en temps réel
@@ -309,3 +309,4 @@ Notre code actuel essaie seulement `SYMBOL` sans suffix → 404 pour actions eur
 
 *Document généré pour reprise de session*
 *Utilisateur: jack | Portfolio: $127,822 | Status: 🟡 Fonctionnel à 80%*
+

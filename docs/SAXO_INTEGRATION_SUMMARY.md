@@ -238,7 +238,7 @@ pytest tests/integration/test_risk_bourse_endpoint.py -v
 ### 1. Lancer le serveur
 ```bash
 .venv\Scripts\Activate.ps1
-python -m uvicorn api.main:app --reload --port 8000
+python -m uvicorn api.main:app --reload --port 8080
 ```
 
 ### 2. Tests unitaires
@@ -250,19 +250,19 @@ pytest tests/unit/test_instruments_registry.py -v
 ### 3. Tests manuels API
 ```bash
 # Risk Bourse
-curl "http://localhost:8000/api/risk/bourse/dashboard?user_id=demo"
+curl "http://localhost:8080/api/risk/bourse/dashboard?user_id=demo"
 
 # Global Summary
-curl "http://localhost:8000/api/wealth/global/summary?user_id=demo"
+curl "http://localhost:8080/api/wealth/global/summary?user_id=demo"
 
 # Instruments enrichis
-curl "http://localhost:8000/api/wealth/saxo/instruments?user_id=demo"
+curl "http://localhost:8080/api/wealth/saxo/instruments?user_id=demo"
 ```
 
 ### 4. Tests frontend
-- **Dashboard**: http://localhost:8000/static/dashboard.html
+- **Dashboard**: http://localhost:8080/static/dashboard.html
   - Voir 3 tuiles : Crypto Overview (₿), Bourse (Saxo) Overview (🏦), Global Overview (🌐)
-- **Saxo Dashboard**: http://localhost:8000/static/saxo-dashboard.html
+- **Saxo Dashboard**: http://localhost:8080/static/saxo-dashboard.html
   - Cliquer onglet "Risk & Analytics" (5ème onglet)
 
 ---
@@ -340,3 +340,4 @@ L'intégration Saxo/Bourse est **100% complète et prête pour la production** :
 **Status**: **PRODUCTION READY** ✅
 
 **Résultat final**: 12/12 tâches complétées (100%) avec suite de tests exhaustive validée.
+

@@ -39,12 +39,12 @@ def check_api_health():
     print("[API] Verification API...")
     try:
         # Test basic API
-        response = requests.get("http://localhost:8000/docs", timeout=5)
+        response = requests.get("http://localhost:8080/docs", timeout=5)
         api_ok = response.status_code == 200
         print(f"  [{'OK' if api_ok else 'FAIL'}] API FastAPI: {response.status_code}")
         
         # Test alerts health
-        response = requests.get("http://localhost:8000/api/alerts/health", timeout=5)
+        response = requests.get("http://localhost:8080/api/alerts/health", timeout=5)
         alerts_ok = response.status_code == 200
         if alerts_ok:
             health_data = response.json()
@@ -57,7 +57,7 @@ def check_api_health():
         
     except requests.RequestException as e:
         print(f"  [ERROR] Server not accessible: {e}")
-        print(f"  [INFO] Start server: uvicorn api.main:app --reload --port 8000")
+        print(f"  [INFO] Start server: uvicorn api.main:app --reload --port 8080")
         return False
 
 def check_files():

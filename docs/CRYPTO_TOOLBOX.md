@@ -242,16 +242,16 @@ Supported comparison operators:
 ### Local Testing
 ```bash
 # Start dev server
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --port 8080
 
 # Test endpoint
-curl http://localhost:8000/api/crypto-toolbox
+curl http://localhost:8080/api/crypto-toolbox
 
 # Force refresh
-curl http://localhost:8000/api/crypto-toolbox?force=true
+curl http://localhost:8080/api/crypto-toolbox?force=true
 
 # Health check
-curl http://localhost:8000/api/crypto-toolbox/health
+curl http://localhost:8080/api/crypto-toolbox/health
 ```
 
 ### Debug Logs
@@ -289,7 +289,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=/opt/crypto-rebal
-ExecStart=/opt/crypto-rebal/.venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000
+ExecStart=/opt/crypto-rebal/.venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8080
 Restart=always
 
 [Install]
@@ -363,13 +363,13 @@ export CRYPTO_TOOLBOX_NEW=0
 
 ```bash
 # Test with default (FastAPI native)
-uvicorn api.main:app --port 8000
+uvicorn api.main:app --port 8080
 
 # Test with legacy fallback (Flask proxy on port 8001)
-CRYPTO_TOOLBOX_NEW=0 uvicorn api.main:app --port 8000
+CRYPTO_TOOLBOX_NEW=0 uvicorn api.main:app --port 8080
 
 # Compare outputs
-curl http://localhost:8000/api/crypto-toolbox | jq '.total_count'
+curl http://localhost:8080/api/crypto-toolbox | jq '.total_count'
 ```
 
 ### Startup Logs
@@ -496,7 +496,7 @@ jq '.total_count, .critical_count' test_flask_baseline.json
 **Capture output** (in another terminal):
 ```bash
 # Force fresh scrape (bypass cache)
-curl -s "http://localhost:8000/api/crypto-toolbox?force=true" > test_fastapi_new.json
+curl -s "http://localhost:8080/api/crypto-toolbox?force=true" > test_fastapi_new.json
 
 # Check counts
 jq '.total_count, .critical_count' test_fastapi_new.json
@@ -531,20 +531,20 @@ SUMMARY
 
 **Cache miss** (first request):
 ```bash
-time curl -s "http://localhost:8000/api/crypto-toolbox?force=true" > /dev/null
+time curl -s "http://localhost:8080/api/crypto-toolbox?force=true" > /dev/null
 # Expected: <5 seconds
 ```
 
 **Cache hit** (within 30 minutes):
 ```bash
-time curl -s "http://localhost:8000/api/crypto-toolbox" > /dev/null
+time curl -s "http://localhost:8080/api/crypto-toolbox" > /dev/null
 # Expected: <50ms
 ```
 
 **Stability test** (10 consecutive requests):
 ```bash
 for i in {1..10}; do
-  curl -s "http://localhost:8000/api/crypto-toolbox?force=true" | jq '.success'
+  curl -s "http://localhost:8080/api/crypto-toolbox?force=true" | jq '.success'
 done
 # Expected: All "true"
 ```
@@ -589,3 +589,4 @@ Before proceeding to Commit 7, verify:
 
 **Last updated**: 2025-10-02
 **Status**: Phase 8 - Migration Complete (Flask Removed)
+

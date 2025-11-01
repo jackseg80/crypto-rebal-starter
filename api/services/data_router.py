@@ -45,7 +45,7 @@ class UserDataRouter:
             self.settings = {
                 "data_source": "csv",
                 "csv_glob": "csv/*.csv",
-                "api_base_url": "http://localhost:8000",
+                "api_base_url": "http://localhost:8080",
                 "display_currency": "USD",
                 "min_usd_threshold": 1.0
             }
@@ -236,3 +236,4 @@ class UserDataRouter:
         except Exception as e:
             logger.debug(f"API credentials check failed for user {self.user_id}: {e}")
             return False
+

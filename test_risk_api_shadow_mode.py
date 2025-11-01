@@ -10,7 +10,7 @@ async def test_shadow_mode():
     """
     Appeler l'API en mode v2_shadow et vérifier qu'on a bien Legacy + V2
     """
-    url = "http://localhost:8000/api/risk/dashboard"
+    url = "http://localhost:8080/api/risk/dashboard"
     params = {
         "source": "cointracking",
         "user_id": "demo",
@@ -91,3 +91,4 @@ async def test_shadow_mode():
 
 if __name__ == "__main__":
     asyncio.run(test_shadow_mode())
+

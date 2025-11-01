@@ -89,7 +89,7 @@ Ensure **100% parity** between Flask (legacy) and FastAPI (new) implementations.
 
 **Prerequisites**:
 1. Flask server running on port 8001
-2. FastAPI server running on port 8000 (with router enabled, Commit 4+)
+2. FastAPI server running on port 8080 (with router enabled, Commit 4+)
 3. `jq` installed (optional, for JSON diff)
 
 **Commands**:
@@ -99,7 +99,7 @@ Ensure **100% parity** between Flask (legacy) and FastAPI (new) implementations.
 curl -s http://localhost:8001/api/crypto-toolbox > flask_output.json
 
 # Capture FastAPI output (Commit 4+, flag ON)
-curl -s http://localhost:8000/api/crypto-toolbox > fastapi_output.json
+curl -s http://localhost:8080/api/crypto-toolbox > fastapi_output.json
 
 # Compare (visual)
 diff flask_output.json fastapi_output.json
@@ -166,7 +166,7 @@ async def test_parity_total_count():
     """Flask and FastAPI should return same total_count"""
     async with httpx.AsyncClient() as client:
         flask_resp = await client.get("http://localhost:8001/api/crypto-toolbox")
-        fastapi_resp = await client.get("http://localhost:8000/api/crypto-toolbox?force=true")
+        fastapi_resp = await client.get("http://localhost:8080/api/crypto-toolbox?force=true")
 
         flask_data = flask_resp.json()
         fastapi_data = fastapi_resp.json()
@@ -234,7 +234,7 @@ jq '.total_count, .critical_count' test_flask_baseline.json
 **Capture** (in another terminal):
 ```bash
 # Force fresh scrape (bypass cache)
-curl -s "http://localhost:8000/api/crypto-toolbox?force=true" > test_fastapi_new.json
+curl -s "http://localhost:8080/api/crypto-toolbox?force=true" > test_fastapi_new.json
 
 # Verify
 jq '.total_count, .critical_count' test_fastapi_new.json
@@ -270,13 +270,13 @@ diff flask_critical.json fastapi_critical.json
 **Cache miss** (first request):
 ```bash
 # Restart server, then test
-time curl -s "http://localhost:8000/api/crypto-toolbox?force=true" > /dev/null
+time curl -s "http://localhost:8080/api/crypto-toolbox?force=true" > /dev/null
 # Expected: <5 seconds
 ```
 
 **Cache hit** (second request within 30 minutes):
 ```bash
-time curl -s "http://localhost:8000/api/crypto-toolbox" > /dev/null
+time curl -s "http://localhost:8080/api/crypto-toolbox" > /dev/null
 # Expected: <50ms
 ```
 
@@ -336,3 +336,4 @@ $env:CRYPTO_TOOLBOX_NEW=0     # Windows
 **Last updated**: 2025-10-02
 **Status**: A/B Testing Procedures (Commit 6)
 **Next**: Switch default flag (Commit 7)
+

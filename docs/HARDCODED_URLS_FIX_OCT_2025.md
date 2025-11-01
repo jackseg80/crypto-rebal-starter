@@ -23,7 +23,7 @@
 
 **Avant:**
 ```html
-<a href="http://localhost:8000/api/risk/dashboard" target="_blank">localhost:8000</a>
+<a href="http://localhost:8080/api/risk/dashboard" target="_blank">localhost:8080</a>
 ```
 
 **Après:**
@@ -83,8 +83,8 @@ const apiUrl = window.globalConfig.get('api_base_url');
 const apiUrl = window.globalConfig.getApiUrl('/endpoint');
 
 // ❌ INCORRECT
-const apiUrl = 'http://localhost:8000';
-const apiUrl = 'http://127.0.0.1:8000';
+const apiUrl = 'http://localhost:8080';
+const apiUrl = 'http://127.0.0.1:8080';
 ```
 
 ### Fallbacks Acceptables
@@ -98,7 +98,7 @@ const apiBase = globalConfig?.get('api_base_url') || window.location.origin;
 // Fallback pour tests (acceptable)
 const API_BASE = (window.globalConfig && window.globalConfig.get('api_base_url'))
                  || window.location.origin
-                 || 'http://localhost:8000';
+                 || 'http://localhost:8080';
 ```
 
 ---
@@ -235,3 +235,4 @@ fi
 ---
 
 **Status Final:** 🟢 RÉSOLU — Prêt pour production
+

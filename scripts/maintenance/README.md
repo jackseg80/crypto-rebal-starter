@@ -125,14 +125,14 @@ Tests rapides des endpoints critiques post-déploiement.
 
 **Usage** :
 ```powershell
-.\scripts\maintenance\smoke_test.ps1 [-BaseUrl "http://localhost:8000"]
+.\scripts\maintenance\smoke_test.ps1 [-BaseUrl "http://localhost:8080"]
 ```
 
 **Contenu suggéré** :
 ```powershell
 # smoke_test.ps1
 param(
-    [string]$BaseUrl = "http://localhost:8000"
+    [string]$BaseUrl = "http://localhost:8080"
 )
 
 Write-Host "🚀 Smoke tests - $BaseUrl" -ForegroundColor Cyan

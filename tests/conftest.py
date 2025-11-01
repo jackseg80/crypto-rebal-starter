@@ -239,3 +239,66 @@ def sample_price_history() -> Dict[str, Any]:
         "ETH": [(int(d.timestamp()), 3000.0 + i * 50) for i, d in enumerate(dates)],
         "USDT": [(int(d.timestamp()), 1.0) for d in dates],
     }
+
+
+# ============================================================================
+# Fixtures pour isolation multi-tenant
+# ============================================================================
+
+@pytest.fixture
+def test_user_id(request) -> str:
+    """
+    Génère un user_id unique pour chaque test (isolation multi-tenant).
+
+    Évite les conflits entre tests parallèles et garantit l'isolation des données.
+    Format: test_{nom_fonction}_{uuid_court}
+
+    Args:
+        request: Objet request pytest avec métadonnées du test
+
+    Returns:
+        str: User ID unique pour le test
+
+    Example:
+        async def test_balance_resolution(test_user_id):
+            result = await balance_service.resolve_current_balances(
+                source="cointracking",
+                user_id=test_user_id  # ✅ Isolé, unique
+            )
+            assert result["ok"]
+    """
+    import uuid
+    test_name = request.node.name
+    # Générer un ID court et valide (alphanumeric + underscores)
+    unique_suffix = uuid.uuid4().hex[:8]
+    user_id = f"test_{test_name}_{unique_suffix}".lower()
+    # Nettoyer les caractères invalides
+    user_id = ''.join(c if c.isalnum() or c in ['_', '-'] else '_' for c in user_id)
+    return user_id
+
+
+@pytest.fixture
+def test_user_config(test_user_id) -> Dict[str, str]:
+    """
+    Configuration complète pour un utilisateur de test.
+
+    Fournit user_id + source par défaut pour faciliter les tests.
+
+    Args:
+        test_user_id: User ID unique (fixture)
+
+    Returns:
+        Dict avec user_id et source par défaut
+
+    Example:
+        def test_portfolio_metrics(test_user_config):
+            response = client.get(
+                "/portfolio/metrics",
+                params=test_user_config  # ✅ user_id + source
+            )
+            assert response.status_code == 200
+    """
+    return {
+        "user_id": test_user_id,
+        "source": "cointracking"  # Source par défaut pour tests
+    }

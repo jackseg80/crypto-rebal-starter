@@ -7,7 +7,7 @@ import requests
 import json
 import time
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 def test_apply_targets_simulation():
     """Test by simulating what Apply Targets should do"""
@@ -103,11 +103,11 @@ def test_apply_targets_simulation():
     if overall_ok:
         print("PASS: Apply Targets mechanism should work")
         print("\nManual test instructions:")
-        print("1. Open: http://localhost:8000/static/risk-dashboard.html")
+        print("1. Open: http://localhost:8080/static/risk-dashboard.html")
         print("2. Click 'Strategic Targets' tab")
         print("3. Click any strategy button (should work even without CCS)")
         print("4. Click 'Apply Targets' (should save to localStorage)")
-        print("5. Open: http://localhost:8000/static/rebalance.html")
+        print("5. Open: http://localhost:8080/static/rebalance.html")
         print("6. Look for 'Targets dynamiques' indicator (should appear within 2 seconds)")
         print("7. Check browser console for 'New CCS targets detected' message")
         
@@ -156,7 +156,7 @@ console.log("🎯 Look for 'Targets dynamiques' indicator to appear");
     print("=" * 60)
     print("MANUAL BROWSER CONSOLE TEST")
     print("=" * 60)
-    print("1. Open: http://localhost:8000/static/rebalance.html")
+    print("1. Open: http://localhost:8080/static/rebalance.html")
     print("2. Open browser DevTools (F12) and go to Console tab")
     print("3. Paste and run this script:")
     print()

@@ -10,7 +10,7 @@ def test_fixes():
     print("Test des corrections appliquées")
     print("=" * 40)
     
-    BASE_URL = "http://localhost:8000"
+    BASE_URL = "http://localhost:8080"
     
     # Test 1: Vérifier que rebalance.html a les logs ajoutés
     print("\n1. Vérification des logs ajoutés...")
@@ -95,7 +95,7 @@ def test_fixes():
 🧪 POUR TESTER LES CORRECTIONS:
 
 1. OUVRIR REBALANCE PAGE:
-   http://localhost:8000/static/rebalance.html
+   http://localhost:8080/static/rebalance.html
    
 2. OUVRIR DEVTOOLS (F12) -> CONSOLE:
    - Vous devriez voir des messages "🔍 checkForNewTargets called" toutes les 2 secondes
@@ -117,7 +117,7 @@ def test_fixes():
    - Un plan devrait être généré automatiquement
    
 5. TESTER RISK DASHBOARD:
-   - Ouvrir: http://localhost:8000/static/risk-dashboard.html
+   - Ouvrir: http://localhost:8080/static/risk-dashboard.html
    - Cliquer sur "Strategic Targets"
    - Tester les boutons de stratégie (devraient fonctionner même sans CCS)
    - Cliquer "Apply Targets" (devrait sauvegarder dans localStorage)

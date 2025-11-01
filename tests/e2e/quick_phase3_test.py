@@ -10,7 +10,7 @@ from typing import Dict, Any
 class QuickPhase3Test:
     """Tests rapides pour validation Phase 3"""
     
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = "http://localhost:8080"):
         self.base_url = base_url
         self.session = requests.Session()
         self.results = {}

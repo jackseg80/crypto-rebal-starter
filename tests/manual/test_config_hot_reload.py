@@ -14,7 +14,7 @@ from datetime import datetime
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "alerts_rules.json"
 
 class ConfigHotReloadTester:
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     if not success:
         print("\n[ERROR] Test hot-reload echoue")
         print("Vérifiez que:")
-        print("  • Le serveur FastAPI est démarré (localhost:8000)")
+        print("  • Le serveur FastAPI est démarré (localhost:8080)")
         print("  • Le fichier config/alerts_rules.json existe")
         print("  • L'AlertEngine est initialisé dans l'API")
         sys.exit(1)

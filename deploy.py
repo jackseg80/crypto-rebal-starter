@@ -31,7 +31,7 @@ DEPLOY_CONFIG = {
         'ai-services.js', 'ai-state-manager.js', 'ai-components.js', 'ai-components.css',
         'ai-dashboard.html', 'ai-components-demo.html'
     ],
-    'health_check_url': 'http://localhost:8000/api/ai/health',
+    'health_check_url': 'http://localhost:8080/api/ai/health',
     'deployment_timeout': 300  # 5 minutes
 }
 
@@ -366,7 +366,7 @@ class DeploymentManager:
             start_command = f'python {main_file} &'
             if 'uvicorn' in str(self.project_root):
                 # Si on utilise uvicorn
-                start_command = f'uvicorn {main_file.replace(".py", "")}:app --host 0.0.0.0 --port 8000 --reload &'
+                start_command = f'uvicorn {main_file.replace(".py", "")}:app --host 0.0.0.0 --port 8080 --reload &'
             
             success, output = self.run_command(start_command, check=False)
             
@@ -441,7 +441,7 @@ class DeploymentManager:
     def check_static_files_access(self) -> bool:
         """Vérifier l'accès aux fichiers statiques"""
         try:
-            response = requests.get('http://localhost:8000/static/ai-dashboard.html', timeout=5)
+            response = requests.get('http://localhost:8080/static/ai-dashboard.html', timeout=5)
             return response.status_code == 200
         except Exception as e:
             self.log(f"Failed to check static files access: {e}", 'WARNING')
@@ -456,7 +456,7 @@ class DeploymentManager:
         
         for endpoint in endpoints_to_check:
             try:
-                response = requests.get(f'http://localhost:8000{endpoint}', timeout=5)
+                response = requests.get(f'http://localhost:8080{endpoint}', timeout=5)
                 if response.status_code not in [200, 404]:  # 404 acceptable si pas encore implémenté
                     return False
             except Exception as e:
@@ -469,7 +469,7 @@ class DeploymentManager:
         """Vérifier les composants UI"""
         # Test basique - vérifier que la page de démo se charge
         try:
-            response = requests.get('http://localhost:8000/static/ai-components-demo.html', timeout=5)
+            response = requests.get('http://localhost:8080/static/ai-components-demo.html', timeout=5)
             return response.status_code == 200
         except Exception as e:
             self.log(f"Failed to check UI components: {e}", 'WARNING')
@@ -590,9 +590,9 @@ def main():
     
     if success:
         print(f"\n{Colors.GREEN}Deploiement reussi!{Colors.RESET}")
-        print(f"Application disponible sur: http://localhost:8000")
-        print(f"Tests E2E: http://localhost:8000/static/test-integration-e2e.html")
-        print(f"Demo IA: http://localhost:8000/static/ai-components-demo.html")
+        print(f"Application disponible sur: http://localhost:8080")
+        print(f"Tests E2E: http://localhost:8080/static/test-integration-e2e.html")
+        print(f"Demo IA: http://localhost:8080/static/ai-components-demo.html")
         return 0
     else:
         print(f"\n{Colors.RED}Deploiement echoue{Colors.RESET}")

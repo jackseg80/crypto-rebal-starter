@@ -190,7 +190,7 @@ getApiUrl(endpoint, additionalParams = {}) {
 **Implémentation** :
 ```javascript
 // Avant
-const r = await fetch('http://localhost:8000/api/risk/dashboard');
+const r = await fetch('http://localhost:8080/api/risk/dashboard');
 
 // Après
 const url = window.globalConfig.getApiUrl('/api/risk/dashboard');
@@ -351,3 +351,4 @@ Target Dec 2025: 4 items → <3 items (dette sous contrôle)
 **Dernière review** : 10 octobre 2025
 **Prochaine review** : 1er novembre 2025
 **Statut global** : 🟢 Dette sous contrôle, roadmap claire
+

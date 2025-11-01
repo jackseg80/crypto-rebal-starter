@@ -52,19 +52,19 @@ if (_circuitBreakerState.isOpen) {
 
 **Test 1: Endpoint `/api/crypto-toolbox/indicators`**
 ```bash
-$ curl http://localhost:8000/api/crypto-toolbox/indicators
+$ curl http://localhost:8080/api/crypto-toolbox/indicators
 {"detail":"Not Found"}  # ❌ Endpoint n'existe pas
 ```
 
 **Test 2: Endpoint `/api/crypto-toolbox`** (le bon)
 ```bash
-$ curl -m 5 http://localhost:8000/api/crypto-toolbox
+$ curl -m 5 http://localhost:8080/api/crypto-toolbox
 # ❌ TIMEOUT après 5 secondes!
 ```
 
 **Test 3: API Risk Dashboard**
 ```bash
-$ curl http://localhost:8000/api/risk/dashboard
+$ curl http://localhost:8080/api/risk/dashboard
 {
   "onchain_indicators": {},  # ❌ Vide!
   "risk_metrics": {
@@ -79,7 +79,7 @@ $ curl http://localhost:8000/api/risk/dashboard
 
 1. **Proxy FastAPI → Flask**
    ```
-   Frontend → http://localhost:8000/api/crypto-toolbox
+   Frontend → http://localhost:8080/api/crypto-toolbox
             ↓ (proxy)
             → http://localhost:8801/api/crypto-toolbox
             ❌ TIMEOUT (>5s)
@@ -308,3 +308,4 @@ const proxyUrl = 'http://localhost:9999/fake'; // Endpoint inexistant
 **Auteur**: Claude
 **Status**: ⚠️ BLOQUÉ - Nécessite fix backend Flask scraper
 **Priority**: HIGH (impact: scores incorrects, recommandations fausses)
+

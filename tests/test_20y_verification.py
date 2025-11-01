@@ -5,7 +5,7 @@ Test script to verify ML regime detection is using 20 years (7300 days).
 import requests
 import json
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 print("=" * 80)
 print("VERIFICATION: ML Regime Detection - 20 Years Training")
@@ -113,3 +113,4 @@ print("✅ If you see 'Lookback days: 7300' → Using 20 years")
 print("✅ If you see 'Bear Market: 20-30%' → Balanced distribution (20 years)")
 print("⚠️  If you see 'Training samples: 450-600' → Still using 5 years")
 print("=" * 80)
+

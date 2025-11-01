@@ -12,12 +12,12 @@ from datetime import datetime
 client = TestClient(app)
 
 
-def test_risk_dashboard_with_metadata():
+def test_risk_dashboard_with_metadata(test_user_id):
     """Test que /api/risk/dashboard retourne des métadonnées normalisées"""
 
     response = client.get(
         "/api/risk/dashboard",
-        headers={"X-User": "demo"},
+        headers={"X-User": test_user_id},
         params={
             "source": "csv_0",
             "min_usd": 1.0,
@@ -33,7 +33,7 @@ def test_risk_dashboard_with_metadata():
     assert "meta" in data, "Response should contain meta field"
 
     meta = data["meta"]
-    assert meta["user_id"] == "demo", f"Expected user_id='demo', got '{meta.get('user_id')}'"
+    assert meta["user_id"] == test_user_id, f"Expected user_id='{test_user_id}', got '{meta.get('user_id')}'"
     assert meta["source_id"] in ["csv_0", "cointracking"], f"Expected valid source_id, got '{meta.get('source_id')}'"
     assert meta["taxonomy_version"] == "v2", f"Expected taxonomy_version='v2', got '{meta.get('taxonomy_version')}'"
     assert "taxonomy_hash" in meta, "meta should contain taxonomy_hash"
@@ -48,43 +48,46 @@ def test_risk_dashboard_with_metadata():
         pytest.fail(f"Invalid timestamp format: {meta['generated_at']}")
 
 
-def test_risk_dashboard_different_users():
+def test_risk_dashboard_different_users(test_user_id):
     """Test que différents users donnent des données différentes"""
+    # Generate second user_id for isolation test
+    import uuid
+    test_user_id_2 = f"test_user2_{uuid.uuid4().hex[:8]}"
 
-    # Request for user demo
-    response_demo = client.get(
+    # Request for user 1
+    response_user1 = client.get(
         "/api/risk/dashboard",
-        headers={"X-User": "demo"},
+        headers={"X-User": test_user_id},
         params={"source": "cointracking", "min_usd": 1.0}
     )
 
-    # Request for user jack
-    response_jack = client.get(
+    # Request for user 2
+    response_user2 = client.get(
         "/api/risk/dashboard",
-        headers={"X-User": "jack"},
+        headers={"X-User": test_user_id_2},
         params={"source": "cointracking", "min_usd": 1.0}
     )
 
-    assert response_demo.status_code == 200
-    assert response_jack.status_code == 200
+    assert response_user1.status_code == 200
+    assert response_user2.status_code == 200
 
-    data_demo = response_demo.json()
-    data_jack = response_jack.json()
+    data_user1 = response_user1.json()
+    data_user2 = response_user2.json()
 
-    assert data_demo["meta"]["user_id"] == "demo"
-    assert data_jack["meta"]["user_id"] == "jack"
+    assert data_user1["meta"]["user_id"] == test_user_id
+    assert data_user2["meta"]["user_id"] == test_user_id_2
 
     # Les données devraient être différentes (sauf si même portfolio)
     # Au minimum, les timestamps/correlation_id doivent être différents
-    assert data_demo["meta"]["correlation_id"] != data_jack["meta"]["correlation_id"]
+    assert data_user1["meta"]["correlation_id"] != data_user2["meta"]["correlation_id"]
 
 
-def test_risk_dashboard_groups_consistency():
+def test_risk_dashboard_groups_consistency(test_user_id):
     """Test que les groupes d'assets sont cohérents avec la taxonomie standard"""
 
     response = client.get(
         "/api/risk/dashboard",
-        headers={"X-User": "demo"},
+        headers={"X-User": test_user_id},
         params={"source": "cointracking", "min_usd": 1.0}
     )
 
@@ -110,7 +113,7 @@ def test_risk_dashboard_groups_consistency():
             assert len(present_standard_groups) > 0, f"At least one standard group should be present. Found: {list(exposure_groups.keys())}"
 
 
-def test_risk_dashboard_cache_invalidation_headers():
+def test_risk_dashboard_cache_invalidation_headers(test_user_id):
     """Test que les headers sont correctement utilisés pour éviter les incohérences"""
 
     # Test sans header X-User (devrait fonctionner avec fallback)
@@ -119,7 +122,7 @@ def test_risk_dashboard_cache_invalidation_headers():
     # Test avec header X-User
     response_with_header = client.get(
         "/api/risk/dashboard",
-        headers={"X-User": "demo"}
+        headers={"X-User": test_user_id}
     )
 
     assert response_no_header.status_code == 200
@@ -133,7 +136,7 @@ def test_risk_dashboard_cache_invalidation_headers():
     assert "meta" in data_with_header
 
     # Le user_id devrait être cohérent
-    assert data_with_header["meta"]["user_id"] == "demo"
+    assert data_with_header["meta"]["user_id"] == test_user_id
     # Sans header, devrait fallback sur 'demo' ou autre default
     assert data_no_header["meta"]["user_id"] in ["demo", "default"]
 

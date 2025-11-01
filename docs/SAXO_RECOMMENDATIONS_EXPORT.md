@@ -331,11 +331,11 @@ if (rec.rationale) {
 **Cause** : API endpoint ne répond pas ou erreur serveur
 
 **Solution** :
-1. Vérifier que le serveur backend tourne (`http://localhost:8000`)
+1. Vérifier que le serveur backend tourne (`http://localhost:8080`)
 2. Vérifier les logs backend pour erreurs API
 3. Tester l'endpoint manuellement :
    ```bash
-   curl "http://localhost:8000/api/ml/bourse/portfolio-recommendations?user_id=jack&timeframe=short"
+   curl "http://localhost:8080/api/ml/bourse/portfolio-recommendations?user_id=jack&timeframe=short"
    ```
 
 ### Erreur : "TypeError: rec.rationale.replace is not a function"
@@ -396,3 +396,4 @@ if (rec.rationale) {
 ---
 
 *Système d'export des recommandations Saxo - Format optimisé pour analyse IA*
+

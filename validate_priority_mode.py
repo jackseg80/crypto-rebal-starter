@@ -238,8 +238,8 @@ def generate_summary_report():
     if passed == len(results):
         print("\n🎉 VALIDATION COMPLÈTE RÉUSSIE!")
         print("\nLe mode priority est prêt à être utilisé :")
-        print("1. Démarrer le serveur: uvicorn api.main:app --reload --port 8000")
-        print("2. Ouvrir: http://localhost:8000/static/rebalance.html")
+        print("1. Démarrer le serveur: uvicorn api.main:app --reload --port 8080")
+        print("2. Ouvrir: http://localhost:8080/static/rebalance.html")
         print("3. Activer le toggle 'Mode intra-groupe : Priorité'")
         print("4. Vérifier les métadonnées dans la réponse du plan")
         return True

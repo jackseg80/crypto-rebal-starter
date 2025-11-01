@@ -211,13 +211,13 @@ CLAUDE.md                                         # +50 lignes (doc feature)
 ```powershell
 # Arrêter serveur (Ctrl+C)
 .venv\Scripts\Activate.ps1
-python -m uvicorn api.main:app --port 8000
+python -m uvicorn api.main:app --port 8080
 ```
 
 ### 2. Accéder au dashboard
 
 ```
-http://localhost:8000/static/saxo-dashboard.html
+http://localhost:8080/static/saxo-dashboard.html
 ```
 
 ### 3. Sélectionner user jack
@@ -424,3 +424,4 @@ Avant de continuer, vérifier:
 *Résumé généré le 28 octobre 2025*
 *Session: Market Opportunities System Implementation*
 *User: jack | Portfolio: $127,822 | Positions: 29*
+

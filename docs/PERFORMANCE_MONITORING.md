@@ -4,7 +4,7 @@
 
 Le système de monitoring unifié permet de surveiller en temps réel les performances, caches et freshness des données du système Crypto Rebal.
 
-**URL** : `http://localhost:8000/static/performance-monitor-unified.html`
+**URL** : `http://localhost:8080/static/performance-monitor-unified.html`
 
 ---
 

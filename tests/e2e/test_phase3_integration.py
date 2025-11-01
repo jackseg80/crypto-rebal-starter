@@ -36,7 +36,7 @@ class Phase3E2ETest:
             pytest.skip(f"Chrome WebDriver not available: {e}")
         
         # Démarrer le serveur de test si nécessaire
-        cls.base_url = "http://localhost:8000"
+        cls.base_url = "http://localhost:8080"
         
         # Vérifier que le serveur répond
         try:

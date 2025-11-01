@@ -259,7 +259,7 @@ GET /api/ml/bourse/regime?benchmark=SPY&lookback_days=365
 ## 🚀 Usage
 
 ### Accès Frontend
-1. Ouvrir `http://localhost:8000/static/ai-dashboard.html`
+1. Ouvrir `http://localhost:8080/static/ai-dashboard.html`
 2. Cliquer sur l'onglet **"📈 Régimes de Marché"** (4ème onglet)
 3. Observer les sections :
    - **Stock Market Regime** (HMM) - avec bouton "📊 View Probabilities"
@@ -340,8 +340,9 @@ GET /api/ml/bourse/regime?benchmark=SPY&lookback_days=365
 
 - **`docs/BTC_HYBRID_REGIME_DETECTOR.md`** - Documentation technique détaillée
 - **`docs/HYBRID_REGIME_DETECTOR.md`** - Système bourse (Stock Market)
-- **API Swagger**: `http://localhost:8000/docs` (endpoints interactifs)
+- **API Swagger**: `http://localhost:8080/docs` (endpoints interactifs)
 
 ---
 
 **Projet Multi-Asset Regime Detection**: ✅ **100% Terminé (Phase 5)** | Oct 2025
+

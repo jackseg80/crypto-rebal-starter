@@ -50,7 +50,7 @@ cp static/core/unified-insights-v2.js static/core/unified-insights-v2.js.backup
 
 ```bash
 # 1. Ouvrir simulateur
-http://localhost:8000/static/simulations.html
+http://localhost:8080/static/simulations.html
 
 # 2. Configurer manuellement:
 #    - DI: 60
@@ -183,3 +183,4 @@ tail -50 logs/app.log | grep -i "sentiment\|fear\|greed"
 **Créé:** 22 Oct 2025 18:45 UTC
 **Auteur:** Session Claude Code
 **Statut:** ✅ Prêt pour implémentation
+

@@ -10,7 +10,7 @@ import requests
 import time
 from typing import Dict, Any
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 def test_api_endpoints():
     """Test critical API endpoints"""

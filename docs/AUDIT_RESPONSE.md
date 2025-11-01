@@ -216,11 +216,11 @@ async def debug_endpoint():
 **Commandes incluses** :
 ```bash
 # Test protection endpoints
-curl -X POST http://localhost:8000/api/performance/cache/clear
+curl -X POST http://localhost:8080/api/performance/cache/clear
 # Attendu: 403 en prod
 
 # Test rate limiting
-for i in {1..100}; do curl http://localhost:8000/api/risk/dashboard; done
+for i in {1..100}; do curl http://localhost:8080/api/risk/dashboard; done
 # Attendu: 429 après ~60 requêtes
 ```
 
@@ -298,7 +298,7 @@ for i in {1..100}; do curl http://localhost:8000/api/risk/dashboard; done
 1. **Tester en mode prod local**
    ```bash
    # .env : ENVIRONMENT=production, DEBUG=false
-   python -m uvicorn api.main:app --port 8000
+   python -m uvicorn api.main:app --port 8080
    # Vérifier 403 sur endpoints debug
    ```
 
@@ -392,3 +392,4 @@ L'audit était **précis et pertinent**. Tous les points ont été traités avec
 **Signé** : Crypto Rebal Team
 **Date** : Oct 2025
 **Status** : ✅ Ready for Production (après tests validation)
+

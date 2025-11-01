@@ -24,6 +24,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from api.config.users import is_allowed_user, validate_user_id
+
 logger = logging.getLogger(__name__)
 
 # Singleton scheduler instance
@@ -71,6 +73,13 @@ async def job_pnl_intraday():
         source = os.getenv("SNAPSHOT_SOURCE", "cointracking_api")
         min_usd = float(os.getenv("SNAPSHOT_MIN_USD", "1.0"))
 
+        # Validate user_id for security (multi-tenant isolation)
+        if not is_allowed_user(user_id):
+            error_msg = f"Invalid or unauthorized user_id: {user_id}"
+            logger.error(f"❌ [{job_id}] {error_msg}")
+            await _update_job_status(job_id, "failed", 0, error_msg)
+            return
+
         result = await create_snapshot(user_id=user_id, source=source, min_usd=min_usd)
 
         duration_ms = (datetime.now() - start).total_seconds() * 1000
@@ -102,6 +111,13 @@ async def job_pnl_eod():
         user_id = os.getenv("SNAPSHOT_USER_ID", "jack")
         source = os.getenv("SNAPSHOT_SOURCE", "cointracking_api")
         min_usd = float(os.getenv("SNAPSHOT_MIN_USD", "1.0"))
+
+        # Validate user_id for security (multi-tenant isolation)
+        if not is_allowed_user(user_id):
+            error_msg = f"Invalid or unauthorized user_id: {user_id}"
+            logger.error(f"❌ [{job_id}] {error_msg}")
+            await _update_job_status(job_id, "failed", 0, error_msg)
+            return
 
         result = await create_snapshot(user_id=user_id, source=source, min_usd=min_usd, is_eod=True)
 
@@ -215,8 +231,8 @@ async def job_staleness_monitor():
         logger.info(f"🔄 [{job_id}] Starting staleness monitoring...")
 
         # Check Saxo data staleness
-        from api.services.sources_resolver import SourcesResolver
-        resolver = SourcesResolver()
+        from api.services.sources_resolver import get_effective_source_info
+        from api.services.user_fs import UserScopedFS
 
         # Get all users and check their Saxo sources
         saxo_issues = []
@@ -224,6 +240,7 @@ async def job_staleness_monitor():
         try:
             from pathlib import Path
             import json
+            import time
 
             users_config = Path("config/users.json")
             if users_config.exists():
@@ -236,14 +253,23 @@ async def job_staleness_monitor():
 
                     # Check Saxo source
                     try:
-                        result = resolver.get_effective_path(user_id=user_id, module="saxobank")
+                        # Create user filesystem
+                        project_root = Path(__file__).parent.parent
+                        user_fs = UserScopedFS(str(project_root), user_id)
 
-                        if result.get("staleness_hours", 0) > 24:
-                            saxo_issues.append({
-                                "user_id": user_id,
-                                "staleness_hours": result["staleness_hours"],
-                                "path": result.get("effective_path")
-                            })
+                        # Get source info
+                        result = get_effective_source_info(user_fs, "saxobank")
+
+                        # Calculate staleness in hours
+                        if result.get("modified_at"):
+                            staleness_hours = (time.time() - result["modified_at"]) / 3600
+
+                            if staleness_hours > 24:
+                                saxo_issues.append({
+                                    "user_id": user_id,
+                                    "staleness_hours": staleness_hours,
+                                    "path": result.get("effective_path")
+                                })
                     except Exception as e:
                         logger.warning(f"Failed to check Saxo staleness for user {user_id}: {e}")
 
@@ -277,14 +303,24 @@ async def job_api_warmers():
 
         import httpx
 
-        # Warm up critical endpoints
+        # Get warmup user_id from env and validate
+        warmup_user = os.getenv("WARMUP_USER_ID", "demo")
+
+        # Validate user_id for security (multi-tenant isolation)
+        if not is_allowed_user(warmup_user):
+            error_msg = f"Invalid warmup user_id: {warmup_user}, skipping warmers"
+            logger.warning(f"⚠️ [{job_id}] {error_msg}")
+            await _update_job_status(job_id, "skipped", 0, error_msg)
+            return
+
+        # Warm up critical endpoints with validated user
         endpoints = [
-            "/balances/current?source=cointracking&user_id=demo",
-            "/portfolio/metrics?source=cointracking&user_id=demo",
-            "/api/risk/dashboard?source=cointracking&user_id=demo",
+            f"/balances/current?source=cointracking&user_id={warmup_user}",
+            f"/portfolio/metrics?source=cointracking&user_id={warmup_user}",
+            f"/api/risk/dashboard?source=cointracking&user_id={warmup_user}",
         ]
 
-        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+        base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             for endpoint in endpoints:
@@ -327,7 +363,7 @@ async def job_crypto_toolbox_refresh():
         import httpx
 
         # Call the FastAPI crypto-toolbox endpoint with force refresh
-        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+        base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
         url = f"{base_url}/api/crypto-toolbox?force=true"
 
         async with httpx.AsyncClient(timeout=30.0) as client:

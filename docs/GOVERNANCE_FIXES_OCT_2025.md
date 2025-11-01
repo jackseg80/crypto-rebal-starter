@@ -21,7 +21,7 @@ if state.proposed_plan and state.proposed_plan.status in ["DRAFT", "REVIEWED"]:
 
 **Test** :
 ```bash
-curl http://localhost:8000/execution/governance/state | jq '.pending_approvals'
+curl http://localhost:8080/execution/governance/state | jq '.pending_approvals'
 # Retourne 0 ou 1 selon l'état réel
 ```
 
@@ -51,7 +51,7 @@ if hasattr(signals, 'volatility') and signals.volatility and len(signals.volatil
 
 **Test** :
 ```bash
-curl http://localhost:8000/execution/governance/signals | jq '.derived_policy'
+curl http://localhost:8080/execution/governance/signals | jq '.derived_policy'
 # Retourne:
 # {
 #   "mode": "Normal",
@@ -89,7 +89,7 @@ elif signals_age > 3600:  # 1-2h : warning
 
 **Test** :
 ```bash
-curl -X POST http://localhost:8000/execution/governance/signals/recompute \
+curl -X POST http://localhost:8080/execution/governance/signals/recompute \
   -H "Content-Type: application/json" \
   -H "X-CSRF-Token: test" \
   -H "Idempotency-Key: test-123" \
@@ -128,10 +128,10 @@ if "error" in health_report:
 
 **Test** :
 ```bash
-curl http://localhost:8000/api/ml/monitoring/health | jq '.models_status | length'
+curl http://localhost:8080/api/ml/monitoring/health | jq '.models_status | length'
 # Retourne 4 (au lieu de 0)
 
-curl http://localhost:8000/api/ml/monitoring/health | jq '.system_metrics'
+curl http://localhost:8080/api/ml/monitoring/health | jq '.system_metrics'
 # {
 #   "active_models": 4,
 #   "healthy_models": 4,
@@ -158,10 +158,10 @@ api/unified_ml_endpoints.py (1 fix: #5)
 
 ## Tests Effectués
 
-✅ **Fix #6** : `curl http://localhost:8000/execution/governance/state` → `pending_approvals` dynamique
-✅ **Fix #7** : `curl http://localhost:8000/execution/governance/signals` → `derived_policy` calculé
+✅ **Fix #6** : `curl http://localhost:8080/execution/governance/state` → `pending_approvals` dynamique
+✅ **Fix #7** : `curl http://localhost:8080/execution/governance/signals` → `derived_policy` calculé
 ✅ **Fix #4** : POST `/governance/signals/recompute` → `backend_status` vérifié dans logs
-✅ **Fix #5** : `curl http://localhost:8000/api/ml/monitoring/health` → 4 modèles listés
+✅ **Fix #5** : `curl http://localhost:8080/api/ml/monitoring/health` → 4 modèles listés
 
 ## Impact Production
 
@@ -194,3 +194,4 @@ avg_vol > 0.15 → cap = 0.08 * 0.5 = 0.04 (4%)
 **Date** : 2025-10-10
 **Auteur** : Claude Code
 **Version** : 1.0
+

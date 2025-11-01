@@ -193,7 +193,7 @@ document.getElementById('apply-preset-btn')?.addEventListener('click', applyPres
 
 ### 1. Ouvrir le Simulateur
 ```
-http://localhost:8000/static/simulations.html
+http://localhost:8080/static/simulations.html
 ```
 
 ### 2. Ouvrir le Panneau de Contrôle
@@ -290,3 +290,4 @@ Intégration propre dans `SimControls` avec:
 **Toujours auditer le code existant avant d'ajouter des fonctionnalités.**
 
 Si un composant existe déjà pour une tâche similaire → l'étendre au lieu de recréer.
+

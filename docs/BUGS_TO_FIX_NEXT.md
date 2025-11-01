@@ -233,14 +233,14 @@ python -m uvicorn api.main:app --reload
 ### Bug #1 (CycleSignals)
 ```bash
 # Déclencher via endpoint governance
-curl http://localhost:8000/execution/governance/state
+curl http://localhost:8080/execution/governance/state
 # Vérifier logs : plus d'erreur Pydantic
 ```
 
 ### Bug #2 (Sentiment)
 ```bash
 # Déclencher via endpoint ML
-curl http://localhost:8000/api/ml/sentiment/symbol/BTC
+curl http://localhost:8080/api/ml/sentiment/symbol/BTC
 # Vérifier logs : plus d'erreur dict × int
 ```
 
@@ -318,3 +318,4 @@ Closes: Bug #1 from BUGS_TO_FIX_NEXT.md"
 **Document créé** : 9 Oct 2025
 **Durée estimée totale** : 10-15 minutes
 **Impact** : Logs propres, meilleur monitoring
+

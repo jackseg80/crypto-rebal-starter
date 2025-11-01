@@ -179,7 +179,7 @@ debugLogger.stats()
 
 3. **URL parameter** (debug temporaire)
    ```
-   http://localhost:8000/dashboard.html?debug=true
+   http://localhost:8080/dashboard.html?debug=true
    ```
 
 4. **Hostname auto-detection** (défaut)
@@ -332,7 +332,7 @@ debugLogger.perfEnd('operationName');
 
 ```bash
 # 1. Ouvrir la page dans le navigateur
-http://localhost:8000/static/dashboard.html
+http://localhost:8080/static/dashboard.html
 
 # 2. Ouvrir console Chrome (F12)
 
@@ -464,7 +464,7 @@ python tools/replace-console-log.py --apply --report final-report.json
 ### Test 1 : Vérifier debugLogger fonctionne
 
 ```bash
-# 1. Ouvrir http://localhost:8000/static/dashboard.html
+# 1. Ouvrir http://localhost:8080/static/dashboard.html
 # 2. Ouvrir console (F12)
 # 3. Taper :
 
@@ -497,7 +497,7 @@ debugLogger.error('Error test')  // → S'affiche (errors toujours visibles)
 # 1. Migrer un fichier
 python tools/replace-console-log.py --file dashboard.html --apply
 
-# 2. Ouvrir http://localhost:8000/static/dashboard.html
+# 2. Ouvrir http://localhost:8080/static/dashboard.html
 # 3. Vérifier console : pas d'erreurs JS
 # 4. Vérifier fonctionnalités : tout marche comme avant
 # 5. Toggle debug : debugOff() puis debugOn()
@@ -629,3 +629,4 @@ debugLogger.stats()  // Voir statistiques
 **Auteur** : Claude Code
 **Status** : 🚧 En cours (1/112 fichiers migrés)
 **Next Step** : Migrer fichiers HIGH priority (risk-dashboard, rebalance, analytics-unified)
+

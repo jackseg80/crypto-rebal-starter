@@ -13,7 +13,7 @@ Environment Variables:
     SNAPSHOT_USER_ID: User ID (default: jack)
     SNAPSHOT_SOURCE: Data source (default: cointracking_api)
     SNAPSHOT_MIN_USD: Minimum USD threshold (default: 1.0)
-    API_BASE_URL: API base URL (default: http://localhost:8000)
+    API_BASE_URL: API base URL (default: http://localhost:8080)
 """
 
 import argparse
@@ -41,7 +41,7 @@ async def create_snapshot(
     source: str = "cointracking_api",
     min_usd: float = 1.0,
     is_eod: bool = False,
-    base_url: str = "http://localhost:8000"
+    base_url: str = "http://localhost:8080"
 ) -> Dict[str, Any]:
     """
     Create a portfolio snapshot via API.
@@ -188,8 +188,8 @@ async def main():
     parser.add_argument(
         "--base_url",
         type=str,
-        default=os.getenv("API_BASE_URL", "http://localhost:8000"),
-        help="API base URL (default: http://localhost:8000 or API_BASE_URL env)"
+        default=os.getenv("API_BASE_URL", "http://localhost:8080"),
+        help="API base URL (default: http://localhost:8080 or API_BASE_URL env)"
     )
 
     args = parser.parse_args()
@@ -212,3 +212,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

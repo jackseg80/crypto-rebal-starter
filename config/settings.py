@@ -187,7 +187,7 @@ class Settings(BaseSettings):
     
     # Configuration serveur
     host: str = Field(default="127.0.0.1", description="Host serveur")
-    port: int = Field(default=8000, ge=1, le=65535, description="Port serveur")
+    port: int = Field(default=8080, ge=1, le=65535, description="Port serveur")
     workers: int = Field(default=1, ge=1, le=8, description="Nombre workers")
     
     @field_validator('environment')
@@ -218,7 +218,7 @@ class Settings(BaseSettings):
         else:
             # En dev, ajouter localhost par défaut
             origins = self.security.cors_origins.copy()
-            dev_origins = ["http://localhost:3000", "http://localhost:8000", "http://127.0.0.1:8000"]
+            dev_origins = ["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:8080"]
             for origin in dev_origins:
                 if origin not in origins:
                     origins.append(origin)
@@ -282,3 +282,4 @@ if __name__ == "__main__":
         print(f"ML activé: {config.ml.enable_ml_features}")
     except Exception as e:
         print(f"[ERREUR] Configuration: {e}")
+

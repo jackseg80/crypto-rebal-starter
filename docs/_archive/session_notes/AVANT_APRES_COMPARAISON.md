@@ -202,9 +202,9 @@ Pour profiter du nouveau système multi-devises, vous devez **générer de nouve
 
 ```bash
 # Lancer le serveur
-python -m uvicorn api.main:app --port 8000
+python -m uvicorn api.main:app --port 8080
 
-# Aller sur http://localhost:8000/saxo-dashboard.html
+# Aller sur http://localhost:8080/saxo-dashboard.html
 # Cliquer sur "Generate Recommendations"
 ```
 
@@ -220,3 +220,4 @@ Les nouvelles recommandations utiliseront automatiquement:
 
 *Comparaison générée le 25 octobre 2025*
 *Basée sur portfolio réel de Jack (28 assets multi-devises)*
+

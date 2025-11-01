@@ -217,20 +217,20 @@ Exemples :
 ### **Backend - Appel Direct**
 ```bash
 # Crypto
-curl "http://localhost:8000/api/portfolio/export-lists?format=json&source=cointracking" \
+curl "http://localhost:8080/api/portfolio/export-lists?format=json&source=cointracking" \
   -H "X-User: jack"
 
 # Saxo
-curl "http://localhost:8000/api/saxo/export-lists?format=csv" \
+curl "http://localhost:8080/api/saxo/export-lists?format=csv" \
   -H "X-User: jack"
 
 # Banks
-curl "http://localhost:8000/api/wealth/banks/export-lists?format=markdown" \
+curl "http://localhost:8080/api/wealth/banks/export-lists?format=markdown" \
   -H "X-User: jack"
 ```
 
 ### **Frontend - Dashboard**
-1. Ouvrir `http://localhost:8000/dashboard.html`
+1. Ouvrir `http://localhost:8080/dashboard.html`
 2. Cliquer sur "Export Lists" dans n'importe quelle tuile
 3. Choisir le format désiré
 4. Téléchargement automatique
@@ -314,7 +314,7 @@ pytest tests/integration/test_export_endpoints.py -v
 ```javascript
 // tests/e2e/test_export_flow.js
 test('Crypto export flow', async () => {
-    await page.goto('http://localhost:8000/dashboard.html');
+    await page.goto('http://localhost:8080/dashboard.html');
     await page.click('#crypto-export-btn');
     await page.click('[data-format="json"]');
     // Assert download triggered
@@ -327,7 +327,7 @@ test('Crypto export flow', async () => {
 
 ### **404 Not Found**
 - ❌ **Cause** : Serveur pas redémarré après ajout endpoints
-- ✅ **Solution** : Redémarrer `uvicorn api.main:app --port 8000`
+- ✅ **Solution** : Redémarrer `uvicorn api.main:app --port 8080`
 
 ### **Données Vides (Saxo)**
 - ❌ **Cause** : Secteurs "Unknown" car mapping manquant
@@ -355,7 +355,7 @@ test('Crypto export flow', async () => {
 - Frontend : `static/modules/export-button.js`, `static/dashboard.html`
 
 ### **API Endpoints**
-- Swagger UI : `http://localhost:8000/docs#/Portfolio/export_crypto_lists`
+- Swagger UI : `http://localhost:8080/docs#/Portfolio/export_crypto_lists`
 
 ---
 
@@ -377,3 +377,4 @@ test('Crypto export flow', async () => {
 
 **Version 1.0 - October 2025**
 *Unified Export System - Production Ready*
+

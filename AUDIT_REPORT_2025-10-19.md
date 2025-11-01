@@ -345,7 +345,7 @@ const balanceResult = await window.loadBalanceData(true);
 
 // Configuration centralisée
 // global-config.js
-window.API_BASE_URL = "http://localhost:8000";
+window.API_BASE_URL = "http://localhost:8080";
 ```
 
 #### 3.3 Charts Interactifs
@@ -477,13 +477,13 @@ docs/
 
 ## Get Current Balances
 ```bash
-curl "http://localhost:8000/balances/current?user_id=jack&source=saxobank&min_usd=100"
+curl "http://localhost:8080/balances/current?user_id=jack&source=saxobank&min_usd=100"
 ```
 
 ```python
 import httpx
 response = await httpx.get(
-    "http://localhost:8000/balances/current",
+    "http://localhost:8080/balances/current",
     params={"user_id": "jack", "source": "saxobank"}
 )
 ```
@@ -1395,3 +1395,4 @@ find . -name "*.py" -exec wc -l {} + | sort -rn | head -20
 **Fin du Rapport d'Audit**
 
 *Ce document est vivant et doit être mis à jour tous les trimestres.*
+

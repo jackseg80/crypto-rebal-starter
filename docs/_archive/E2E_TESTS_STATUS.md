@@ -159,7 +159,7 @@ npx playwright show-report tests/e2e-report
 ```bash
 # Terminal 1 (backend)
 .venv\Scripts\Activate.ps1
-python -m uvicorn api.main:app --reload --port 8000
+python -m uvicorn api.main:app --reload --port 8080
 
 # Terminal 2 (tests)
 npx playwright test
@@ -273,3 +273,4 @@ npx playwright show-trace tests/e2e-report/trace.zip
 
 **Statut** : 🟢 Tests E2E opérationnels (74% de réussite)
 **Maintenance** : Vérifier tous les trimestres ou après refonte HTML majeure
+

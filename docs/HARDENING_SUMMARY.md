@@ -274,10 +274,10 @@ def test_endpoint(test_client):  # Fixture injectée
 
 # Lancer serveur en mode PRODUCTION
 # Éditer .env : ENVIRONMENT=production, DEBUG=false
-python -m uvicorn api.main:app --port 8000
+python -m uvicorn api.main:app --port 8080
 
 # Test 1: Endpoint /cache/clear doit être bloqué
-curl -X POST http://localhost:8000/api/performance/cache/clear
+curl -X POST http://localhost:8080/api/performance/cache/clear
 # Attendu: 403 {"error": "endpoint_disabled_in_production"}
 
 # Test 2: WebSocket sans token doit être refusé
@@ -409,3 +409,4 @@ pytest tests/test_performance_endpoints.py -v
 
 **Mainteneur** : Crypto Rebal Team
 **Dernière mise à jour** : Oct 2025
+

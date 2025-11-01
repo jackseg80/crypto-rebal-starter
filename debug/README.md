@@ -27,5 +27,5 @@ python debug/scripts/debug_coingecko.py
 
 Pour accéder aux pages de debug HTML :
 ```
-http://localhost:8000/debug/html/debug-dashboard.html
+http://localhost:8080/debug/html/debug-dashboard.html
 ```

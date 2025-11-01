@@ -2,7 +2,7 @@ import requests
 import json
 
 # Fetch data
-resp = requests.get("http://localhost:8000/api/risk/dashboard?source=cointracking&user_id=demo&risk_version=v2_shadow")
+resp = requests.get("http://localhost:8080/api/risk/dashboard?source=cointracking&user_id=demo&risk_version=v2_shadow")
 d = resp.json()
 
 rm = d['risk_metrics']
@@ -86,3 +86,4 @@ if inputs:
     print(f"Score calculé: {score_calc:.2f}")
     print(f"Score API: {rv['structural_score_v2']:.2f}")
     print(f"Match: {'✅ OUI' if abs(score_calc - rv['structural_score_v2']) < 0.1 else '❌ NON'}")
+

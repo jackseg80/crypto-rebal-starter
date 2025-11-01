@@ -197,7 +197,7 @@ Tous les sprints + optimisations avancees
 
 ### Generer nouvelles recommandations
 ```bash
-curl -X GET "http://localhost:8000/api/ml/bourse/portfolio-recommendations?user_id=jack&source=saxobank&timeframe=long&file_key=20251025_103840_Positions_25-oct.-2025_10_37_13.csv" -o new_recs.json
+curl -X GET "http://localhost:8080/api/ml/bourse/portfolio-recommendations?user_id=jack&source=saxobank&timeframe=long&file_key=20251025_103840_Positions_25-oct.-2025_10_37_13.csv" -o new_recs.json
 ```
 
 ### Valider les prix
@@ -212,7 +212,7 @@ python analyze_saxo_prices.py
 
 ### Lancer le serveur
 ```bash
-python -m uvicorn api.main:app --port 8000
+python -m uvicorn api.main:app --port 8080
 ```
 
 ---
@@ -281,3 +281,4 @@ python -m uvicorn api.main:app --port 8000
 *Session du 25 octobre 2025*
 *Validation complete effectuee avec succes*
 *Systeme pret pour production avec ameliorations mineures*
+

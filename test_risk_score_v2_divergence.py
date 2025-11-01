@@ -1,9 +1,13 @@
 """
 Test rapide pour vérifier que Risk Score V2 diverge du Legacy sur portfolio degen
+
+NOTE: Ce script utilise un user_id configurable pour test manual.
+Pour tests automatisés, utiliser la fixture test_user_id de conftest.py
 """
 
 import asyncio
 import json
+import sys
 from api.unified_data import get_unified_filtered_balances
 from services.portfolio_metrics import portfolio_metrics_service
 from services.price_history import get_cached_history
@@ -13,13 +17,18 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
-async def test_risk_divergence():
+async def test_risk_divergence(user_id="demo"):
     """
     Test avec un portfolio réel pour voir si V2 diverge de Legacy
+
+    Args:
+        user_id: User ID pour isolation multi-tenant (défaut: "demo")
     """
     # Charger les balances actuelles
-    unified = await get_unified_filtered_balances(source="cointracking", min_usd=1.0, user_id="demo")
+    unified = await get_unified_filtered_balances(source="cointracking", min_usd=1.0, user_id=user_id)
     balances = unified.get("items", [])
+
+    logger.info(f"🔍 Testing risk divergence for user: {user_id}")
 
     logger.info(f"📦 Loaded {len(balances)} assets")
 
@@ -135,4 +144,7 @@ async def test_risk_divergence():
             logger.info(f"   - {asset.get('symbol')}: {asset.get('reason')}")
 
 if __name__ == "__main__":
-    asyncio.run(test_risk_divergence())
+    # Accepter user_id depuis argument CLI ou utiliser défaut "demo"
+    # Usage: python test_risk_score_v2_divergence.py [user_id]
+    user_id = sys.argv[1] if len(sys.argv) > 1 else "demo"
+    asyncio.run(test_risk_divergence(user_id=user_id))

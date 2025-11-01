@@ -225,19 +225,19 @@ renderDecisionIndexPanel(container, data);
 ### Test Multi-User
 ```bash
 # Users différents
-curl "localhost:8000/balances/current?user_id=demo"
-curl "localhost:8000/balances/current?user_id=jack"
+curl "localhost:8080/balances/current?user_id=demo"
+curl "localhost:8080/balances/current?user_id=jack"
 
 # Sources différentes (même user)
-curl "localhost:8000/portfolio/metrics?user_id=jack&source=cointracking"
-curl "localhost:8000/portfolio/metrics?user_id=jack&source=cointracking_api"
+curl "localhost:8080/portfolio/metrics?user_id=jack&source=cointracking"
+curl "localhost:8080/portfolio/metrics?user_id=jack&source=cointracking_api"
 ```
 
 ### Dev Server
 ```bash
 # Windows
 .venv\Scripts\Activate.ps1
-python -m uvicorn api.main:app --port 8000
+python -m uvicorn api.main:app --port 8080
 
 # ⚠️ IMPORTANT: PAS de --reload flag!
 # Après modifications backend → TOUJOURS demander à l'utilisateur de redémarrer manuellement
@@ -604,10 +604,10 @@ if memecoins_pct >= 0.48 and memecoins_pct <= 0.52:
 
 ```bash
 # Créer snapshot P&L
-curl -X POST "localhost:8000/portfolio/snapshot?user_id=jack&source=cointracking"
+curl -X POST "localhost:8080/portfolio/snapshot?user_id=jack&source=cointracking"
 
 # Créer compte bancaire
-curl -X POST "localhost:8000/api/wealth/banks/accounts" \
+curl -X POST "localhost:8080/api/wealth/banks/accounts" \
   -H "X-User: jack" \
   -d '{"bank_name":"UBS","balance":5000,"currency":"CHF"}'
 

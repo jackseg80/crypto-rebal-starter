@@ -6,7 +6,7 @@
 
 ### Prérequis
 - Python 3.8+
-- FastAPI server démarré : `uvicorn api.main:app --reload --port 8000`
+- FastAPI server démarré : `uvicorn api.main:app --reload --port 8080`
 - Dépendances installées : `pip install -r requirements.txt`
 
 ### Test Automatisé Complet
@@ -76,43 +76,43 @@ python tests/manual/test_config_hot_reload.py
 ### Scenario 1: Cycle Complet d'Alerte
 ```bash
 # 1. Démarrer serveur
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --port 8080
 
 # 2. Vérifier santé
-curl http://localhost:8000/api/alerts/health
+curl http://localhost:8080/api/alerts/health
 
 # 3. Lister alertes actives  
-curl http://localhost:8000/api/alerts/active
+curl http://localhost:8080/api/alerts/active
 
 # 4. Acquitter une alerte (si existante)
-curl -X POST http://localhost:8000/api/alerts/acknowledge/ALERT_ID
+curl -X POST http://localhost:8080/api/alerts/acknowledge/ALERT_ID
 
 # 5. Vérifier métriques
-curl http://localhost:8000/api/alerts/metrics/prometheus
+curl http://localhost:8080/api/alerts/metrics/prometheus
 ```
 
 ### Scenario 2: Test Hot-Reload Config
 ```bash
 # 1. Vérifier config actuelle
-curl http://localhost:8000/api/alerts/config/current
+curl http://localhost:8080/api/alerts/config/current
 
 # 2. Modifier config/alerts_rules.json
 # Changer "config_version": "1.0" → "1.1"
 
 # 3. Déclencher reload (si RBAC permet)
-curl -X POST http://localhost:8000/api/alerts/config/reload
+curl -X POST http://localhost:8080/api/alerts/config/reload
 
 # 4. Vérifier changement (attendre ~60s pour auto-reload)
-curl http://localhost:8000/api/alerts/config/current
+curl http://localhost:8080/api/alerts/config/current
 ```
 
 ### Scenario 3: Test Freeze avec TTL
 ```bash
 # 1. Vérifier état gouvernance
-curl http://localhost:8000/api/governance/state
+curl http://localhost:8080/api/governance/state
 
 # 2. Freeze avec TTL (nécessite Idempotency-Key)
-curl -X POST http://localhost:8000/api/governance/freeze \
+curl -X POST http://localhost:8080/api/governance/freeze \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: test-$(date +%s)" \
   -d '{
@@ -121,7 +121,7 @@ curl -X POST http://localhost:8000/api/governance/freeze \
   }'
 
 # 3. Vérifier auto_unfreeze_at dans état
-curl http://localhost:8000/api/governance/state
+curl http://localhost:8080/api/governance/state
 ```
 
 ## 📊 Validation des Résultats
@@ -162,7 +162,7 @@ curl http://localhost:8000/api/governance/state
 netstat -an | findstr 8000
 
 # Redémarrer serveur
-uvicorn api.main:app --reload --port 8000 --log-level debug
+uvicorn api.main:app --reload --port 8080 --log-level debug
 ```
 
 ### Config Hot-Reload Échec
@@ -194,13 +194,13 @@ python -m pytest tests/unit/test_alert_engine.py -v -s --tb=short
 ### Observabilité
 ```bash
 # Métriques JSON détaillées
-curl http://localhost:8000/api/alerts/metrics | jq .
+curl http://localhost:8080/api/alerts/metrics | jq .
 
 # Format Prometheus
-curl http://localhost:8000/api/alerts/metrics/prometheus
+curl http://localhost:8080/api/alerts/metrics/prometheus
 
 # Health components
-curl http://localhost:8000/api/alerts/health | jq .components
+curl http://localhost:8080/api/alerts/health | jq .components
 ```
 
 ## 🎉 Validation Finale

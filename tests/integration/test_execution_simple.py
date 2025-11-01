@@ -8,7 +8,7 @@ import json
 import requests
 import time
 
-API_BASE = "http://127.0.0.1:8000"
+API_BASE = "http://127.0.0.1:8080"
 
 # Plan de test simple
 TEST_ACTIONS = [

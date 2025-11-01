@@ -230,19 +230,19 @@ class TestDailyDeduplication:
 class TestPnLCalculation:
     """Tests pour le calcul du P&L avec différentes ancres"""
 
-    def test_pnl_no_historical_data(self, portfolio_analytics, sample_balances):
+    def test_pnl_no_historical_data(self, portfolio_analytics, sample_balances, test_user_id):
         """Vérifie comportement sans données historiques"""
         metrics = portfolio_analytics.calculate_portfolio_metrics(sample_balances)
         performance = portfolio_analytics.calculate_performance_metrics(
             metrics,
-            user_id="jack",
+            user_id=test_user_id,
             source="cointracking"
         )
 
         assert performance["performance_available"] is False
         assert "Pas de données historiques" in performance["message"]
 
-    def test_pnl_midnight_anchor(self, portfolio_analytics, sample_balances, temp_history_file):
+    def test_pnl_midnight_anchor(self, portfolio_analytics, sample_balances, temp_history_file, test_user_id):
         """Vérifie P&L avec ancre midnight"""
         # Créer un snapshot hier soir
         yesterday = datetime.now(TZ) - timedelta(days=1)
@@ -250,7 +250,7 @@ class TestPnLCalculation:
 
         snapshot = {
             "date": yesterday_evening.isoformat(),
-            "user_id": "jack",
+            "user_id": test_user_id,
             "source": "cointracking",
             "total_value_usd": 95000,
             "asset_count": 3,
@@ -272,7 +272,7 @@ class TestPnLCalculation:
         # P&L avec anchor=midnight (devrait utiliser snapshot d'hier)
         performance = portfolio_analytics.calculate_performance_metrics(
             metrics,
-            user_id="jack",
+            user_id=test_user_id,
             source="cointracking",
             anchor="midnight",
             window="24h"
@@ -285,13 +285,13 @@ class TestPnLCalculation:
         assert "absolute_change_usd" in performance
         assert "suspected_flow" in performance
 
-    def test_pnl_outlier_detection(self, portfolio_analytics, sample_balances, temp_history_file):
+    def test_pnl_outlier_detection(self, portfolio_analytics, sample_balances, temp_history_file, test_user_id):
         """Vérifie détection d'outlier (flux suspect)"""
         # Snapshot à 100k
         yesterday = datetime.now(TZ) - timedelta(days=1)
         snapshot = {
             "date": yesterday.isoformat(),
-            "user_id": "jack",
+            "user_id": test_user_id,
             "source": "cointracking",
             "total_value_usd": 100000,
             "asset_count": 3,
@@ -320,7 +320,7 @@ class TestPnLCalculation:
         metrics = portfolio_analytics.calculate_portfolio_metrics(large_balances)
         performance = portfolio_analytics.calculate_performance_metrics(
             metrics,
-            user_id="jack",
+            user_id=test_user_id,
             source="cointracking",
             anchor="prev_snapshot"
         )
@@ -329,14 +329,14 @@ class TestPnLCalculation:
         assert performance["suspected_flow"] is True  # >30% change
         assert performance["percentage_change"] > 30
 
-    def test_pnl_window_7d(self, portfolio_analytics, sample_balances, temp_history_file):
+    def test_pnl_window_7d(self, portfolio_analytics, sample_balances, temp_history_file, test_user_id):
         """Vérifie P&L avec fenêtre 7 jours"""
         # Créer snapshots à J-10, J-5, J-1
         now = datetime.now(TZ)
         snapshots = [
             {
                 "date": (now - timedelta(days=10)).isoformat(),
-                "user_id": "jack",
+                "user_id": test_user_id,
                 "source": "cointracking",
                 "total_value_usd": 90000,
                 "asset_count": 3,
@@ -351,7 +351,7 @@ class TestPnLCalculation:
             },
             {
                 "date": (now - timedelta(days=5)).isoformat(),
-                "user_id": "jack",
+                "user_id": test_user_id,
                 "source": "cointracking",
                 "total_value_usd": 95000,
                 "asset_count": 3,
@@ -366,7 +366,7 @@ class TestPnLCalculation:
             },
             {
                 "date": (now - timedelta(days=1)).isoformat(),
-                "user_id": "jack",
+                "user_id": test_user_id,
                 "source": "cointracking",
                 "total_value_usd": 98000,
                 "asset_count": 3,
@@ -386,7 +386,7 @@ class TestPnLCalculation:
         metrics = portfolio_analytics.calculate_portfolio_metrics(sample_balances)
         performance = portfolio_analytics.calculate_performance_metrics(
             metrics,
-            user_id="jack",
+            user_id=test_user_id,
             source="cointracking",
             anchor="prev_snapshot",
             window="7d"
@@ -401,22 +401,22 @@ class TestPnLCalculation:
 class TestSnapshotSaving:
     """Tests pour la sauvegarde de snapshots"""
 
-    def test_save_snapshot_creates_file(self, portfolio_analytics, sample_balances):
+    def test_save_snapshot_creates_file(self, portfolio_analytics, sample_balances, test_user_id):
         """Vérifie que save_snapshot crée le fichier"""
         success = portfolio_analytics.save_portfolio_snapshot(
             sample_balances,
-            user_id="jack",
+            user_id=test_user_id,
             source="cointracking"
         )
 
         assert success is True
         assert os.path.exists(portfolio_analytics.historical_data_file)
 
-    def test_save_snapshot_metadata(self, portfolio_analytics, sample_balances):
+    def test_save_snapshot_metadata(self, portfolio_analytics, sample_balances, test_user_id):
         """Vérifie que les métadonnées de valorisation sont présentes"""
         portfolio_analytics.save_portfolio_snapshot(
             sample_balances,
-            user_id="jack",
+            user_id=test_user_id,
             source="cointracking"
         )
 
@@ -430,19 +430,23 @@ class TestSnapshotSaving:
         assert "price_source" in snap
         assert "pricing_timestamp" in snap
 
-    def test_save_snapshot_isolation(self, portfolio_analytics, sample_balances):
+    def test_save_snapshot_isolation(self, portfolio_analytics, sample_balances, test_user_id):
         """Vérifie isolation par (user_id, source)"""
-        # Sauvegarder pour jack/cointracking
+        # Créer un second user_id unique pour tester l'isolation
+        import uuid
+        test_user_id_2 = f"test_isolation_{uuid.uuid4().hex[:8]}"
+
+        # Sauvegarder pour user 1
         portfolio_analytics.save_portfolio_snapshot(
             sample_balances,
-            user_id="jack",
+            user_id=test_user_id,
             source="cointracking"
         )
 
-        # Sauvegarder pour demo/cointracking
+        # Sauvegarder pour user 2
         portfolio_analytics.save_portfolio_snapshot(
             sample_balances,
-            user_id="demo",
+            user_id=test_user_id_2,
             source="cointracking"
         )
 
@@ -451,7 +455,7 @@ class TestSnapshotSaving:
 
         assert len(data) == 2
         users = {snap["user_id"] for snap in data}
-        assert users == {"jack", "demo"}
+        assert users == {test_user_id, test_user_id_2}
 
 
 if __name__ == "__main__":

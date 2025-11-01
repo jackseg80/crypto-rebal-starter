@@ -12,7 +12,7 @@ Le mode Live du simulateur et le bouton de test de source retournaient systémat
 
 ```bash
 # Test source button
-curl "http://localhost:8000/balances/current?source=cointracking_api&user_id=jack"
+curl "http://localhost:8080/balances/current?source=cointracking_api&user_id=jack"
 # Retournait: {"source_used": "cointracking_api", "items": []}
 
 # Alors que dashboard.html avec le même user affichait correctement les 190+ assets
@@ -161,7 +161,7 @@ Ajouté dans `simulations.html` (lignes 712-771) les fonctions nécessaires pour
 
 ### Test Manuel Live Mode
 
-1. Ouvrir `http://localhost:8000/static/simulations.html`
+1. Ouvrir `http://localhost:8080/static/simulations.html`
 2. Sélectionner user "jack" dans le menu
 3. Sélectionner source "cointracking_api"
 4. Cliquer "Live"
@@ -169,7 +169,7 @@ Ajouté dans `simulations.html` (lignes 712-771) les fonctions nécessaires pour
 
 ### Test Manual Test Source Button
 
-1. Ouvrir `http://localhost:8000/static/simulations.html`
+1. Ouvrir `http://localhost:8080/static/simulations.html`
 2. Sélectionner user "jack"
 3. Sélectionner source "cointracking_api" dans dropdown
 4. Cliquer bouton "🧪 Test"
@@ -179,7 +179,7 @@ Ajouté dans `simulations.html` (lignes 712-771) les fonctions nécessaires pour
 
 ```bash
 # Vérifier que l'API retourne bien des données pour jack
-curl -H "X-User: jack" "http://localhost:8000/balances/current?source=cointracking_api"
+curl -H "X-User: jack" "http://localhost:8080/balances/current?source=cointracking_api"
 
 # Devrait retourner:
 # {

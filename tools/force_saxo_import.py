@@ -106,9 +106,10 @@ def main():
     print("=" * 60)
     print()
     print("Prochaines etapes:")
-    print("1. Rafraichissez: http://localhost:8000/static/saxo-dashboard.html")
+    print("1. Rafraichissez: http://localhost:8080/static/saxo-dashboard.html")
     print("2. Selectionnez le portfolio dans le dropdown")
     print()
 
 if __name__ == "__main__":
     main()
+

@@ -366,6 +366,12 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors, mem
   // Debug: show UNIFIED_ASSET_GROUPS structure
   console.debug('🏗️ UNIFIED_ASSET_GROUPS:', UNIFIED_ASSET_GROUPS);
 
+  // Calculer total portfolio pour seuil minimum incumbency (1%)
+  const totalPortfolioValue = currentPositions.reduce((sum, pos) => sum + (parseFloat(pos.value_usd) || 0), 0);
+  const INCUMBENCY_MIN_THRESHOLD = 0.01; // 1% du portfolio total
+
+  console.debug('💼 Total portfolio value:', totalPortfolioValue.toFixed(2), 'USD');
+
   // Pour chaque secteur, distribuer vers les coins
   Object.entries(sectorAllocation).forEach(([sector, sectorWeight]) => {
     // Ensure sectorWeight is a valid number
@@ -397,8 +403,20 @@ function calculateCoinAllocation(sectorAllocation, currentPositions, floors, mem
 
       // HIERARCHIE STRICTE: soit secteur global, soit coins individuels, jamais les deux
       if (heldInSector.length === 1) {
-        // Un seul coin détenu → l'exposer directement (quelle que soit l'allocation)
-        coinAllocation[heldInSector[0]] = validSectorWeight;
+        // 🆕 SEUIL MINIMUM: Ne pas exposer individuellement si < 1% du portfolio
+        const assetPosition = currentPositions.find(pos => pos.symbol?.toUpperCase() === heldInSector[0]);
+        const assetValue = assetPosition ? parseFloat(assetPosition.value_usd) || 0 : 0;
+        const assetPercentage = totalPortfolioValue > 0 ? assetValue / totalPortfolioValue : 0;
+
+        if (assetPercentage >= INCUMBENCY_MIN_THRESHOLD) {
+          // Asset >= 1% du portfolio → l'exposer directement
+          coinAllocation[heldInSector[0]] = validSectorWeight;
+          console.debug(`✅ Individual exposure for ${heldInSector[0]} (${(assetPercentage * 100).toFixed(2)}% of portfolio)`);
+        } else {
+          // Asset < 1% du portfolio → utiliser le groupe
+          coinAllocation[sector] = validSectorWeight;
+          console.debug(`⚠️ Using group ${sector} instead of ${heldInSector[0]} (only ${(assetPercentage * 100).toFixed(2)}% of portfolio)`);
+        }
         // NE PAS ajouter le secteur global pour éviter double-comptage
       } else if (heldInSector.length > 1) {
         // Plusieurs coins détenus → distribution avec incumbency borné

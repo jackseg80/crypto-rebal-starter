@@ -131,9 +131,9 @@
 
 **Problème** :
 ```javascript
-// Si api_base_url = "http://localhost:8000/api"
+// Si api_base_url = "http://localhost:8080/api"
 // Et endpoint = "/api/risk/status"
-// Résultat: "http://localhost:8000/api/api/risk/status" ❌
+// Résultat: "http://localhost:8080/api/api/risk/status" ❌
 ```
 
 **Solution proposée** : Voir `static/FIXME_getApiUrl.md`
@@ -169,8 +169,8 @@
 **Statut** : **IDENTIFIÉ** (non corrigé)
 
 **Fichiers prioritaires** :
-- `static/risk-dashboard.html:6615` : `fetch('http://localhost:8000/api/risk/dashboard')`
-- `static/settings.html:1461` : `api_base_url: "http://localhost:8000"`
+- `static/risk-dashboard.html:6615` : `fetch('http://localhost:8080/api/risk/dashboard')`
+- `static/settings.html:1461` : `api_base_url: "http://localhost:8080"`
 - `static/ai-dashboard.html:1024` : Fallback hardcodé
 
 **Action recommandée** :

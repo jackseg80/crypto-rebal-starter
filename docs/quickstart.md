@@ -33,12 +33,12 @@ Windows (PowerShell):
 
 Linux/macOS:
 ```bash
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --port 8080
 ```
 
 Windows (PowerShell):
 ```powershell
-python -m uvicorn api.main:app --port 8000
+python -m uvicorn api.main:app --port 8080
 # Note: --reload désactivé sur Windows pour compatibilité Playwright
 ```
 
@@ -60,3 +60,4 @@ Astuce: la barre de navigation unifiée est chargée automatiquement sur la plup
 - GET `/portfolio/metrics`
 
 Pour l’ensemble des endpoints: voir `docs/api.md`.
+

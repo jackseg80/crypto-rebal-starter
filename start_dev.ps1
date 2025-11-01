@@ -69,7 +69,8 @@ $redisHost = "localhost"
 
 if ($redisRunning) {
     Write-Host "✅ Redis is running on localhost" -ForegroundColor Green
-} else {
+}
+else {
     # Try WSL2 Redis
     try {
         wsl --status 2>$null | Out-Null
@@ -96,14 +97,17 @@ if ($redisRunning) {
                     # Override REDIS_URL to use WSL2 IP
                     $env:REDIS_URL = "redis://${wslIP}:6379/0"
                     Write-Host "   Using REDIS_URL=$env:REDIS_URL" -ForegroundColor Gray
-                } else {
+                }
+                else {
                     Write-Host "⚠️  Redis not accessible - server will run in degraded mode" -ForegroundColor Yellow
                 }
             }
-        } else {
+        }
+        else {
             Write-Host "⚠️  WSL2 not available - Redis not started" -ForegroundColor Yellow
         }
-    } catch {
+    }
+    catch {
         Write-Host "⚠️  Could not start Redis - continuing without it" -ForegroundColor Yellow
     }
 }
@@ -138,7 +142,8 @@ Write-Host "━━━━━━━━━━━━━━━━━━━━━━�
 # Crypto-Toolbox mode
 if ($CryptoToolboxMode -eq 1) {
     Write-Host "📦 Crypto-Toolbox: FastAPI native (Playwright)" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "📦 Crypto-Toolbox: Flask proxy (legacy)" -ForegroundColor Yellow
     Write-Host "   ⚠️  Make sure Flask server is running on port 8001" -ForegroundColor Yellow
 }
@@ -151,7 +156,8 @@ if ($EnableScheduler) {
     Write-Host "   • Staleness monitor (hourly :15)" -ForegroundColor Gray
     Write-Host "   • API warmers (every 10min)" -ForegroundColor Gray
     Write-Host "   • Crypto-Toolbox indicators (2x daily: 08:00, 20:00)" -ForegroundColor Gray
-} else {
+}
+else {
     Write-Host "⏰ Task Scheduler: DISABLED" -ForegroundColor Yellow
     Write-Host "   Run manual scripts for P&L/OHLCV updates" -ForegroundColor Gray
 }
@@ -159,28 +165,15 @@ if ($EnableScheduler) {
 # Reload mode
 if ($UseReload) {
     Write-Host "🔄 Hot Reload: ENABLED" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "🔄 Hot Reload: DISABLED" -ForegroundColor Yellow
     if ($EnableScheduler) {
         Write-Host "   (auto-disabled: prevents double execution with scheduler)" -ForegroundColor Gray
-    } elseif ($CryptoToolboxMode -eq 1) {
+    }
+    elseif ($CryptoToolboxMode -eq 1) {
         Write-Host "   (auto-disabled: required for Playwright on Windows)" -ForegroundColor Gray
     }
-}
-
-# Check if port is already in use
-$portInUse = $null
-try {
-    $portInUse = Test-NetConnection -ComputerName localhost -Port $Port -InformationLevel Quiet -WarningAction SilentlyContinue 2>$null
-} catch {
-    # Ignore errors, assume port is free
-}
-
-if ($portInUse) {
-    Write-Host "`n❌ Port $Port is already in use!" -ForegroundColor Red
-    Write-Host "   Kill the existing process or use a different port:" -ForegroundColor Yellow
-    Write-Host "   .\start_dev.ps1 -Port 8001`n" -ForegroundColor Gray
-    exit 1
 }
 
 Write-Host "`n🌐 Server: http://localhost:$Port" -ForegroundColor Cyan
@@ -195,15 +188,39 @@ $env:CRYPTO_TOOLBOX_NEW = $CryptoToolboxMode
 if ($EnableScheduler) {
     $env:RUN_SCHEDULER = "1"
     Write-Host "✅ Environment: RUN_SCHEDULER=1" -ForegroundColor Green
-} else {
+}
+else {
     $env:RUN_SCHEDULER = "0"
 }
 
 # Start server
-Write-Host "🚀 Starting Uvicorn...`n" -ForegroundColor Cyan
+Write-Host "�� Checking if port $Port is available..." -ForegroundColor Cyan
+Start-Sleep -Milliseconds 200 # Brief pause to allow ports to be released
+
+$portInUse = $null
+try {
+    $portInUse = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+}
+catch {
+    # Ignore errors, assume port is free
+}
+
+if ($portInUse) {
+    Write-Host "`n❌ Port $Port is already in use by another process!" -ForegroundColor Red
+    Write-Host "   Please stop the existing process or use a different port." -ForegroundColor Yellow
+    Write-Host "   To find the process, run: Get-Process -Id (Get-NetTCPConnection -LocalPort $Port).OwningProcess" -ForegroundColor Gray
+    Write-Host "   Example: .\\start_dev.ps1 -Port 8001`n" -ForegroundColor Gray
+    exit 1
+}
+
+Write-Host "� Starting Uvicorn...`n" -ForegroundColor Cyan
 
 if ($UseReload) {
-    & .venv\Scripts\python.exe -m uvicorn api.main:app --reload --port $Port --workers $Workers
-} else {
-    & .venv\Scripts\python.exe -m uvicorn api.main:app --port $Port --workers $Workers
+    # For --reload, uvicorn handles the process lifetime, so '&' is fine.
+    & .venv\Scripts\python.exe -m uvicorn api.main:app --reload --port $Port --workers $Workers 
+}
+else {
+    # Without --reload, we must wait for the process to exit cleanly.
+    # Start-Process -Wait ensures the PowerShell script doesn't exit prematurely.
+    Start-Process -FilePath ".venv\Scripts\python.exe" -ArgumentList "-m uvicorn api.main:app --port $Port --workers $Workers" -NoNewWindow -Wait
 }

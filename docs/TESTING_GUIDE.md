@@ -213,10 +213,10 @@ if response.status_code == 503:
 
 ```bash
 # 1. Démarrer le serveur dev
-python -m uvicorn api.main:app --reload --port 8000
+python -m uvicorn api.main:app --reload --port 8080
 
 # 2. Ouvrir dans le navigateur
-http://localhost:8000/tests/html_debug/test_risk_modules_v2.html
+http://localhost:8080/tests/html_debug/test_risk_modules_v2.html
 
 # 3. Cliquer sur "▶️ Lancer les Tests"
 ```
@@ -424,7 +424,7 @@ pytest tests/integration/test_risk_dashboard_modules_fixed.py -v
 pytest tests/performance/test_risk_dashboard_performance.py -v -s
 
 # Frontend (13 tests)
-# → Ouvrir http://localhost:8000/tests/html_debug/test_risk_modules_v2.html
+# → Ouvrir http://localhost:8080/tests/html_debug/test_risk_modules_v2.html
 ```
 
 ### Tests Filtrés
@@ -576,3 +576,4 @@ Success Rate Frontend:  100% (13/13) ✅
 **Dernière mise à jour** : Octobre 2025
 **Auteur** : Claude Code Agent
 **Version** : 1.0.0
+

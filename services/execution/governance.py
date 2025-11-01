@@ -240,7 +240,7 @@ class GovernanceEngine:
     - Interface unique avec les signaux ML
     """
     
-    def __init__(self, api_base_url: str = "http://localhost:8000"):
+    def __init__(self, api_base_url: str = "http://localhost:8080"):
         self.api_base_url = api_base_url.rstrip("/")
         self.current_state = DecisionState()
 
@@ -2082,3 +2082,4 @@ class GovernanceEngine:
 
 # Instance globale pour réutilisation
 governance_engine = GovernanceEngine()
+

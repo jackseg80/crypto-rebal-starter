@@ -63,9 +63,9 @@ source .venv/bin/activate
 ```
 
 **Accès Web:**
-- **Settings** : http://localhost:8000/static/settings.html (configuration initiale)
-- **Dashboard** : http://localhost:8000/static/dashboard.html
-- **API Docs** : http://localhost:8000/docs
+- **Settings** : http://localhost:8080/static/settings.html (configuration initiale)
+- **Dashboard** : http://localhost:8080/static/dashboard.html
+- **API Docs** : http://localhost:8080/docs
 
 ## 📊 Pages Principales
 
@@ -216,7 +216,7 @@ POST /api/sources/upload                         # Upload fichier
 GET  /api/sources/test                           # Tester source
 ```
 
-📖 API complète : http://localhost:8000/docs (Swagger UI)
+📖 API complète : http://localhost:8080/docs (Swagger UI)
 
 ## 🧪 Tests
 
@@ -296,3 +296,4 @@ Ce projet est un starter/template pour usage personnel ou éducatif.
 **Status** : ✅ Production Stable (Oct 2025)
 **Version** : 3.0
 **Stack** : Python 3.10+ • FastAPI • Vanilla JS (ES6) • Redis (optionnel)
+

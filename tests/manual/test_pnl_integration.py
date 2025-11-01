@@ -14,7 +14,7 @@ import asyncio
 import httpx
 from datetime import datetime
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 async def create_snapshot(user_id: str = "demo", source: str = "cointracking"):
     """Crée un snapshot portfolio pour établir la baseline"""
@@ -116,3 +116,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

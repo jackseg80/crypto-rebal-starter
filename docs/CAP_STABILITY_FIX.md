@@ -272,7 +272,7 @@ python tests/unit/test_cap_stability.py
 python tools/audit_governance_state.py
 
 # Frontend audit
-# Open in browser: http://localhost:8000/tools/audit_frontend_state.html
+# Open in browser: http://localhost:8080/tools/audit_frontend_state.html
 ```
 
 ### 4. Monitor in Production
@@ -324,3 +324,4 @@ window._riskBudgetCache  // Should show cached values
 **Status**: ✅ COMPLETED
 **Stability Achieved**: Max variation 0.21% < 2%
 **Next Review**: October 2025 (monitor production metrics)
+

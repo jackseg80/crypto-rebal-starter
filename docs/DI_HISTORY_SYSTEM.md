@@ -186,7 +186,7 @@ if (diHistory.length === 0 && s?.di_history) {
 **Exécution:**
 ```bash
 # Serveur lancé
-http://localhost:8000/static/test-di-history.html
+http://localhost:8080/static/test-di-history.html
 ```
 
 ## Debug
@@ -249,3 +249,4 @@ Object.keys(localStorage)
 - Implémentation: `static/utils/di-history.js`
 - Tests: `static/test-di-history.html`
 - Playbook: `CLAUDE.md` section 11
+

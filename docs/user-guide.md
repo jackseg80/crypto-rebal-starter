@@ -29,7 +29,7 @@ Ce guide décrit l’UI **actuelle** :
 
 Exemple curl (targets manuels):
 ```bash
-curl -X POST "http://127.0.0.1:8000/rebalance/plan" \
+curl -X POST "http://127.0.0.1:8080/rebalance/plan" \
   -H "Content-Type: application/json" \
   -d '{"group_targets_pct":{"BTC":40,"ETH":30,"Stablecoins":10,"Others":20}}'
 ```
@@ -54,3 +54,4 @@ curl -X POST "http://127.0.0.1:8000/rebalance/plan" \
 - **Banques** : non intégré aujourd'hui
 
 > **Roadmap** : l'upload Saxo sera relocalisé dans `settings.html` (section Sources) quand Wealth sera finalisé.
+

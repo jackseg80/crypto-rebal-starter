@@ -7,7 +7,7 @@ Simple validation of the integration components
 import requests
 import json
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 def test_pages_load():
     """Test that both pages load correctly"""

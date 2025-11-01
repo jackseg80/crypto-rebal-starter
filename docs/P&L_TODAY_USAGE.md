@@ -115,10 +115,10 @@ POST /portfolio/snapshot?user_id={user}&source={source}
 
 ```bash
 # Créer un snapshot pour user "jack"
-curl -X POST "http://localhost:8000/portfolio/snapshot?source=cointracking&user_id=jack"
+curl -X POST "http://localhost:8080/portfolio/snapshot?source=cointracking&user_id=jack"
 
 # Récupérer le P&L depuis midnight
-curl "http://localhost:8000/api/performance/summary?source=cointracking&user_id=jack&anchor=midnight"
+curl "http://localhost:8080/api/performance/summary?source=cointracking&user_id=jack&anchor=midnight"
 ```
 
 ## Isolation Multi-Tenant
@@ -238,12 +238,12 @@ Pour les portfolios avec flux fréquents, utiliser l'algorithme **Modified Dietz
 
 1. Vérifier qu'un snapshot existe :
    ```bash
-   curl "http://localhost:8000/portfolio/metrics?user_id=jack&source=cointracking"
+   curl "http://localhost:8080/portfolio/metrics?user_id=jack&source=cointracking"
    ```
 
 2. Créer un snapshot si nécessaire :
    ```bash
-   curl -X POST "http://localhost:8000/portfolio/snapshot?user_id=jack&source=cointracking"
+   curl -X POST "http://localhost:8080/portfolio/snapshot?user_id=jack&source=cointracking"
    ```
 
 ### Cache ETag ne fonctionne pas
@@ -273,3 +273,4 @@ Pour les portfolios avec flux fréquents, utiliser l'algorithme **Modified Dietz
 - [ ] Breakdown P&L par asset/groupe
 - [ ] Calcul attribution de performance
 - [ ] Export P&L historique (CSV, JSON)
+

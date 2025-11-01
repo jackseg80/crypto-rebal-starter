@@ -92,11 +92,11 @@ def main():
     try:
         # Charger la spec OpenAPI depuis le serveur en cours
         import requests
-        response = requests.get("http://localhost:8000/openapi.json", timeout=10)
+        response = requests.get("http://localhost:8080/openapi.json", timeout=10)
         
         if response.status_code != 200:
-            print("ERROR Could not fetch OpenAPI spec from localhost:8000")
-            print("   Make sure the server is running: uvicorn api.main:app --host localhost --port 8000")
+            print("ERROR Could not fetch OpenAPI spec from localhost:8080")
+            print("   Make sure the server is running: uvicorn api.main:app --host localhost --port 8080")
             return 1
         
         spec = response.json()

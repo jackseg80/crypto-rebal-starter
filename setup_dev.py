@@ -128,7 +128,7 @@ DATABASE_URL=sqlite:///./crypto_rebalancer.db
 REDIS_URL=redis://localhost:6379
 
 # CORS (development)
-CORS_ORIGINS=http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:8000
+CORS_ORIGINS=http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080
 """
         env_path.write_text(env_content)
     else:
@@ -192,10 +192,10 @@ def print_next_steps():
     print("\n2. Fill in your API keys in .env file")
     
     print("\n3. Start the development server:")
-    print("   python -m uvicorn api.main:app --reload --port 8000")
+    print("   python -m uvicorn api.main:app --reload --port 8080")
     
     print("\n4. Open the dashboard:")
-    print("   http://localhost:8000/static/dashboard.html")
+    print("   http://localhost:8080/static/dashboard.html")
     
     print("\n📁 USEFUL DIRECTORIES:")
     print("   /debug/        - Development tools and debug scripts")
@@ -210,7 +210,7 @@ def print_next_steps():
     
     print("\n🐛 DEBUG TOOLS:")
     print("   python debug/scripts/debug_coingecko.py")
-    print("   http://localhost:8000/debug/html/debug-dashboard.html")
+    print("   http://localhost:8080/debug/html/debug-dashboard.html")
 
 def main():
     """Main setup function"""

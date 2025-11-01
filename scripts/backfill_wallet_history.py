@@ -2,7 +2,7 @@
 Backfill local price history for the currently held symbols.
 
 Usage (PowerShell):
-python .\scripts\backfill_wallet_history.py --base-url http://127.0.0.1:8000 --min-usd 5 --days 365
+python .\scripts\backfill_wallet_history.py --base-url http://127.0.0.1:8080 --min-usd 5 --days 365
 """
 
 import argparse
@@ -19,7 +19,7 @@ logger = logging.getLogger("backfill_wallet_history")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Backfill cached price history for wallet holdings")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000", help="API base URL")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8080", help="API base URL")
     parser.add_argument("--min-usd", type=float, default=5.0, help="Minimum USD value per asset when querying balances")
     parser.add_argument("--days", type=int, default=365, help="Number of days of history to backfill")
     parser.add_argument("--user", default="demo", help="User identifier passed via X-User header")
@@ -92,3 +92,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

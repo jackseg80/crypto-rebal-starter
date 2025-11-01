@@ -2793,7 +2793,7 @@ INFO: Regime detection: Bull Market (82% confidence) [<1s]
 **Test 3: Endpoint Model Info**
 
 ```bash
-curl http://localhost:8000/api/ml/bourse/model-info?model_type=regime
+curl http://localhost:8080/api/ml/bourse/model-info?model_type=regime
 ```
 
 **Response attendue:**
@@ -3936,3 +3936,4 @@ Diversification: Meilleure exposition Finance/Healthcare
 - `eed0ec8` - feat(bourse-ml): display adjustment notes and custom tactical advice
 
 ---
+

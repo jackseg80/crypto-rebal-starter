@@ -65,7 +65,7 @@ Ce document explique les différents modes de démarrage de l'application via `s
 
 **Tâches automatiques:**
 - ✅ Tout se fait automatiquement selon les horaires
-- Vérifier statut: `http://localhost:8000/api/scheduler/health`
+- Vérifier statut: `http://localhost:8080/api/scheduler/health`
 
 ---
 
@@ -99,7 +99,7 @@ Ce document explique les différents modes de démarrage de l'application via `s
 
 **Commande:**
 ```powershell
-.\start_dev.ps1 -EnableScheduler -Port 8000
+.\start_dev.ps1 -EnableScheduler -Port 8080
 ```
 
 **Configuration:**
@@ -181,10 +181,10 @@ Options:
 
 ```powershell
 # Health général
-curl http://localhost:8000/health
+curl http://localhost:8080/health
 
 # Statut scheduler
-curl http://localhost:8000/api/scheduler/health
+curl http://localhost:8080/api/scheduler/health
 ```
 
 **Réponse scheduler activé:**
@@ -278,7 +278,7 @@ curl http://localhost:8000/api/scheduler/health
 .\start_dev.ps1 -EnableScheduler
 
 # Vérifier health
-curl http://localhost:8000/api/scheduler/health
+curl http://localhost:8080/api/scheduler/health
 ```
 
 ---
@@ -311,7 +311,7 @@ curl http://localhost:8000/api/scheduler/health
 ### Staleness Check
 
 ```powershell
-curl http://localhost:8000/api/sources/list?user_id=jack
+curl http://localhost:8080/api/sources/list?user_id=jack
 ```
 
 ---
@@ -350,3 +350,4 @@ SNAPSHOT_SOURCE=cointracking_api
 
 **Dernière mise à jour:** Oct 2025
 **Maintainer:** FastAPI Team
+

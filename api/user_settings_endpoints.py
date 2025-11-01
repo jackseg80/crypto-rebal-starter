@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/users", tags=["User Settings"])
 class UserSettings(BaseModel):
     """Modèle pour les settings utilisateur"""
     data_source: str = "csv"
-    api_base_url: str = "http://localhost:8000"
+    api_base_url: str = "http://localhost:8080"
     display_currency: str = "USD"
     min_usd_threshold: float = 1.0
     csv_glob: str = "csv/*.csv"
@@ -311,3 +311,4 @@ async def debug_user_sources(user: str = Depends(get_active_user)) -> Dict[str, 
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+

@@ -446,7 +446,8 @@ pytest tests/unit/test_risk_semantics_baseline.py -v  # Tests baseline
 Sanity check API:
 ```bash
 # Vérifier active_version = v2
-curl -s "http://localhost:8000/api/risk/dashboard?source=cointracking&user_id=demo" \
+curl -s "http://localhost:8080/api/risk/dashboard?source=cointracking&user_id=demo" \
   | jq '.risk_metrics.risk_version_info.active_version'
 # Attendu: "v2"
 ```
+

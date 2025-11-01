@@ -24,7 +24,7 @@ from .prometheus_metrics import get_alert_metrics
 from .multi_timeframe import MultiTimeframeAnalyzer, TemporalGatingMatrix, Timeframe, TimeframeSignal
 from .cross_asset_correlation import CrossAssetCorrelationAnalyzer, create_cross_asset_analyzer
 from ..execution.phase_engine import PhaseEngine, Phase, PhaseState
-from ..streaming.realtime_engine import RealtimeEngine
+from ..streaming.realtime_engine import RealtimeEngine, StreamEvent, StreamEventType, SubscriptionType
 
 logger = logging.getLogger(__name__)
 
@@ -920,15 +920,15 @@ class AlertEngine:
 
                             if balances:
                                 portfolio_value = sum(float(b.get('value_usd', 0)) for b in balances)
-                                logger.debug(f"Real portfolio value retrieved: ${portfolio_value:,.2f}")
+                                logger.debug(f"Real portfolio value retrieved for user={user_id}, source={source}: ${portfolio_value:,.2f}")
                             else:
                                 # Fallback si pas de balances disponibles
                                 portfolio_value = 100000
-                                logger.warning("No balances available, using fallback portfolio value: $100,000")
+                                logger.debug(f"No balances available for user={user_id}, source={source}, using fallback portfolio value: $100,000")
                         except Exception as e:
                             # Fallback robuste en cas d'erreur
                             portfolio_value = 100000
-                            logger.warning(f"Failed to retrieve real portfolio value ({e}), using fallback: $100,000")
+                            logger.warning(f"Failed to retrieve real portfolio value for user={user_id}, source={source} ({e}), using fallback: $100,000")
 
                         if alert_type == AlertType.VAR_BREACH:
                             # Calculer VaR et vérifier limites
@@ -1470,12 +1470,18 @@ class AlertEngine:
                     "timestamp": alert.created_at.isoformat(),
                     "source": "alert_engine"
                 }
-                
+
                 # Broadcast via Phase 3B streaming
-                success = await realtime_engine.broadcast_event(
-                    event_type="alert_triggered",
+                stream_event = StreamEvent(
+                    event_type=StreamEventType.RISK_ALERT,
+                    timestamp=alert.created_at,
                     data=event_data,
-                    stream_name="alerts"
+                    source="alert_engine",
+                    correlation_id=alert.id
+                )
+                success = await realtime_engine.broadcast_event(
+                    event=stream_event,
+                    target_subscription=SubscriptionType.RISK_ALERTS
                 )
                 
                 if success:
@@ -1508,11 +1514,16 @@ class AlertEngine:
                     "source": "risk_engine",
                     **data
                 }
-                
-                success = await realtime_engine.broadcast_event(
-                    event_type="risk_event",
+
+                stream_event = StreamEvent(
+                    event_type=StreamEventType.RISK_ALERT,
+                    timestamp=datetime.now(),
                     data=event_data,
-                    stream_name="risk_events"
+                    source="risk_engine"
+                )
+                success = await realtime_engine.broadcast_event(
+                    event=stream_event,
+                    target_subscription=SubscriptionType.RISK_ALERTS
                 )
                 
                 if success:
@@ -1554,11 +1565,16 @@ class AlertEngine:
                 
                 if additional_data:
                     status_data.update(additional_data)
-                
-                return await realtime_engine.broadcast_event(
-                    event_type="system_status",
+
+                stream_event = StreamEvent(
+                    event_type=StreamEventType.SYSTEM_STATUS,
+                    timestamp=datetime.now(),
                     data=status_data,
-                    stream_name="system_status"
+                    source="alert_engine"
+                )
+                return await realtime_engine.broadcast_event(
+                    event=stream_event,
+                    target_subscription=SubscriptionType.SYSTEM
                 )
             
         except Exception as e:

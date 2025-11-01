@@ -9,7 +9,7 @@ from typing import Dict, Any
 
 def test_web_compatibility():
     """Test de compatibilité web simplifié"""
-    base_url = "http://localhost:8000"
+    base_url = "http://localhost:8080"
     session = requests.Session()
     
     print("Phase 3 Web Compatibility Tests")

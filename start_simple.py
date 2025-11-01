@@ -46,6 +46,6 @@ async def balances():
 
 if __name__ == "__main__":
     print("Starting Crypto Rebalancer in Simple Mode...")
-    print("Dashboard: http://localhost:8000/static/dashboard.html")
-    print("Analytics: http://localhost:8000/static/analytics-unified.html")
-    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
+    print("Dashboard: http://localhost:8080/static/dashboard.html")
+    print("Analytics: http://localhost:8080/static/analytics-unified.html")
+    uvicorn.run(app, host="127.0.0.1", port=8080, reload=True)

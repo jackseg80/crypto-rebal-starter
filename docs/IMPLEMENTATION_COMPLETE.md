@@ -158,11 +158,11 @@ pytest tests/test_*_security.py -v
 **Exemple commandes** :
 ```bash
 # Test protection endpoints
-curl -X POST http://localhost:8000/api/performance/cache/clear
+curl -X POST http://localhost:8080/api/performance/cache/clear
 # Attendu: 403 en prod
 
 # Test rate limiting
-for i in {1..100}; do curl http://localhost:8000/api/risk/dashboard; done
+for i in {1..100}; do curl http://localhost:8080/api/risk/dashboard; done
 # Attendu: 429 après ~60 requêtes
 ```
 
@@ -262,14 +262,14 @@ pytest tests/test_*_security.py -v
 ```bash
 # 1. Tester en mode production local
 # Éditer .env : ENVIRONMENT=production, DEBUG=false
-python -m uvicorn api.main:app --port 8000
+python -m uvicorn api.main:app --port 8080
 
 # 2. Vérifier 403 sur endpoints debug
-curl -X POST http://localhost:8000/api/performance/cache/clear
+curl -X POST http://localhost:8080/api/performance/cache/clear
 # Attendu: 403 {"detail": {"error": "endpoint_disabled_in_production"}}
 
 # 3. Vérifier WebSocket refuse sans token
-# Utiliser client WebSocket pour tester ws://localhost:8000/api/realtime/ws
+# Utiliser client WebSocket pour tester ws://localhost:8080/api/realtime/ws
 # Attendu: Close 1008 (Policy Violation)
 
 # 4. Lancer suite tests sécurité
@@ -328,7 +328,7 @@ def test_endpoint(test_client_isolated):  # Services mockés
 1. **Tester en mode prod local**
    ```bash
    # .env : ENVIRONMENT=production, DEBUG=false
-   python -m uvicorn api.main:app --port 8000
+   python -m uvicorn api.main:app --port 8080
    ```
 
 2. **Lancer suite tests sécurité**
@@ -347,7 +347,7 @@ def test_endpoint(test_client_isolated):  # Services mockés
 4. **Tester curl endpoints**
    ```bash
    # Voir DEV_TO_PROD_CHECKLIST.md pour liste complète
-   curl -X POST http://localhost:8000/api/performance/cache/clear
+   curl -X POST http://localhost:8080/api/performance/cache/clear
    # Attendu: 403
    ```
 
@@ -474,3 +474,4 @@ L'application est maintenant **sécurisée et prête pour déploiement en produc
 **Tests** : 43/43 (100%) ✅
 **Docs** : 5 documents (2500+ lignes) 📚
 **Code** : 15 fichiers (~3780 lignes) 💻
+

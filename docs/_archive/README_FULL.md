@@ -219,7 +219,7 @@ cd crypto-rebal-starter
 pip install -r requirements.txt
 
 # Lancer le serveur principal
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --port 8080
 
 # [Optionnel] Serveur d'indicateurs avancés
 python crypto_toolbox_api.py  # Port 8001
@@ -240,10 +240,10 @@ python crypto_toolbox_api.py  # Port 8001
 | 🔧 **Debug & Tests** | `static/debug-menu.html` | Outils de développement et diagnostics |
 
 ### 🎯 **Accès Rapide**
-- **Dashboard complet** : http://localhost:8000/static/dashboard.html
-- **ML Training** : http://localhost:8000/static/advanced-ml-dashboard.html  
-- **Analytics Pro** : http://localhost:8000/static/advanced-analytics.html
-- **Test ML** : http://localhost:8000/test_ml_integration.html
+- **Dashboard complet** : http://localhost:8080/static/dashboard.html
+- **ML Training** : http://localhost:8080/static/advanced-ml-dashboard.html  
+- **Analytics Pro** : http://localhost:8080/static/advanced-analytics.html
+- **Test ML** : http://localhost:8080/test_ml_integration.html
 
 ---
 
@@ -449,8 +449,8 @@ python crypto_toolbox_api.py  # Port 8001
 > - **Interface responsive** : Adaptation mobile et grilles optimisées pour gain d'espace vertical
 
 ### API :
-- Swagger / OpenAPI : http://127.0.0.1:8000/docs
-- Healthcheck : http://127.0.0.1:8000/healthz
+- Swagger / OpenAPI : http://127.0.0.1:8080/docs
+- Healthcheck : http://127.0.0.1:8080/healthz
 
 ### 🤖 Pipeline ML Optimisé v2.0
 
@@ -627,7 +627,7 @@ docs/
 GET /balances/current?source=cointracking&min_usd=1
 ```
 - **Source par défaut** : `cointracking` (CSV) - recommandé car plus fiable que l'API
-- **Accès via uvicorn** : Support complet avec mount `/data/` pour http://localhost:8000/static/
+- **Accès via uvicorn** : Support complet avec mount `/data/` pour http://localhost:8080/static/
 - Réponse :  
   ```json
   {
@@ -1052,7 +1052,7 @@ POST /rebalance/plan?pricing=auto
 
 ### PowerShell - Tests principaux
 ```powershell
-$base = "http://127.0.0.1:8000"
+$base = "http://127.0.0.1:8080"
 $qs = "source=cointracking&min_usd=1"  # CSV par défaut
 
 $body = @{
@@ -1104,12 +1104,12 @@ irm -Method POST -Uri "$base/taxonomy/auto-classify" -Body "{\"sample_symbols\":
 
 ### cURL (exemple)
 ```bash
-curl -s "http://127.0.0.1:8000/healthz"
-curl -s "http://127.0.0.1:8000/balances/current?source=cointracking&min_usd=1" | jq .
-curl -s -X POST "http://127.0.0.1:8000/rebalance/plan?source=cointracking&min_usd=1"   -H "Content-Type: application/json"   -d '{"group_targets_pct":{"BTC":35,"ETH":25,"Stablecoins":10,"SOL":10,"L1/L0 majors":10,"Others":10},"primary_symbols":{"BTC":["BTC","TBTC","WBTC"],"ETH":["ETH","WSTETH","STETH","RETH","WETH"],"SOL":["SOL","JUPSOL","JITOSOL"]},"sub_allocation":"proportional","min_trade_usd":25}' | jq .
+curl -s "http://127.0.0.1:8080/healthz"
+curl -s "http://127.0.0.1:8080/balances/current?source=cointracking&min_usd=1" | jq .
+curl -s -X POST "http://127.0.0.1:8080/rebalance/plan?source=cointracking&min_usd=1"   -H "Content-Type: application/json"   -d '{"group_targets_pct":{"BTC":35,"ETH":25,"Stablecoins":10,"SOL":10,"L1/L0 majors":10,"Others":10},"primary_symbols":{"BTC":["BTC","TBTC","WBTC"],"ETH":["ETH","WSTETH","STETH","RETH","WETH"],"SOL":["SOL","JUPSOL","JITOSOL"]},"sub_allocation":"proportional","min_trade_usd":25}' | jq .
 
 # Test location-aware breakdown
-curl -s "http://127.0.0.1:8000/portfolio/breakdown-locations?source=cointracking&min_usd=1" | jq '.breakdown.locations[] | {location, total_value_usd, asset_count}'
+curl -s "http://127.0.0.1:8080/portfolio/breakdown-locations?source=cointracking&min_usd=1" | jq '.breakdown.locations[] | {location, total_value_usd, asset_count}'
 ```
 
 ---
@@ -1343,7 +1343,7 @@ POST /api/monitoring/test          # Tests manuels de connexions
 **Problèmes résolus :**
 - **Portfolio overview chart** : Correction de l'affichage du graphique dans dashboard.html
 - **Synchronisation des données** : Alignement des totaux entre dashboard.html et risk-dashboard.html (422431$, 183 assets)
-- **Accès CSV via uvicorn** : Support complet des fichiers CSV lors de l'accès via http://localhost:8000/static/
+- **Accès CSV via uvicorn** : Support complet des fichiers CSV lors de l'accès via http://localhost:8080/static/
 - **Groupement d'assets** : BTC+tBTC+WBTC traités comme un seul groupe dans les calculs
 - **Stratégies différenciées** : Les boutons CCS/Cycle retournent maintenant des allocations distinctes
 
@@ -1754,7 +1754,7 @@ POST /api/backtesting/run
 **Solution implémentée** :
 ```bash
 # ✅ CTRL+C fonctionne maintenant parfaitement
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --port 8080
 # Press CTRL+C -> arrêt propre en ~2s
 ```
 
@@ -1774,7 +1774,7 @@ python -c "from api.main import app; print(f'Routes: {len(app.router.routes)}')"
 # Attendu: 177 routes (90 API + 87 système)
 
 # Redémarrer le serveur si < 150 routes
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --port 8080
 ```
 
 **Endpoints critiques à tester** :
@@ -1794,7 +1794,7 @@ localStorage.getItem('risk_scores_cache')
 **ML Lazy Loading** : Modèles chargés au premier appel (~2-5s)
 ```bash
 # Précharger les modèles ML (optionnel)
-curl http://localhost:8000/api/ml/status
+curl http://localhost:8080/api/ml/status
 ```
 
 ### 🔧 Prochaines améliorations
@@ -1825,4 +1825,5 @@ Nouvelle architecture avec gouvernance comme source unique des scores décisionn
 - Headers requis: `Idempotency-Key`, `X-CSRF-Token`
 - RBAC: rôle `governance_admin` (via `require_role`)
 - Rate-limit: ≥1 req/s (front debounce), comportement idempotent (retourne la même réponse si rejoué)
+
 

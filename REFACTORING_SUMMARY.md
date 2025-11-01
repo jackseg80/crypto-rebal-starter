@@ -144,13 +144,13 @@ static/
 ## 🧪 Tests Effectués
 
 ### Tests de Base
-- ✅ **Serveur accessible** : http://localhost:8000
+- ✅ **Serveur accessible** : http://localhost:8080
 - ✅ **CSS externe chargé** : `/static/css/risk-dashboard.css`
 - ✅ **Modules JS accessibles** : `/static/modules/*.js`
 - ✅ **Backup créé** : Restauration possible si problème
 
 ### Tests à Effectuer par l'Utilisateur
-1. **Ouvrir** : http://localhost:8000/static/risk-dashboard.html
+1. **Ouvrir** : http://localhost:8080/static/risk-dashboard.html
 2. **Vérifier** :
    - [ ] Page se charge sans erreur console
    - [ ] Styles CSS appliqués correctement
@@ -223,8 +223,8 @@ cp risk-dashboard.html.backup.20251009_222532 risk-dashboard.html
 ### Option 3 : Vérifier le Serveur
 ```bash
 # S'assurer que le serveur tourne
-curl http://localhost:8000/static/css/risk-dashboard.css
-curl http://localhost:8000/static/modules/risk-utils.js
+curl http://localhost:8080/static/css/risk-dashboard.css
+curl http://localhost:8080/static/modules/risk-utils.js
 ```
 
 ---
@@ -310,3 +310,4 @@ import { formatMoney, showLoading } from './risk-utils.js';
 **Prochaines étapes :** Cycles Tab (~800 lignes) puis Targets Tab (~700 lignes) pour finaliser la migration complète.
 
 **Bravo pour cette amélioration de la qualité du code ! 🎉**
+

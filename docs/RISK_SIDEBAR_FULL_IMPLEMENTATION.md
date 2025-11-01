@@ -206,7 +206,7 @@ this.$.alertsButton.addEventListener('click', () => {
 
 ### 1. Visual Parity (risk-dashboard.html)
 ```bash
-# URL: http://localhost:8000/static/risk-dashboard.html
+# URL: http://localhost:8080/static/risk-dashboard.html
 # Comparer flyout (gauche) avec ancienne sidebar (si elle existe encore)
 
 ✓ Mêmes sections dans le même ordre
@@ -385,3 +385,4 @@ document.querySelector('risk-sidebar-full').shadowRoot.querySelector('#alerts-bu
 ```
 
 **Zero duplication, Shadow DOM, Adaptateur robuste, Parité 100%** ! 🎉
+

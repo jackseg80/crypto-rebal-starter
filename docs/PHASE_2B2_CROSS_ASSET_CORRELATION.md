@@ -229,7 +229,7 @@ python -m pytest tests/unit/test_cross_asset_simple.py -v
 python -m pytest tests/integration/test_cross_asset_endpoints.py -v
 
 # Test page interactive
-open http://localhost:8000/static/debug_phase2b2_cross_asset.html
+open http://localhost:8080/static/debug_phase2b2_cross_asset.html
 ```
 
 ## Déploiement

@@ -85,8 +85,8 @@ def main():
     print("\n=== RESULTATS ===")
     print("SUCCES: Tous les tests sont passes!")
     print("\nPour utiliser le mode priority:")
-    print("1. Demarrer: uvicorn api.main:app --reload --port 8000")
-    print("2. Ouvrir: http://localhost:8000/static/rebalance.html")
+    print("1. Demarrer: uvicorn api.main:app --reload --port 8080")
+    print("2. Ouvrir: http://localhost:8080/static/rebalance.html")
     print("3. Activer le toggle 'Mode intra-groupe : Priorite'")
 
     return True

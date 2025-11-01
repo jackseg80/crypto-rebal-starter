@@ -14,7 +14,7 @@ from typing import Dict, List, Any
 class Phase3PerformanceBenchmark:
     """Benchmarks de performances Phase 3"""
     
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = "http://localhost:8080"):
         self.base_url = base_url
         self.session = requests.Session()
         self.ws_url = base_url.replace("http://", "ws://") + "/api/realtime/ws"

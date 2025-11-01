@@ -90,17 +90,17 @@
 ### Fonctionnels
 ```bash
 # 1. Démarrer le serveur
-python -m uvicorn api.main:app --reload --port 8000
+python -m uvicorn api.main:app --reload --port 8080
 
 # 2. Tester risk-dashboard.html
-# URL: http://localhost:8000/static/risk-dashboard.html
+# URL: http://localhost:8080/static/risk-dashboard.html
 # ✓ Panel visible à gauche (pinned par défaut)
 # ✓ Données chargées via store (pas de polling)
 # ✓ Contradiction, Cap, Fraîcheur affichés
 # ✓ Pin/Unpin fonctionne (état persistant après reload)
 
 # 3. Tester analytics-unified.html
-# URL: http://localhost:8000/static/analytics-unified.html
+# URL: http://localhost:8080/static/analytics-unified.html
 # ✓ Handle visible à gauche (48px)
 # ✓ Survol handle → panel apparaît
 # ✓ Polling toutes les 30s
@@ -108,7 +108,7 @@ python -m uvicorn api.main:app --reload --port 8000
 # ✓ Esc → panel se ferme (si non pinned)
 
 # 4. Tester rebalance.html
-# URL: http://localhost:8000/static/rebalance.html
+# URL: http://localhost:8080/static/rebalance.html
 # ✓ Même comportement que analytics-unified
 ```
 
@@ -295,3 +295,4 @@ git commit -m "chore(cleanup): remove legacy risk-sidebar components"
 ```
 
 **Zero duplication**, **Shadow DOM**, **Event-based**, **Robuste** ! 🎉
+

@@ -160,41 +160,41 @@ pytest tests/test_portfolio_pnl.py::TestPnLCalculation::test_pnl_outlier_detecti
 
 **Créer un snapshot:**
 ```bash
-curl -X POST "http://localhost:8000/portfolio/snapshot?source=cointracking&user_id=jack"
+curl -X POST "http://localhost:8080/portfolio/snapshot?source=cointracking&user_id=jack"
 ```
 
 **P&L vs dernier snapshot:**
 ```bash
-curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack" | python -m json.tool
+curl "http://localhost:8080/portfolio/metrics?source=cointracking&user_id=jack" | python -m json.tool
 ```
 
 **P&L depuis minuit (jour civil):**
 ```bash
-curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack&anchor=midnight" | python -m json.tool
+curl "http://localhost:8080/portfolio/metrics?source=cointracking&user_id=jack&anchor=midnight" | python -m json.tool
 ```
 
 **P&L sur 7 jours:**
 ```bash
-curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack&window=7d" | python -m json.tool
+curl "http://localhost:8080/portfolio/metrics?source=cointracking&user_id=jack&window=7d" | python -m json.tool
 ```
 
 **P&L YTD (Year-to-Date):**
 ```bash
-curl "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack&window=ytd" | python -m json.tool
+curl "http://localhost:8080/portfolio/metrics?source=cointracking&user_id=jack&window=ytd" | python -m json.tool
 ```
 
 **Vérifier isolation des sources:**
 ```bash
 # CSV (5 assets, 133k USD)
-curl -s "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=jack"
+curl -s "http://localhost:8080/portfolio/metrics?source=cointracking&user_id=jack"
 
 # API (190+ assets, 423k USD)
-curl -s "http://localhost:8000/portfolio/metrics?source=cointracking_api&user_id=jack"
+curl -s "http://localhost:8080/portfolio/metrics?source=cointracking_api&user_id=jack"
 ```
 
 ### Tests frontend
 
-1. Ouvrir `http://localhost:8000/static/dashboard.html`
+1. Ouvrir `http://localhost:8080/static/dashboard.html`
 2. Sélectionner user "jack" et source "cointracking"
 3. Vérifier P&L Today dans tuile Portfolio Overview
 4. Changer de source → P&L doit être différent (ou 0 si pas de snapshots)
@@ -217,7 +217,7 @@ Chaque combinaison (user_id, source) est indépendante:
 Pour activer snapshots quotidiens automatiques (optionnel):
 1. Créer un cron/task scheduler
 2. Appeler `/portfolio/snapshot` pour chaque (user_id, source)
-3. Exemple cron: `0 0 * * * curl -X POST "http://localhost:8000/portfolio/snapshot?source=cointracking&user_id=jack"`
+3. Exemple cron: `0 0 * * * curl -X POST "http://localhost:8080/portfolio/snapshot?source=cointracking&user_id=jack"`
 
 ## Monitoring
 
@@ -255,12 +255,12 @@ console.log('Current source:', localStorage.getItem('currentSource'));
 python -c "import json; h=json.load(open('data/portfolio_history.json')); cleaned=[e for e in h if not (e.get('user_id')=='jack' and e.get('source')=='cointracking')]; json.dump(cleaned, open('data/portfolio_history.json','w'), indent=2)"
 
 # Créer nouveau snapshot valide
-curl -X POST "http://localhost:8000/portfolio/snapshot?source=cointracking&user_id=jack"
+curl -X POST "http://localhost:8080/portfolio/snapshot?source=cointracking&user_id=jack"
 ```
 
 ### CSV charge mauvaises données
 **Cause:** Serveur uvicorn non redémarré après changement fichiers
-**Solution:** Redémarrer serveur: `uvicorn api.main:app --reload --port 8000`
+**Solution:** Redémarrer serveur: `uvicorn api.main:app --reload --port 8080`
 
 ### "No historical data available"
 **Cause:** Aucun snapshot pour cette combinaison (user_id, source)

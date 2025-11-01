@@ -18,7 +18,7 @@ docker-compose up -d
 - Auto-restart policies
 - Volume persistence
 
-**Access:** http://localhost:8000
+**Access:** http://localhost:8080
 
 ### 2. AWS ECS with Terraform
 
@@ -211,7 +211,7 @@ docker logs crypto-rebal-api
 kubectl logs deployment/crypto-rebal-api
 
 # Check health endpoint
-curl http://localhost:8000/health
+curl http://localhost:8080/health
 ```
 
 **High memory usage:**

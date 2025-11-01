@@ -14,7 +14,7 @@ def test_api_priority_mode():
     """Test que l'API répond correctement avec priority_meta."""
     print("=== Test API Priority Mode ===")
 
-    url = "http://localhost:8000/rebalance/plan"
+    url = "http://localhost:8080/rebalance/plan"
     params = {
         "source": "cointracking",
         "min_usd": "1000"
@@ -50,7 +50,7 @@ def test_mode_proportional_still_works():
     """Test que le mode proportionnel fonctionne toujours."""
     print("\n=== Test Mode Proportionnel (non-régression) ===")
 
-    url = "http://localhost:8000/rebalance/plan"
+    url = "http://localhost:8080/rebalance/plan"
     params = {
         "source": "cointracking",
         "min_usd": "1000"
@@ -85,7 +85,7 @@ def test_mode_proportional_still_works():
 def check_server_running():
     """Vérifier que le serveur est démarré."""
     try:
-        response = requests.get("http://localhost:8000/docs", timeout=5)
+        response = requests.get("http://localhost:8080/docs", timeout=5)
         return response.status_code == 200
     except Exception as e:
         print(f"Warning: Server check failed: {e}")
@@ -98,11 +98,11 @@ def main():
 
     # Vérifier serveur
     if not check_server_running():
-        print("ERREUR: Serveur non demarré sur http://localhost:8000")
-        print("   Demarrer avec: uvicorn api.main:app --reload --port 8000")
+        print("ERREUR: Serveur non demarré sur http://localhost:8080")
+        print("   Demarrer avec: uvicorn api.main:app --reload --port 8080")
         return False
 
-    print("OK: Serveur detecte sur http://localhost:8000")
+    print("OK: Serveur detecte sur http://localhost:8080")
 
     # Tests
     success = True
@@ -118,7 +118,7 @@ def main():
         print("3. OK: Mode proportionnel continue de fonctionner (non-regression)")
         print("4. OK: Interface web connectee a l'API (modifications appliquees)")
         print("\nPour tester dans l'interface:")
-        print("1. Ouvrir: http://localhost:8000/static/rebalance.html")
+        print("1. Ouvrir: http://localhost:8080/static/rebalance.html")
         print("2. Activer le toggle 'Mode intra-groupe : Priorite'")
         print("3. Cliquer 'Generer Plan'")
         print("4. Verifier la section 'Statut Univers Priority' s'affiche")

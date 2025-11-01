@@ -243,7 +243,7 @@ Pour vérifier la cohérence, ouvrir avec jack + source API :
 **Test Backend API** :
 ```bash
 # Tester que l'API retourne tous les 11 groupes
-curl "http://localhost:8000/api/risk/dashboard?source=cointracking_api&user_id=jack" | jq '.risk_metrics.exposure_by_group | keys | length'
+curl "http://localhost:8080/api/risk/dashboard?source=cointracking_api&user_id=jack" | jq '.risk_metrics.exposure_by_group | keys | length'
 # Devrait retourner : 11
 ```
 
@@ -300,3 +300,4 @@ Créé `test_jack_api_classification.py` pour analyser la classification backend
 **Date** : Oct 2025
 **Auteur** : Claude Code
 **Status** : ✅ Completed
+

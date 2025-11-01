@@ -450,7 +450,7 @@ if isinstance(score_result, Exception):
 
 ### Test Command:
 ```bash
-curl -s "http://localhost:8000/api/bourse/opportunities?user_id=jack&horizon=medium&min_gap_pct=5.0" | python -m json.tool
+curl -s "http://localhost:8080/api/bourse/opportunities?user_id=jack&horizon=medium&min_gap_pct=5.0" | python -m json.tool
 ```
 
 ### Validation Checklist:
@@ -510,3 +510,4 @@ curl -s "http://localhost:8000/api/bourse/opportunities?user_id=jack&horizon=med
 
 *Generated: 28 Oct 2025 15:00 UTC*
 *Next session: P2 (Redis cache) or commit + production deployment*
+

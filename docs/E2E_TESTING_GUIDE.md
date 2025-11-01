@@ -101,7 +101,7 @@ npx playwright show-report tests/e2e-report
 ### Configuration
 
 **`playwright.config.js`** :
-- Base URL : `http://localhost:8000`
+- Base URL : `http://localhost:8080`
 - Timeout par test : 30s
 - Retry : 1 fois en local, 2 fois en CI
 - Workers : 3 en parallèle (local), 1 en CI
@@ -365,7 +365,7 @@ jobs:
 **Solution** :
 ```bash
 # Lancer manuellement dans un terminal séparé
-python -m uvicorn api.main:app --reload --port 8000
+python -m uvicorn api.main:app --reload --port 8080
 
 # Puis dans un autre terminal
 npm run test:e2e
@@ -419,3 +419,4 @@ Avant de committer des changements frontend :
 **Version** : 1.0.0
 
 **Status** : ✅ **68 Tests E2E Créés (Playwright + Chromium)**
+

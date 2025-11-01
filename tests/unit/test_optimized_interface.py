@@ -10,7 +10,7 @@ def test_optimized_interface():
     print("Test de l'interface optimisée")
     print("=" * 50)
     
-    BASE_URL = "http://localhost:8000"
+    BASE_URL = "http://localhost:8080"
     
     # Test 1: Vérifier rebalance.html optimisé
     print("\n1. Test rebalance.html optimisé...")

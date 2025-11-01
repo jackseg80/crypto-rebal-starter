@@ -178,7 +178,7 @@ console.log({
 
 ### Page de Test
 
-Ouvrir `http://localhost:8000/static/test-strategy-migration.html` pour :
+Ouvrir `http://localhost:8080/static/test-strategy-migration.html` pour :
 - Comparer legacy vs API côte à côte
 - Tester différents templates
 - Visualiser les allocations targets

@@ -11,7 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 def setup_driver():
     """Setup Chrome driver with headless options"""
@@ -230,11 +230,11 @@ def main():
     
     if overall_success:
         print("\n📋 Next Steps:")
-        print("   1. Open http://localhost:8000/static/risk-dashboard.html")
+        print("   1. Open http://localhost:8080/static/risk-dashboard.html")
         print("   2. Go to 'Strategic Targets' tab")
         print("   3. Click any strategy button (Macro, CCS, Cycle, Blend)")
         print("   4. Click 'Apply Targets'") 
-        print("   5. Open http://localhost:8000/static/rebalance.html")
+        print("   5. Open http://localhost:8080/static/rebalance.html")
         print("   6. Check for '🎯 Targets dynamiques' indicator")
         print("   7. Generate plan to see CCS-based allocations")
     

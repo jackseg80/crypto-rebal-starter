@@ -58,11 +58,11 @@ def _load_snapshot(user_id: Optional[str] = None) -> Dict[str, Any]:
 **Tests API**:
 ```bash
 # User sans données Saxo → portfolio vide
-curl -H "X-User: clea" http://localhost:8000/api/saxo/portfolios
+curl -H "X-User: clea" http://localhost:8080/api/saxo/portfolios
 # → {"portfolios": []}  ✅
 
 # User avec données Saxo → son portfolio
-curl -H "X-User: jack" http://localhost:8000/api/saxo/portfolios
+curl -H "X-User: jack" http://localhost:8080/api/saxo/portfolios
 # → {"portfolios": [{"positions_count": 28, ...}]}  ✅
 ```
 
@@ -92,3 +92,4 @@ pytest tests/unit/test_saxo_adapter_isolation.py -v
 - Tested: ✅ API, ✅ Frontend, ✅ Unit tests
 - Severity: Critical (data leak)
 - Status: FIXED
+

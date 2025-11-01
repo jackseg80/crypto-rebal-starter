@@ -40,13 +40,12 @@ DEFAULT_ALIASES: Dict[str, str] = {
     "JUPSOL": "SOL",
     "JITOSOL": "SOL",
 
-    # Stablecoins / cash
+    # Stablecoins / cash (crypto-stablecoins only)
     "DAI": "Stablecoins",
     "USD": "Stablecoins",
     "USDT": "Stablecoins",
     "USDC": "Stablecoins",
     "USDP": "Stablecoins",
-    "EUR": "Stablecoins",
     "TUSD": "Stablecoins",
 
     # L1/L0 majors
@@ -122,6 +121,12 @@ DEFAULT_ALIASES: Dict[str, str] = {
     "BONK": "Memecoins",
     "WIF": "Memecoins",
     "FLOKI": "Memecoins",
+
+    # Devises fiat (non-crypto)
+    "EUR": "Others",
+    "GBP": "Others",
+    "JPY": "Others",
+    "CHF": "Others",
 
     # Divers alias techniques -> alias "humain"
     "TONCOIN": "L1/L0 majors",

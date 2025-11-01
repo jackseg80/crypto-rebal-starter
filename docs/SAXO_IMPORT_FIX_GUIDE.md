@@ -29,7 +29,7 @@ Le script `tools/reset_saxo.ps1` a supprimé :
 
 1. Ouvrez cette page dans votre navigateur :
    ```
-   http://localhost:8000/static/clear-saxo-cache.html
+   http://localhost:8080/static/clear-saxo-cache.html
    ```
 
 2. La page va automatiquement :
@@ -55,7 +55,7 @@ Le script `tools/reset_saxo.ps1` a supprimé :
 
 1. Allez sur la page **Sources Manager** :
    ```
-   http://localhost:8000/static/settings.html#tab-sources
+   http://localhost:8080/static/settings.html#tab-sources
    ```
 
 2. Trouvez la section **"Saxobank"**
@@ -74,7 +74,7 @@ Le script `tools/reset_saxo.ps1` a supprimé :
 
 1. Allez sur le **Dashboard Saxo** :
    ```
-   http://localhost:8000/static/saxo-dashboard.html
+   http://localhost:8080/static/saxo-dashboard.html
    ```
 
 2. Sélectionnez le portfolio dans le dropdown
@@ -122,7 +122,7 @@ DEBUG:    connectors.saxo_import:Skipping summary row: Actions (95)
    .venv\Scripts\Activate.ps1
 
    # Lancer le serveur
-   python -m uvicorn api.main:app --reload --port 8000
+   python -m uvicorn api.main:app --reload --port 8080
    ```
 
 3. Réimportez le CSV (Étape 3)
@@ -131,7 +131,7 @@ DEBUG:    connectors.saxo_import:Skipping summary row: Actions (95)
 
 Testez l'endpoint API :
 ```bash
-curl http://localhost:8000/api/saxo/portfolios -H "X-User: jack"
+curl http://localhost:8080/api/saxo/portfolios -H "X-User: jack"
 ```
 
 **Réponse attendue** :
@@ -246,9 +246,9 @@ const displayName = name !== symbol ? name : (position.isin || name);
 ## 🔄 Procédure Complète Résumée
 
 1. ✅ Script de nettoyage : `tools/reset_saxo.ps1` (FAIT)
-2. 🧹 Page de nettoyage localStorage : `http://localhost:8000/static/clear-saxo-cache.html`
-3. 📤 Réimporter CSV : `http://localhost:8000/static/settings.html#tab-sources`
-4. 🔍 Vérifier : `http://localhost:8000/static/saxo-dashboard.html`
+2. 🧹 Page de nettoyage localStorage : `http://localhost:8080/static/clear-saxo-cache.html`
+3. 📤 Réimporter CSV : `http://localhost:8080/static/settings.html#tab-sources`
+4. 🔍 Vérifier : `http://localhost:8080/static/saxo-dashboard.html`
 
 ---
 
@@ -266,7 +266,7 @@ Si le problème persiste après ces étapes :
 
 4. **Test API manuel** :
    ```bash
-   curl http://localhost:8000/api/saxo/portfolios -H "X-User: jack" | jq
+   curl http://localhost:8080/api/saxo/portfolios -H "X-User: jack" | jq
    ```
 
 ---
@@ -311,7 +311,7 @@ Si le problème persiste après ces étapes :
 
 **Test 2** : API Saxo
 ```bash
-curl "http://localhost:8000/api/saxo/portfolios" -H "X-User: jack"
+curl "http://localhost:8080/api/saxo/portfolios" -H "X-User: jack"
 ```
 
 **Résultat attendu** :
@@ -329,7 +329,7 @@ curl "http://localhost:8000/api/saxo/portfolios" -H "X-User: jack"
 
 **Test 3** : Dashboard
 ```
-http://localhost:8000/static/saxo-dashboard.html
+http://localhost:8080/static/saxo-dashboard.html
 ```
 
 **Résultat attendu** : Table affichant "Tesla Inc.", "NVIDIA Corp.", etc. (pas "OUVERT")
@@ -338,3 +338,4 @@ http://localhost:8000/static/saxo-dashboard.html
 
 **Date** : 12 octobre 2025
 **Statut** : Parser corrigé ✅ | Sources Manager fixé ✅ | Import réussi ✅ | API opérationnelle ✅
+

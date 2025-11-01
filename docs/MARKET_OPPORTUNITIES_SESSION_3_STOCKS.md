@@ -134,7 +134,7 @@ opportunities = opportunities[:20]  # Was: [:10]
 
 ### Test Command:
 ```bash
-curl -s "http://localhost:8000/api/bourse/opportunities?user_id=jack&horizon=medium&min_gap_pct=5.0"
+curl -s "http://localhost:8080/api/bourse/opportunities?user_id=jack&horizon=medium&min_gap_pct=5.0"
 ```
 
 ### Before Session 3:
@@ -331,3 +331,4 @@ curl -s "http://localhost:8000/api/bourse/opportunities?user_id=jack&horizon=med
 
 *Generated: 28 Oct 2025 14:15 UTC*
 *Next session: Individual stock scoring (P1) or Redis cache optimization (P2)*
+

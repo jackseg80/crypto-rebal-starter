@@ -11,7 +11,7 @@ Le nouveau Phase Engine utilise une architecture **risky-only, zero-sum** où :
 
 ### 1. Page de Test Dédiée
 ```
-http://localhost:8000/static/test-theoretical-targets.html
+http://localhost:8080/static/test-theoretical-targets.html
 ```
 
 Cette page permet de :

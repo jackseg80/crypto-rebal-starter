@@ -249,7 +249,7 @@ elif risk_version == 'v2_full':
 **Commandes de test:**
 ```bash
 # Test avec chaque portfolio
-curl "http://localhost:8000/api/risk/dashboard?source=cointracking&user_id=test_high&risk_version=v2_full"
+curl "http://localhost:8080/api/risk/dashboard?source=cointracking&user_id=test_high&risk_version=v2_full"
 
 # Vérifier cohérence
 pytest tests/unit/test_risk_semantics_baseline.py -v
@@ -326,3 +326,4 @@ pytest tests/unit/test_risk_semantics_baseline.py -v
 - ⏳ User feedback: En attente rollout
 
 **Prêt pour Phase 4 dès que tu valides l'approche!**
+

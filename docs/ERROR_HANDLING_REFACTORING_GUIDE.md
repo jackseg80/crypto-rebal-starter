@@ -347,7 +347,7 @@ pytest tests/unit/test_error_handlers.py -v
 pytest tests/integration/test_<module>.py -v
 
 # Test endpoint manually
-curl http://localhost:8000/api/ml/status
+curl http://localhost:8080/api/ml/status
 ```
 
 #### Step 8: Commit
@@ -393,7 +393,7 @@ pytest tests/ -v --tb=short
 **For API endpoints:**
 ```bash
 # Test successful request
-curl http://localhost:8000/api/ml/status
+curl http://localhost:8080/api/ml/status
 
 # Test error handling (if possible)
 # e.g., temporarily rename a required file to trigger error
@@ -556,3 +556,4 @@ If you encounter edge cases not covered in this guide:
 **Last Updated:** October 25, 2025
 **Author:** Claude Code Agent
 **Status:** Living Document (update as patterns evolve)
+

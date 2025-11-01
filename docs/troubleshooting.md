@@ -44,7 +44,7 @@ if dev_mode:
     return normalized_user
 ```
 
-**Usage** : Démarrer avec `DEV_OPEN_API=1 uvicorn api.main:app --reload --port 8000`
+**Usage** : Démarrer avec `DEV_OPEN_API=1 uvicorn api.main:app --reload --port 8080`
 
 ### Fichiers secrets manquants
 
@@ -118,4 +118,5 @@ if (response.status === 500) {
 ```
 
 L'ancien TROUBLESHOOTING.md est déprécié au profit de cette page.
+
 

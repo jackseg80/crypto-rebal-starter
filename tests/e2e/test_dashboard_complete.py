@@ -23,8 +23,8 @@ logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 # Configuration
-API_BASE = "http://127.0.0.1:8000/api/execution"
-DASHBOARD_URL = "http://127.0.0.1:8000/static/dashboard.html"
+API_BASE = "http://127.0.0.1:8080/api/execution"
+DASHBOARD_URL = "http://127.0.0.1:8080/static/dashboard.html"
 
 class DashboardTester:
     def __init__(self):

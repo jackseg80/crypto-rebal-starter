@@ -9,7 +9,7 @@ import json
 import sys
 from typing import Dict, Any
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 class SmokeTestResult:
     def __init__(self):

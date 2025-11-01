@@ -91,7 +91,7 @@ class MLOrchestrator:
                 import httpx
                 async with httpx.AsyncClient() as client:
                     # Try to get config from a potential config endpoint
-                    response = await client.get("http://127.0.0.1:8000/api/config/data-source", timeout=2.0)
+                    response = await client.get("http://127.0.0.1:8080/api/config/data-source", timeout=2.0)
                     if response.status_code == 200:
                         data = response.json()
                         if data.get('data_source') in ['stub', 'cointracking', 'cointracking_api']:

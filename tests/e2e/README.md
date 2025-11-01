@@ -132,7 +132,7 @@ npx playwright test simulator.spec.js --headed
 **Fichier** : `playwright.config.js` (racine du projet)
 
 **Paramètres clés** :
-- **Base URL** : `http://localhost:8000`
+- **Base URL** : `http://localhost:8080`
 - **Timeout** : 30s par test
 - **Retry** : 1 fois (local), 2 fois (CI)
 - **Workers** : 3 en parallèle
@@ -231,3 +231,4 @@ Voir [`docs/E2E_TESTING_GUIDE.md`](../../docs/E2E_TESTING_GUIDE.md) pour :
 **Framework** : Playwright v1.56
 **Navigateur** : Chromium
 **Status** : ✅ Prêt à l'emploi
+

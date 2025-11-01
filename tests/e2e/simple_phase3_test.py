@@ -7,7 +7,7 @@ import requests
 
 def test_phase3_integration():
     """Test d'intégration rapide Phase 3"""
-    base_url = "http://localhost:8000"
+    base_url = "http://localhost:8080"
     session = requests.Session()
     
     print("Phase 3 E2E Integration Tests")

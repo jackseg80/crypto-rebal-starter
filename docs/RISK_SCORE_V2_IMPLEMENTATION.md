@@ -142,7 +142,7 @@ if len(young_memes) >= 2 and young_memes_pct > 0.30:
 
 **Commande** :
 ```bash
-curl "http://localhost:8000/api/risk/dashboard?source=cointracking&user_id=demo&risk_version=v2_shadow&use_dual_window=true&min_history_days=180"
+curl "http://localhost:8080/api/risk/dashboard?source=cointracking&user_id=demo&risk_version=v2_shadow&use_dual_window=true&min_history_days=180"
 ```
 
 **Résultat** :
@@ -272,3 +272,4 @@ GET /api/risk/dashboard?
 **Date d'implémentation** : 2025-10-03
 **Version** : Risk Score V2 - Shadow Mode (Phase 5.6)
 **Statut** : ✅ Implémenté et testé
+

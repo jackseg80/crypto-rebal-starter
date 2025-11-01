@@ -163,8 +163,8 @@ async def no_cache_dev_middleware(request: Request, call_next):
 
 ### Test Manuel
 
-1. Démarrer le serveur : `uvicorn api.main:app --reload --port 8000`
-2. Ouvrir `http://localhost:8000/static/saxo-dashboard.html`
+1. Démarrer le serveur : `uvicorn api.main:app --reload --port 8080`
+2. Ouvrir `http://localhost:8080/static/saxo-dashboard.html`
 3. Vérifier :
    - ✅ Bannière "Source active" affiche la source correcte
    - ✅ Données du portfolio affichées (noms, symboles, valeurs, %)
@@ -224,3 +224,4 @@ docs/SAXO_DASHBOARD_MODERNIZATION.md  # Documentation (ce fichier)
 - [x] Fix affichage données (API complète)
 - [x] Tests manuels réussis
 - [x] Documentation
+

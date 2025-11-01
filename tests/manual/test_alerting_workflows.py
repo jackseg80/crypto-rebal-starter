@@ -17,7 +17,7 @@ from typing import Dict, Any
 # Ajouter le répertoire racine au path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 HEADERS = {"Content-Type": "application/json"}
 
 class AlertingWorkflowTester:

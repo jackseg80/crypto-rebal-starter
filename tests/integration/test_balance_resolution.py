@@ -24,77 +24,85 @@ class TestBalanceResolution:
     """Tests for resolve_current_balances function"""
 
     @pytest.mark.asyncio
-    async def test_multi_user_isolation_demo_vs_jack(self):
+    async def test_multi_user_isolation_demo_vs_jack(self, test_user_id):
         """
         CRITICAL: User isolation test.
-        Demo and Jack should get different data from different sources.
+        Two different users should get isolated data from different sources.
         """
-        # User demo with cointracking source
-        balances_demo = await resolve_current_balances(
+        # Generate a second unique user_id for isolation test
+        import uuid
+        test_user_id_2 = f"test_user2_{uuid.uuid4().hex[:8]}"
+
+        # User 1 with cointracking source
+        balances_user1 = await resolve_current_balances(
             source="cointracking",
-            user_id="demo"
+            user_id=test_user_id
         )
 
-        # User jack with saxobank source
-        balances_jack = await resolve_current_balances(
+        # User 2 with saxobank source
+        balances_user2 = await resolve_current_balances(
             source="saxobank",
-            user_id="jack"
+            user_id=test_user_id_2
         )
 
         # Assert data isolation
-        assert balances_demo["source_used"] in ["cointracking", "stub"]
+        assert balances_user1["source_used"] in ["cointracking", "stub"]
         # Note: May fallback to cointracking if Saxo CSV not available
-        assert balances_jack["source_used"] in ["saxobank", "saxo_data", "cointracking", "stub"]
+        assert balances_user2["source_used"] in ["saxobank", "saxo_data", "cointracking", "stub"]
 
         # Items should be different (unless both empty/stub)
-        demo_items = balances_demo.get("items", [])
-        jack_items = balances_jack.get("items", [])
+        user1_items = balances_user1.get("items", [])
+        user2_items = balances_user2.get("items", [])
 
         # At minimum, verify structure
-        assert isinstance(demo_items, list)
-        assert isinstance(jack_items, list)
+        assert isinstance(user1_items, list)
+        assert isinstance(user2_items, list)
 
         # If both have data, they should be different users
-        if demo_items and jack_items:
+        if user1_items and user2_items:
             # Convert to sets of symbols for comparison
-            demo_symbols = {item.get("symbol") for item in demo_items}
-            jack_symbols = {item.get("symbol") for item in jack_items}
+            user1_symbols = {item.get("symbol") for item in user1_items}
+            user2_symbols = {item.get("symbol") for item in user2_items}
 
             # Different users may have different portfolios
             # (This test may be weak if portfolios overlap, but verifies structure)
-            print(f"Demo symbols: {demo_symbols}")
-            print(f"Jack symbols: {jack_symbols}")
+            print(f"User 1 symbols: {user1_symbols}")
+            print(f"User 2 symbols: {user2_symbols}")
 
     @pytest.mark.asyncio
-    async def test_multi_user_isolation_same_source(self):
+    async def test_multi_user_isolation_same_source(self, test_user_id):
         """
         CRITICAL: Multiple users with same source should get isolated data.
         """
+        # Generate a second unique user_id for isolation test
+        import uuid
+        test_user_id_2 = f"test_user2_{uuid.uuid4().hex[:8]}"
+
         # Both users use cointracking, but different CSV files
-        balances_demo = await resolve_current_balances(
+        balances_user1 = await resolve_current_balances(
             source="cointracking",
-            user_id="demo"
+            user_id=test_user_id
         )
 
-        balances_roberto = await resolve_current_balances(
+        balances_user2 = await resolve_current_balances(
             source="cointracking",
-            user_id="roberto"
+            user_id=test_user_id_2
         )
 
         # Both should use cointracking (or stub)
-        assert balances_demo["source_used"] in ["cointracking", "stub"]
-        assert balances_roberto["source_used"] in ["cointracking", "stub"]
+        assert balances_user1["source_used"] in ["cointracking", "stub"]
+        assert balances_user2["source_used"] in ["cointracking", "stub"]
 
         # Verify structure
-        assert "items" in balances_demo
-        assert "items" in balances_roberto
+        assert "items" in balances_user1
+        assert "items" in balances_user2
 
     @pytest.mark.asyncio
-    async def test_source_routing_cointracking(self):
+    async def test_source_routing_cointracking(self, test_user_id):
         """resolve_current_balances should route to CSV for cointracking source"""
         result = await resolve_current_balances(
             source="cointracking",
-            user_id="demo"
+            user_id=test_user_id
         )
 
         # Should return cointracking or stub (if no CSV)
@@ -103,13 +111,13 @@ class TestBalanceResolution:
         assert isinstance(result["items"], list)
 
     @pytest.mark.asyncio
-    async def test_source_routing_cointracking_api(self):
+    async def test_source_routing_cointracking_api(self, test_user_id):
         """resolve_current_balances should route to API for cointracking_api source"""
         # Note: This may fail if API keys not configured, that's OK
         try:
             result = await resolve_current_balances(
                 source="cointracking_api",
-                user_id="demo"
+                user_id=test_user_id
             )
 
             # If API available, should use it
@@ -123,11 +131,11 @@ class TestBalanceResolution:
             pytest.skip("CoinTracking API not configured")
 
     @pytest.mark.asyncio
-    async def test_source_routing_saxobank(self):
+    async def test_source_routing_saxobank(self, test_user_id):
         """resolve_current_balances should route to Saxo for saxobank source"""
         result = await resolve_current_balances(
             source="saxobank",
-            user_id="jack"
+            user_id=test_user_id
         )
 
         # Should return saxobank/saxo_data or fallback to cointracking/stub
@@ -136,11 +144,11 @@ class TestBalanceResolution:
         assert isinstance(result["items"], list)
 
     @pytest.mark.asyncio
-    async def test_items_structure(self):
+    async def test_items_structure(self, test_user_id):
         """Items should have required fields: symbol, value_usd, location"""
         result = await resolve_current_balances(
             source="cointracking",
-            user_id="demo"
+            user_id=test_user_id
         )
 
         items = result.get("items", [])
@@ -209,18 +217,18 @@ class TestBalanceResolutionEndpoint:
         assert "source_used" in data
         assert "items" in data
 
-    def test_balances_endpoint_min_usd_filter(self):
+    def test_balances_endpoint_min_usd_filter(self, test_user_id):
         """Endpoint should filter assets below min_usd threshold"""
         # Get balances with min_usd=1
         response_1 = client.get(
             "/balances/current?source=cointracking&min_usd=1",
-            headers={"X-User": "demo"}
+            headers={"X-User": test_user_id}
         )
 
         # Get balances with min_usd=1000
         response_1000 = client.get(
             "/balances/current?source=cointracking&min_usd=1000",
-            headers={"X-User": "demo"}
+            headers={"X-User": test_user_id}
         )
 
         assert response_1.status_code == 200
@@ -239,11 +247,11 @@ class TestBalanceResolutionErrorHandling:
     """Tests for error handling in balance resolution"""
 
     @pytest.mark.asyncio
-    async def test_invalid_source_returns_fallback(self):
+    async def test_invalid_source_returns_fallback(self, test_user_id):
         """Invalid source should gracefully fallback (stub or cointracking)"""
         result = await resolve_current_balances(
             source="invalid_source_xyz",
-            user_id="demo"
+            user_id=test_user_id
         )
 
         # Should not crash, return fallback (stub or cointracking)
@@ -251,11 +259,11 @@ class TestBalanceResolutionErrorHandling:
         assert result["source_used"] in ["stub", "cointracking"]
         assert "items" in result
 
-    def test_endpoint_handles_invalid_source(self):
+    def test_endpoint_handles_invalid_source(self, test_user_id):
         """Endpoint should handle invalid source gracefully"""
         response = client.get(
             "/balances/current?source=invalid_source_xyz",
-            headers={"X-User": "demo"}
+            headers={"X-User": test_user_id}
         )
 
         # Should return 200 with fallback data (not crash)

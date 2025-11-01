@@ -6,7 +6,7 @@ Simple validation test for CCS targets communication
 import requests
 import json
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8080"
 
 def test_all():
     """Test all components"""
@@ -107,11 +107,11 @@ def test_all():
 def print_manual_steps():
     """Print manual testing steps"""
     print("\nMANUAL TEST STEPS:")
-    print("1. Open: http://localhost:8000/static/risk-dashboard.html")
+    print("1. Open: http://localhost:8080/static/risk-dashboard.html")
     print("2. Go to 'Strategic Targets' tab")
     print("3. Click any strategy button (Macro, CCS, Cycle, Blend)")
     print("4. Click 'Apply Targets' button")
-    print("5. Open: http://localhost:8000/static/rebalance.html")
+    print("5. Open: http://localhost:8080/static/rebalance.html")
     print("6. Look for 'Targets dynamiques' indicator")
     print("7. Generate plan - should use CCS allocations")
 

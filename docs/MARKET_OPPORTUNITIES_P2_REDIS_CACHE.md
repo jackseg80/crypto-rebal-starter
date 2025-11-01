@@ -199,7 +199,7 @@ Redis cache disabled: Timeout connecting to server
 
 ```bash
 # API endpoint (TODO - not implemented yet)
-curl "http://localhost:8000/api/bourse/cache/stats"
+curl "http://localhost:8080/api/bourse/cache/stats"
 
 # Expected response:
 {
@@ -361,3 +361,4 @@ GET /api/bourse/cache/keys?pattern=stock_score:*
 
 *Generated: 28 Oct 2025 15:30 UTC*
 *Next: Commit P2 + Session summary*
+

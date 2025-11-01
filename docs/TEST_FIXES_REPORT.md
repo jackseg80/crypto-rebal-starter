@@ -198,7 +198,7 @@ pytest tests/integration/test_risk_dashboard_modules_fixed.py -v
 
 ```bash
 # Ouvrir dans navigateur
-http://localhost:8000/tests/html_debug/test_risk_modules_v2.html
+http://localhost:8080/tests/html_debug/test_risk_modules_v2.html
 
 # Cliquer "Lancer les Tests"
 # Résultat attendu: 13/13 passed (100%)
@@ -348,3 +348,4 @@ Ces endpoints sont testés dans les anciens tests mais **n'existent pas** dans l
 **Version** : 1.0.0
 
 **Status** : ✅ **Option A Complétée avec Succès (95%)**
+

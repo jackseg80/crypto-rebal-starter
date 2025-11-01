@@ -71,7 +71,7 @@ Get-Content data\logs\snapshots.log -Tail 10
 
 ```powershell
 # Voir les métriques P&L
-Invoke-RestMethod "http://localhost:8000/portfolio/metrics?source=cointracking_api&user_id=jack" | ConvertTo-Json -Depth 5
+Invoke-RestMethod "http://localhost:8080/portfolio/metrics?source=cointracking_api&user_id=jack" | ConvertTo-Json -Depth 5
 ```
 
 ### Via fichier JSON
@@ -142,7 +142,7 @@ Get-Content data\logs\snapshots.log -Tail 20
 
 ### La tâche ne s'exécute pas
 
-1. Vérifier que le serveur FastAPI est démarré (`http://localhost:8000`)
+1. Vérifier que le serveur FastAPI est démarré (`http://localhost:8080`)
 2. Vérifier les logs : `data\logs\snapshots.log`
 3. Tester manuellement : `.\scripts\daily_snapshot.ps1`
 
@@ -167,3 +167,4 @@ Les snapshots les plus anciens sont automatiquement supprimés.
 ---
 
 **Dernière mise à jour** : 2025-10-02
+

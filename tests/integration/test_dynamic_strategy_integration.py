@@ -11,7 +11,7 @@ def test_integration():
     print("Test de l'intégration stratégie dynamique CCS")
     print("=" * 50)
     
-    BASE_URL = "http://localhost:8000"
+    BASE_URL = "http://localhost:8080"
     
     # Test 1: Vérifier rebalance.html
     print("\n1. Test rebalance.html - Fonction syncCCSTargets...")
@@ -80,13 +80,13 @@ def test_integration():
 🧪 POUR TESTER LA NOUVELLE INTÉGRATION:
 
 1. RISK DASHBOARD:
-   - Ouvrir: http://localhost:8000/static/risk-dashboard.html
+   - Ouvrir: http://localhost:8080/static/risk-dashboard.html
    - Aller dans l'onglet "Strategic Targets"
    - Cliquer sur "✅ Apply Targets"
    - Vérifier le message: "Targets CCS sauvegardés!"
 
 2. REBALANCE:
-   - Ouvrir: http://localhost:8000/static/rebalance.html
+   - Ouvrir: http://localhost:8080/static/rebalance.html
    - Cliquer sur "🎯 Sync CCS" (bouton orange)
    - Vérifier qu'une nouvelle stratégie "🎯 Strategic (Dynamic)" apparaît
    - Cette stratégie devrait avoir un fond orange et mention "Données récentes"

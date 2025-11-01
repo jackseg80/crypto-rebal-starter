@@ -82,7 +82,7 @@ global:
 scrape_configs:
   - job_name: 'crypto-rebal'
     static_configs:
-      - targets: ['localhost:8000']
+      - targets: ['localhost:8080']
     metrics_path: '/metrics'
     scrape_interval: 30s
 ```

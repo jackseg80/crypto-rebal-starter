@@ -23,8 +23,8 @@ logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 # Configuration
-API_BASE = "http://127.0.0.1:8000/api/monitoring"
-MONITORING_UI_URL = "http://127.0.0.1:8000/static/monitoring_advanced.html"
+API_BASE = "http://127.0.0.1:8080/api/monitoring"
+MONITORING_UI_URL = "http://127.0.0.1:8080/static/monitoring_advanced.html"
 
 class AdvancedMonitoringTester:
     def __init__(self):

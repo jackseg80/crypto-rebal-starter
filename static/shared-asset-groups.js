@@ -37,8 +37,11 @@ function autoClassifySymbolFallback(symbol) {
     return 'BTC';
   } else if (upperSymbol.includes('ETH') || upperSymbol.includes('STETH') || upperSymbol.includes('RETH')) {
     return 'ETH';
-  } else if (['USDT', 'USDC', 'DAI', 'USD', 'BUSD', 'TUSD', 'FDUSD', 'EUR'].includes(upperSymbol)) {
+  } else if (['USDT', 'USDC', 'DAI', 'USD', 'BUSD', 'TUSD', 'FDUSD'].includes(upperSymbol)) {
     return 'Stablecoins';
+  } else if (['EUR', 'GBP', 'JPY', 'CHF'].includes(upperSymbol)) {
+    // Devises fiat classées dans Others (non-crypto)
+    return 'Others';
   } else if (upperSymbol.includes('SOL')) {
     return 'SOL';
   } else {

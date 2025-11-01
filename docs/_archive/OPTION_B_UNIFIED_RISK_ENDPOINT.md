@@ -49,7 +49,7 @@ GET /api/risk/unified
 
 **Example**:
 ```bash
-curl "http://localhost:8000/api/risk/unified?source=cointracking&min_usd=1.0" \
+curl "http://localhost:8080/api/risk/unified?source=cointracking&min_usd=1.0" \
   -H "X-User: demo"
 ```
 
@@ -479,3 +479,4 @@ async def calculate_onchain_score(holdings: List[dict]) -> float:
 **Status**: 📋 Ready for review and prioritization
 **Author**: Claude Code
 **Date**: 2025-10-01
+

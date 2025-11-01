@@ -109,15 +109,15 @@ grep "RATE_LIMIT_ENABLED=true" .env
 .venv\Scripts\Activate.ps1
 
 # Test 1: Endpoint /cache/clear doit être bloqué
-curl -X POST http://localhost:8000/api/performance/cache/clear
+curl -X POST http://localhost:8080/api/performance/cache/clear
 # Attendu: 403 Forbidden en prod
 
 # Test 2: Endpoint /dev/simulate doit être bloqué
-curl -X POST "http://localhost:8000/api/realtime/dev/simulate?kind=risk_alert"
+curl -X POST "http://localhost:8080/api/realtime/dev/simulate?kind=risk_alert"
 # Attendu: 403 Forbidden si DEBUG_SIMULATION=false
 
 # Test 3: Rate limiting actif
-for i in {1..100}; do curl -s http://localhost:8000/api/risk/dashboard > /dev/null; done
+for i in {1..100}; do curl -s http://localhost:8080/api/risk/dashboard > /dev/null; done
 # Attendu: 429 Too Many Requests après ~60 requêtes
 ```
 
@@ -125,7 +125,7 @@ for i in {1..100}; do curl -s http://localhost:8000/api/risk/dashboard > /dev/nu
 
 ```bash
 # Tester origin non autorisée
-curl -H "Origin: https://evil.com" http://localhost:8000/api/risk/dashboard -v
+curl -H "Origin: https://evil.com" http://localhost:8080/api/risk/dashboard -v
 # Attendu: Pas de header Access-Control-Allow-Origin dans la réponse
 ```
 
@@ -133,7 +133,7 @@ curl -H "Origin: https://evil.com" http://localhost:8000/api/risk/dashboard -v
 
 ```bash
 # Vérifier headers de sécurité
-curl -I http://localhost:8000/static/dashboard.html
+curl -I http://localhost:8080/static/dashboard.html
 # Attendu: Content-Security-Policy, X-Frame-Options, X-Content-Type-Options
 ```
 
@@ -261,3 +261,4 @@ Avant de déployer en production :
 
 **Dernière mise à jour** : Oct 2025
 **Mainteneur** : Crypto Rebal Team
+

@@ -77,7 +77,7 @@ allocation = multi_asset_manager.suggest_multi_asset_allocation(
 ### `static/multi-asset-dashboard.html`  
 **But :** Interface graphique pour gérer les portfolios multi-actifs  
 **Comment utiliser :**
-1. Ouvre http://localhost:8000/static/multi-asset-dashboard.html
+1. Ouvre http://localhost:8080/static/multi-asset-dashboard.html
 2. Sélectionne ton profil de risque (Conservateur/Modéré/Agressif)
 3. Choisis ton horizon d'investissement (Court/Moyen/Long terme)
 4. Clique "Generate Allocation" pour une suggestion optimale
@@ -121,7 +121,7 @@ const dashboard = new InteractiveDashboard('container-id', {
 ### `static/enhanced-dashboard.html`
 **But :** Dashboard moderne avec tous les charts interactifs  
 **Comment utiliser :**
-1. Ouvre http://localhost:8000/static/enhanced-dashboard.html
+1. Ouvre http://localhost:8080/static/enhanced-dashboard.html
 2. Le dashboard se met à jour automatiquement toutes les 30s
 3. Utilise Ctrl+R pour forcer un refresh
 4. Ctrl+T pour changer le thème (sombre/clair)
@@ -163,7 +163,7 @@ result = optimizer.optimize_large_portfolio(
 ### `static/portfolio-optimization.html`
 **But :** Interface complète pour l'optimisation  
 **Comment utiliser :**
-1. Ouvre http://localhost:8000/static/portfolio-optimization.html
+1. Ouvre http://localhost:8080/static/portfolio-optimization.html
 2. Sélectionne tes actifs et contraintes
 3. Choisis un objectif (Max Sharpe recommandé)
 4. Lance l'optimisation
@@ -191,7 +191,7 @@ result = optimizer.optimize_large_portfolio(
 ### `static/debug-menu.html` (Nouveau)
 **But :** Centre de contrôle pour tester tous les modules  
 **Comment utiliser :**
-1. Ouvre http://localhost:8000/static/debug-menu.html
+1. Ouvre http://localhost:8080/static/debug-menu.html
 2. Teste chaque module individuellement
 3. Lance des benchmarks de performance  
 4. Vérifie la santé du système

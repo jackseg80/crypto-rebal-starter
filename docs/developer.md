@@ -4,7 +4,7 @@
 ```bash
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --port 8080
 ```
 
 ## Conventions
@@ -27,3 +27,4 @@ Historique détaillé: DEVELOPER_GUIDE.md et TEST_INTEGRATION_GUIDE.md sont dép
 - Utiliser exclusivement `selectCapPercent(state)` pour tout calcul/affichage de cap.
 - Si besoin de détails: `selectPolicyCapPercent` (principal) et `selectEngineCapPercent` (secondaire).
 - Ne jamais faire confiance à des champs legacy; normaliser les valeurs (0–1 → %).
+

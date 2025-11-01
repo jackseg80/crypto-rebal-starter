@@ -200,19 +200,19 @@ async function buildQuickSourceDropdown() {
 
 ### 1. Sources Endpoint
 ```bash
-curl "http://localhost:8000/api/users/sources" -H "X-User: jack"
+curl "http://localhost:8080/api/users/sources" -H "X-User: jack"
 # ✅ 7 sources (CSV + API)
 ```
 
 ### 2. Balance Endpoint
 ```bash
-curl "http://localhost:8000/balances/current?source=cointracking&user_id=jack"
+curl "http://localhost:8080/balances/current?source=cointracking&user_id=jack"
 # ✅ 183 items
 ```
 
 ### 3. Saxo Dashboard
 ```bash
-curl "http://localhost:8000/api/saxo/portfolios" -H "X-User: jack"
+curl "http://localhost:8080/api/saxo/portfolios" -H "X-User: jack"
 # ✅ 1 portfolio, 28 positions
 ```
 
@@ -325,3 +325,4 @@ ls -R data/users/jack/
 **Auteur**: Claude Code
 **Review**: Validé par tests fonctionnels
 **Status**: Production-ready ✅
+

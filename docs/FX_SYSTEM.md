@@ -104,7 +104,7 @@ Retourne tous les taux de change pour une devise de base.
 
 **Request :**
 ```bash
-curl "http://localhost:8000/api/fx/rates?base=USD"
+curl "http://localhost:8080/api/fx/rates?base=USD"
 ```
 
 **Response :**
@@ -319,10 +319,10 @@ Toutes les conversions utilisent maintenant la même source :
 ### Test backend
 ```bash
 # Vérifier les taux
-curl http://localhost:8000/api/fx/rates | jq '.data.rates.EUR'
+curl http://localhost:8080/api/fx/rates | jq '.data.rates.EUR'
 
 # Info cache
-curl http://localhost:8000/api/fx/cache-info
+curl http://localhost:8080/api/fx/cache-info
 
 # Logs serveur
 # Devrait afficher :
@@ -482,3 +482,4 @@ usd_amount = await converter.convert(100, 'CHF', 'USD')  # Async, pour compatibi
 ---
 
 *Système FX unifié - Garantit la cohérence des conversions de devises à travers toute l'application.*
+

@@ -359,7 +359,7 @@ assert(simulatedStables < 20, 'Stables should be minimal in euphoria');
 
 ### Comment utiliser l'Analytics Playground?
 
-1. **Ouvrir** http://localhost:8000/static/analytics-playground.html
+1. **Ouvrir** http://localhost:8080/static/analytics-playground.html
 2. **Sélectionner** ton user (jack) et source (cointracking_api)
 3. **Voir** colonne gauche = état actuel de ton wallet
 4. **Choisir** un preset dans le panneau (ex: "🐻 Bear Market - Entrée")

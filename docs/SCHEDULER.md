@@ -39,7 +39,7 @@ export RUN_SCHEDULER=0
 | `SNAPSHOT_USER_ID` | `jack` | Default user ID for P&L snapshots |
 | `SNAPSHOT_SOURCE` | `cointracking_api` | Default data source for snapshots |
 | `SNAPSHOT_MIN_USD` | `1.0` | Minimum USD threshold for snapshots |
-| `API_BASE_URL` | `http://localhost:8000` | API base URL for warmers |
+| `API_BASE_URL` | `http://localhost:8080` | API base URL for warmers |
 
 ## Scheduled Jobs
 
@@ -291,7 +291,7 @@ Scheduler runs within FastAPI process, no separate service needed:
 [Service]
 Environment="RUN_SCHEDULER=1"
 Environment="TZ=Europe/Zurich"
-ExecStart=/path/to/venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000
+ExecStart=/path/to/venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8080
 ```
 
 ### Windows Task Scheduler (Alternative)
@@ -355,7 +355,7 @@ uvicorn api.main:app --reload
 export RUN_SCHEDULER=0
 
 # OR run without --reload
-uvicorn api.main:app --port 8000  # No --reload flag
+uvicorn api.main:app --port 8080  # No --reload flag
 ```
 
 ---
@@ -481,3 +481,4 @@ Set up alerts for:
 **Last Updated:** Oct 2025
 **Maintainer:** FastAPI Team
 **Status:** ✅ Production Ready
+

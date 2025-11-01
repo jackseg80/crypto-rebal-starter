@@ -15,7 +15,7 @@ class TestCrossAssetEndpoints:
     @pytest.fixture(scope="class")
     def base_url(self):
         """Base URL for API testing"""
-        return "http://localhost:8000"
+        return "http://localhost:8080"
     
     @pytest.fixture(scope="class") 
     def wait_for_server(self, base_url):

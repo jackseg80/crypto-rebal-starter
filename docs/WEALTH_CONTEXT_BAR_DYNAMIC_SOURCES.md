@@ -206,7 +206,7 @@ Données affichées = nouvelle source ✅
 ## 🧪 Pages de test
 
 ### Test 1: Événements et localStorage
-**URL** : `http://localhost:8000/static/test-wealth-context-bar-dynamic.html`
+**URL** : `http://localhost:8080/static/test-wealth-context-bar-dynamic.html`
 
 **Fonctionnalités** :
 - Affichage état actuel (user, compte, type, clé)
@@ -216,7 +216,7 @@ Données affichées = nouvelle source ✅
 - Refresh manuel de l'état
 
 ### Test 2: Intégration complète 🆕
-**URL** : `http://localhost:8000/static/test-wealth-source-integration.html`
+**URL** : `http://localhost:8080/static/test-wealth-source-integration.html`
 
 **Fonctionnalités** :
 - Vérification synchronisation `window.userSettings` ↔ `window.globalConfig` ↔ Backend
@@ -286,3 +286,4 @@ Page de test complète avec :
 **Implémentation** : ✅ Complétée (Oct 2025)
 **Tests manuels** : ✅ Validés
 **Production ready** : ✅ Oui
+

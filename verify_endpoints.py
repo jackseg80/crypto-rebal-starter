@@ -34,6 +34,6 @@ print(f"/pricing/diagnostic: {'PRESENT' if has_pricing_diagnostic else 'ABSENT'}
 if has_health_detailed and has_pricing_diagnostic:
     print(f"\nCONCLUSION: Les endpoints sont correctement definis dans le code.")
     print("Si ils n'apparaissent pas dans /docs, redemarrez le serveur:")
-    print("uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload")
+    print("uvicorn api.main:app --host 127.0.0.1 --port 8080 --reload")
 else:
     print(f"\nPROBLEME: Certains endpoints manquent dans la definition.")

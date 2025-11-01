@@ -73,7 +73,7 @@ Add to your `prometheus.yml`:
 scrape_configs:
   - job_name: 'crypto-rebal-alerts'
     static_configs:
-      - targets: ['localhost:8000']
+      - targets: ['localhost:8080']
     metrics_path: '/api/alerts/metrics/prometheus'
     scrape_interval: 30s
     scrape_timeout: 10s
@@ -145,7 +145,7 @@ groups:
 
 1. **No Data in Dashboards**
    - Check Prometheus scraping: `http://localhost:9090/targets`
-   - Verify API endpoint: `http://localhost:8000/api/alerts/metrics/prometheus`
+   - Verify API endpoint: `http://localhost:8080/api/alerts/metrics/prometheus`
    - Check Grafana datasource connection
 
 2. **Missing Metrics**
@@ -162,7 +162,7 @@ groups:
 
 ```bash
 # Test Prometheus metrics endpoint
-curl http://localhost:8000/api/alerts/metrics/prometheus
+curl http://localhost:8080/api/alerts/metrics/prometheus
 
 # Check Grafana API
 curl -u admin:admin123 http://localhost:3000/api/health

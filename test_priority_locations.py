@@ -14,7 +14,7 @@ def test_priority_with_multiple_locations():
     """Test avec un portfolio ayant plusieurs locations."""
     print("=== Test Priority Mode avec Locations Multiples ===")
 
-    url = "http://localhost:8000/rebalance/plan"
+    url = "http://localhost:8080/rebalance/plan"
     params = {"source": "cointracking", "min_usd": "100"}
 
     # Portfolio avec assets dans différentes locations
@@ -115,7 +115,7 @@ def test_location_priority_logic():
 def check_server_running():
     """Vérifier que le serveur est démarré."""
     try:
-        response = requests.get("http://localhost:8000/docs", timeout=5)
+        response = requests.get("http://localhost:8080/docs", timeout=5)
         return response.status_code == 200
     except Exception as e:
         print(f"Warning: Server check failed: {e}")
@@ -127,8 +127,8 @@ def main():
     print("=" * 50)
 
     if not check_server_running():
-        print("ERREUR: Serveur non demarre sur http://localhost:8000")
-        print("Demarrer avec: uvicorn api.main:app --reload --port 8000")
+        print("ERREUR: Serveur non demarre sur http://localhost:8080")
+        print("Demarrer avec: uvicorn api.main:app --reload --port 8080")
         return False
 
     success = True

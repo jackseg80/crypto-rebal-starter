@@ -209,10 +209,10 @@ Exemple:
 **Option A: Re-générer les recommandations maintenant**
 ```bash
 # Lancer le serveur
-python -m uvicorn api.main:app --port 8000
+python -m uvicorn api.main:app --port 8080
 
 # Accéder à l'UI
-# http://localhost:8000/saxo-dashboard.html
+# http://localhost:8080/saxo-dashboard.html
 # Cliquer sur "Generate Recommendations"
 ```
 
@@ -231,3 +231,4 @@ Le système fonctionne déjà ! Les prochaines recommandations générées utili
 
 *Implémenté et testé le 25 octobre 2025*
 *Tous les tests passent avec 100% de succès ✅*
+

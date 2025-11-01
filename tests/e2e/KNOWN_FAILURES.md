@@ -135,7 +135,7 @@ Le fichier `static/risk-dashboard.html` n'utilise probablement **pas** les attri
 
 ### Inspection Nécessaire
 
-**Ouvrir** `http://localhost:8000/static/risk-dashboard.html` et inspecter le HTML :
+**Ouvrir** `http://localhost:8080/static/risk-dashboard.html` et inspecter le HTML :
 
 ```bash
 # Dans la console navigateur (F12)
@@ -237,7 +237,7 @@ const euphoriePreset = page.locator('text=/euphorie/i').first();
 ### Moyen Terme (2-4h)
 
 4. **Inspecter Risk Dashboard HTML** :
-   - Ouvrir `http://localhost:8000/static/risk-dashboard.html`
+   - Ouvrir `http://localhost:8080/static/risk-dashboard.html`
    - Copier structure HTML des onglets
    - Noter les vrais sélecteurs (classes, data attributes)
 
@@ -314,3 +314,4 @@ node analyze_failed_tests.cjs
 **Version** : 1.0.0
 
 **Status** : ⚠️ **36/72 Tests Échoués (Corrections Documentées)**
+

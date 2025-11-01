@@ -2,8 +2,8 @@
 
 Référence synthétique, avec exemples clés.
 La source canonique reste l’OpenAPI:
-- Docs interactives: `http://127.0.0.1:8000/docs`
-- Schéma brut: `http://127.0.0.1:8000/openapi.json`
+- Docs interactives: `http://127.0.0.1:8080/docs`
+- Schéma brut: `http://127.0.0.1:8080/openapi.json`
 
 > **Important**
 > Cette page décrit **l’état actuel** du code. Le namespace Wealth unifié est **en cours de conception** et n’est **pas encore** la voie par défaut.
@@ -131,3 +131,4 @@ Notes:
 ### Remarques frontend
 
 - Cap d’exécution consommé depuis `/execution/governance/state`: utiliser `active_policy.cap_daily` comme source de vérité côté UI.
+
