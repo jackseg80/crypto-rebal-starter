@@ -332,6 +332,22 @@ async def _scrape_crypto_toolbox() -> Dict[str, Any]:
 
             logger.info(f"✅ Successfully scraped {len(indicators)} indicators")
 
+            # ✅ Validation: Detect invalid data (all zeros)
+            if indicators:
+                non_zero_count = sum(1 for ind in indicators if ind.get("value_numeric", 0) != 0)
+                zero_percentage = 100 - (non_zero_count / len(indicators) * 100)
+
+                # Reject if more than 80% of indicators are zero (likely scraping failure)
+                if zero_percentage > 80:
+                    logger.error(f"❌ Invalid scraping result: {zero_percentage:.1f}% of indicators are zero (likely page load failure)")
+                    raise Exception(f"Scraping validation failed: {zero_percentage:.1f}% indicators at zero - rejecting invalid data")
+
+                # Warning if 50-80% are zero
+                if zero_percentage > 50:
+                    logger.warning(f"⚠️ Suspicious scraping result: {zero_percentage:.1f}% of indicators are zero")
+
+                logger.debug(f"✅ Data validation passed: {non_zero_count}/{len(indicators)} indicators have non-zero values")
+
             return {
                 "success": True,
                 "indicators": indicators,
@@ -406,29 +422,65 @@ async def _get_data(force: bool = False) -> Dict[str, Any]:
 
         # Scrape fresh data
         logger.info("🔄 Scraping fresh data...")
-        data = await _scrape_crypto_toolbox()
+        try:
+            data = await _scrape_crypto_toolbox()
 
-        # Update memory cache
-        _cache["data"] = data
-        _cache["timestamp"] = time.time()
+            # ✅ Validation before caching: Don't cache if data looks invalid
+            indicators = data.get("indicators", [])
+            if indicators:
+                non_zero_count = sum(1 for ind in indicators if ind.get("value_numeric", 0) != 0)
+                zero_percentage = 100 - (non_zero_count / len(indicators) * 100)
 
-        # Update Redis cache (if available)
-        if _redis_client:
-            try:
-                await _redis_client.setex(
-                    REDIS_CACHE_KEY,
-                    CACHE_TTL,
-                    json.dumps(data)
-                )
-                logger.debug("✅ Data cached in Redis")
-            except Exception as e:
-                logger.warning(f"⚠️ Redis cache write error: {e}")
+                # If >80% zeros, keep old cache (don't overwrite good data with bad)
+                if zero_percentage > 80 and _cache["data"]:
+                    logger.error(f"❌ Not caching invalid data ({zero_percentage:.1f}% zeros) - keeping previous cache")
+                    cache_age = int(time.time() - _cache["timestamp"])
+                    return {
+                        **_cache["data"],
+                        "cached": True,
+                        "cache_age_seconds": cache_age,
+                        "cache_source": "memory_fallback",
+                        "scraping_failed": True,
+                        "failure_reason": f"Invalid data detected ({zero_percentage:.1f}% zeros)"
+                    }
 
-        return {
-            **data,
-            "cached": False,
-            "cache_age_seconds": 0
-        }
+            # Update memory cache with fresh data
+            _cache["data"] = data
+            _cache["timestamp"] = time.time()
+
+            # Update Redis cache (if available)
+            if _redis_client:
+                try:
+                    await _redis_client.setex(
+                        REDIS_CACHE_KEY,
+                        CACHE_TTL,
+                        json.dumps(data)
+                    )
+                    logger.debug("✅ Data cached in Redis")
+                except Exception as e:
+                    logger.warning(f"⚠️ Redis cache write error: {e}")
+
+            return {
+                **data,
+                "cached": False,
+                "cache_age_seconds": 0
+            }
+
+        except Exception as scrape_error:
+            # If scraping fails completely, return old cache if available
+            if _cache["data"]:
+                logger.error(f"❌ Scraping failed: {scrape_error} - falling back to stale cache")
+                cache_age = int(time.time() - _cache["timestamp"])
+                return {
+                    **_cache["data"],
+                    "cached": True,
+                    "cache_age_seconds": cache_age,
+                    "cache_source": "memory_fallback",
+                    "scraping_failed": True,
+                    "failure_reason": str(scrape_error)
+                }
+            # No cache available - re-raise exception
+            raise
 
 
 # ============================================================================

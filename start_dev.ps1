@@ -23,7 +23,7 @@
     Server port (default: 8080)
 
 .PARAMETER Workers
-    Uvicorn workers (default: 1, REQUIRED for Playwright mode)
+    (DEPRECATED: Single worker mode always used for Playwright compatibility)
 
 .EXAMPLE
     .\start_dev.ps1
@@ -179,7 +179,7 @@ else {
 Write-Host "`n🌐 Server: http://localhost:$Port" -ForegroundColor Cyan
 Write-Host "📚 API Docs: http://localhost:$Port/docs" -ForegroundColor Cyan
 Write-Host "🩺 Scheduler Health: http://localhost:$Port/api/scheduler/health" -ForegroundColor Cyan
-Write-Host "👷 Workers: $Workers $(if ($Workers -eq 1) { '(required for Playwright)' })" -ForegroundColor Cyan
+Write-Host "👷 Workers: 1 (single worker mode for Playwright compatibility)" -ForegroundColor Cyan
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`n" -ForegroundColor Blue
 
 # Set environment variables
@@ -216,11 +216,11 @@ if ($portInUse) {
 Write-Host "� Starting Uvicorn...`n" -ForegroundColor Cyan
 
 if ($UseReload) {
-    # For --reload, uvicorn handles the process lifetime, so '&' is fine.
-    & .venv\Scripts\python.exe -m uvicorn api.main:app --reload --port $Port --workers $Workers 
+    # For --reload, uvicorn uses single worker (--workers flag is incompatible)
+    & .venv\Scripts\python.exe -m uvicorn api.main:app --reload --port $Port
 }
 else {
-    # Without --reload, we must wait for the process to exit cleanly.
+    # Without --reload, single worker mode for Playwright compatibility
     # Start-Process -Wait ensures the PowerShell script doesn't exit prematurely.
-    Start-Process -FilePath ".venv\Scripts\python.exe" -ArgumentList "-m uvicorn api.main:app --port $Port --workers $Workers" -NoNewWindow -Wait
+    Start-Process -FilePath ".venv\Scripts\python.exe" -ArgumentList "-m uvicorn api.main:app --port $Port" -NoNewWindow -Wait
 }

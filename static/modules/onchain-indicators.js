@@ -891,7 +891,19 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
     
   const apiData = await response.json();
   (window.debugLogger?.debug || console.log)(`📊 API response:`, apiData);
-  
+
+  // ✅ Detect stale/invalid data from backend
+  if (apiData.scraping_failed) {
+    const reason = apiData.failure_reason || 'Unknown error';
+    const ageMin = Math.round((apiData.cache_age_seconds || 0) / 60);
+    if (_logLimiter.limit('backend_scraping_failed', 60000)) { // Log once per minute
+      (window.debugLogger?.warn || console.warn)(
+        `⚠️ Backend scraping failed: ${reason} - Using stale cache (${ageMin} min old)`
+      );
+    }
+    // Still continue with cached data - better than nothing
+  }
+
   // Tolérance aux différentes formes de payload
   if (apiData.success === false) {
     throw new Error(`API returned error: ${apiData.error || apiData.message || 'unknown error'}`);
@@ -961,12 +973,51 @@ export async function fetchCryptoToolboxIndicators({ force = false, silent = fal
   (window.debugLogger?.debug || console.log)(`📊 Converted ${Object.keys(indicators).length} indicators from API`);
 
   if (Object.keys(indicators).length > 0) {
+    // ✅ Frontend validation: Check for suspicious data (all zeros)
+    const indicatorValues = Object.values(indicators);
+    const nonZeroCount = indicatorValues.filter(ind => (ind.value_numeric || 0) !== 0).length;
+    const zeroPercentage = 100 - (nonZeroCount / indicatorValues.length * 100);
+
+    if (zeroPercentage > 80) {
+      // Critical: >80% zeros - likely scraping failure
+      if (_logLimiter.limit('invalid_indicators_critical', 120000)) { // Log once per 2 minutes
+        (window.debugLogger?.error || console.error)(
+          `❌ CRITICAL: ${zeroPercentage.toFixed(1)}% of indicators are zero - data likely invalid!`
+        );
+      }
+      // Show user-visible warning
+      if (window.showToast) {
+        window.showToast(
+          `⚠️ On-chain data quality issue detected (${zeroPercentage.toFixed(0)}% zeros) - using fallback`,
+          'warning',
+          { duration: 10000 }
+        );
+      }
+    } else if (zeroPercentage > 50) {
+      // Warning: 50-80% zeros - suspicious
+      if (_logLimiter.limit('invalid_indicators_warning', 120000)) {
+        (window.debugLogger?.warn || console.warn)(
+          `⚠️ WARNING: ${zeroPercentage.toFixed(1)}% of indicators are zero - data quality may be degraded`
+        );
+      }
+    } else {
+      // Data looks good
+      (window.debugLogger?.debug || console.log)(
+        `✅ Data quality check passed: ${nonZeroCount}/${indicatorValues.length} indicators have valid values`
+      );
+    }
+
     // Prepare SWR cache payload
     const cachePayload = {
       indicators,
       count: Object.keys(indicators).length,
       fetched_at: new Date().toISOString(),
-      source: 'network'
+      source: 'network',
+      data_quality: {
+        zero_percentage: zeroPercentage,
+        valid_count: nonZeroCount,
+        total_count: indicatorValues.length
+      }
     };
 
     // Write to SWR cache
