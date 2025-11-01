@@ -82,7 +82,7 @@ foreach ($folder in $cryptoFolders) {
 Write-Host ""
 Write-Host "Test API..." -ForegroundColor Yellow
 try {
-    $resp = Invoke-WebRequest -Uri "http://localhost:8000/api/saxo/portfolios" -Headers @{"X-User"="jack"} -UseBasicParsing
+    $resp = Invoke-WebRequest -Uri "http://localhost:8080/api/saxo/portfolios" -Headers @{"X-User"="jack"} -UseBasicParsing
     Write-Host "  [OK] API accessible" -ForegroundColor Green
 } catch {
     Write-Host "  [!!] API non accessible" -ForegroundColor Red
@@ -115,7 +115,7 @@ Write-Host "       console.log('Supprimé:', k);" -ForegroundColor Cyan
 Write-Host "     }" -ForegroundColor Cyan
 Write-Host "   });" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "2. Recharger: http://localhost:8000/static/settings.html#tab-sources" -ForegroundColor White
+Write-Host "2. Recharger: http://localhost:8080/static/settings.html#tab-sources" -ForegroundColor White
 Write-Host ""
 Write-Host "3. Uploader votre CSV Saxo (section Saxobank)" -ForegroundColor White
 Write-Host ""

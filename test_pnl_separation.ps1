@@ -14,7 +14,7 @@ Write-Host "Testing that each (user_id, source) has independent P&L tracking`n" 
 
 # Test 1: Check demo/cointracking
 Write-Host "[Test 1] demo / cointracking (CSV)" -ForegroundColor Yellow
-$response1 = Invoke-RestMethod "http://localhost:8000/portfolio/metrics?source=cointracking&user_id=demo"
+$response1 = Invoke-RestMethod "http://localhost:8080/portfolio/metrics?source=cointracking&user_id=demo"
 
 if ($response1.ok) {
     Write-Host "  ✓ Total Value: $([math]::Round($response1.metrics.total_value_usd, 2)) USD" -ForegroundColor Green
@@ -29,7 +29,7 @@ Write-Host ""
 
 # Test 2: Check jack/cointracking_api
 Write-Host "[Test 2] jack / cointracking_api (API)" -ForegroundColor Yellow
-$response2 = Invoke-RestMethod "http://localhost:8000/portfolio/metrics?source=cointracking_api&user_id=jack"
+$response2 = Invoke-RestMethod "http://localhost:8080/portfolio/metrics?source=cointracking_api&user_id=jack"
 
 if ($response2.ok) {
     Write-Host "  ✓ Total Value: $([math]::Round($response2.metrics.total_value_usd, 2)) USD" -ForegroundColor Green

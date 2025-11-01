@@ -20,7 +20,7 @@
     Enable hot reload (--reload flag). Auto-disabled if Scheduler or Playwright enabled.
 
 .PARAMETER Port
-    Server port (default: 8000)
+    Server port (default: 8080)
 
 .PARAMETER Workers
     Uvicorn workers (default: 1, REQUIRED for Playwright mode)
@@ -38,7 +38,7 @@
     # Start with Flask proxy and hot reload
 
 .EXAMPLE
-    .\start_dev.ps1 -EnableScheduler -Port 8001
+    .\start_dev.ps1 -EnableScheduler -Port 8081
     # Start with scheduler on custom port
 #>
 
@@ -46,7 +46,7 @@ param(
     [int]$CryptoToolboxMode = $(if ($env:CRYPTO_TOOLBOX_NEW) { [int]$env:CRYPTO_TOOLBOX_NEW } else { 1 }),
     [switch]$EnableScheduler = $false,
     [switch]$Reload = $false,
-    [int]$Port = 8000,
+    [int]$Port = 8080,
     [int]$Workers = 1
 )
 
@@ -94,9 +94,9 @@ else {
                 if ($redisRunning) {
                     Write-Host "✅ Redis started on WSL2" -ForegroundColor Green
                     $redisHost = $wslIP
-                    # Override REDIS_URL to use WSL2 IP
-                    $env:REDIS_URL = "redis://${wslIP}:6379/0"
-                    Write-Host "   Using REDIS_URL=$env:REDIS_URL" -ForegroundColor Gray
+                    # Use localhost Redis in WSL2 (Redis now binds to 127.0.0.1 in WSL2)
+                    $env:DB_REDIS_URL = "redis://localhost:6379/0"
+                    Write-Host "   Using DB_REDIS_URL=$env:DB_REDIS_URL (WSL2 localhost)" -ForegroundColor Gray
                 }
                 else {
                     Write-Host "⚠️  Redis not accessible - server will run in degraded mode" -ForegroundColor Yellow

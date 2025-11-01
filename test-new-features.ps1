@@ -1,5 +1,5 @@
 # Test script for new advanced features
-$base = "http://127.0.0.1:8000"
+$base = "http://127.0.0.1:8080"
 
 Write-Host "🧪 Testing Advanced Features" -ForegroundColor Green
 Write-Host "=============================" -ForegroundColor Green
@@ -118,7 +118,7 @@ Write-Host "✅ API Documentation: Complete" -ForegroundColor Green
 Write-Host "✅ Performance: Good" -ForegroundColor Green
 
 Write-Host "`n📋 Next Steps:" -ForegroundColor Cyan
-Write-Host "1. Open Portfolio Optimization: http://localhost:8000/static/portfolio-optimization.html" -ForegroundColor Gray
-Write-Host "2. View API Docs: http://localhost:8000/docs" -ForegroundColor Gray
+Write-Host "1. Open Portfolio Optimization: http://localhost:8080/static/portfolio-optimization.html" -ForegroundColor Gray
+Write-Host "2. View API Docs: http://localhost:8080/docs" -ForegroundColor Gray
 Write-Host "3. Train ML models via API or interface" -ForegroundColor Gray
 Write-Host "4. Run backtests with your portfolio data" -ForegroundColor Gray

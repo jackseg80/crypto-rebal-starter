@@ -14,7 +14,7 @@ function detectDefaultApiBase() {
       return origin; // use same origin by default
     }
   } catch (_) { /* ignore */ }
-  return 'http://127.0.0.1:8000';
+  return 'http://127.0.0.1:8080';
 }
 
 // Source de vérité centralisée des sources de données disponibles

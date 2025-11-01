@@ -3,7 +3,7 @@
 # Usage: .\scripts\daily_snapshot.ps1
 
 param(
-    [string]$BaseUrl = "http://localhost:8000",
+    [string]$BaseUrl = "http://localhost:8080",
     [string]$UserId = "jack",
     [string]$Source = "cointracking_api",
     [float]$MinUsd = 1.0

@@ -8,7 +8,7 @@
     Ce snapshot sera utilise pour calculer le P&L Today en comparant avec les donnees futures.
 
 .PARAMETER BaseUrl
-    URL de base de l'API (defaut: http://127.0.0.1:8000)
+    URL de base de l'API (defaut: http://127.0.0.1:8080)
 
 .PARAMETER Source
     Source de donnees a utiliser (defaut: cointracking)
@@ -18,11 +18,11 @@
 
 .EXAMPLE
     .\tests_save_snapshot.ps1
-    .\tests_save_snapshot.ps1 -BaseUrl http://localhost:8000 -Source cointracking_api
+    .\tests_save_snapshot.ps1 -BaseUrl http://localhost:8080 -Source cointracking_api
 #>
 
 param(
-    [string]$BaseUrl = "http://127.0.0.1:8000",
+    [string]$BaseUrl = "http://127.0.0.1:8080",
     [string]$Source = "cointracking",
     [string]$UserId = "demo"
 )

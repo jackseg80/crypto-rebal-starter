@@ -88,11 +88,11 @@ Write-Host ""
 Write-Host "  1. ⚠️  IMPORTANT: Exécutez le code localStorage ci-dessus dans la console du navigateur" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  2. Rafraîchissez le dashboard Saxo (F5):" -ForegroundColor White
-Write-Host "     http://localhost:8000/static/saxo-dashboard.html" -ForegroundColor Gray
+Write-Host "     http://localhost:8080/static/saxo-dashboard.html" -ForegroundColor Gray
 Write-Host "     → Devrait afficher 'Aucun portfolio trouvé'" -ForegroundColor Gray
 Write-Host ""
 Write-Host "  3. Allez sur Sources Manager:" -ForegroundColor White
-Write-Host "     http://localhost:8000/static/settings.html#tab-sources" -ForegroundColor Gray
+Write-Host "     http://localhost:8080/static/settings.html#tab-sources" -ForegroundColor Gray
 Write-Host ""
 Write-Host "  4. Uploadez votre CSV Saxo dans la section 'Saxobank'" -ForegroundColor White
 Write-Host ""
@@ -105,7 +105,7 @@ Write-Host ""
 Write-Host "🔌 5. Test de connectivité API..." -ForegroundColor Yellow
 
 try {
-    $response = Invoke-WebRequest -Uri "http://localhost:8000/api/saxo/portfolios" -Method GET -Headers @{"X-User"="jack"} -UseBasicParsing -ErrorAction Stop
+    $response = Invoke-WebRequest -Uri "http://localhost:8080/api/saxo/portfolios" -Method GET -Headers @{"X-User"="jack"} -UseBasicParsing -ErrorAction Stop
     Write-Host "  ✅ API Saxo accessible (HTTP $($response.StatusCode))" -ForegroundColor Green
 
     $json = $response.Content | ConvertFrom-Json

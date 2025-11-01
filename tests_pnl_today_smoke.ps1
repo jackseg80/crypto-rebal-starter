@@ -8,7 +8,7 @@
     Affiche les valeurs actuelles, l'historique et le delta.
 
 .PARAMETER BaseUrl
-    URL de base de l'API (defaut: http://127.0.0.1:8000)
+    URL de base de l'API (defaut: http://127.0.0.1:8080)
 
 .PARAMETER Source
     Source de donnees a utiliser (defaut: cointracking)
@@ -18,11 +18,11 @@
 
 .EXAMPLE
     .\tests_pnl_today_smoke.ps1
-    .\tests_pnl_today_smoke.ps1 -BaseUrl http://localhost:8000 -Source cointracking_api
+    .\tests_pnl_today_smoke.ps1 -BaseUrl http://localhost:8080 -Source cointracking_api
 #>
 
 param(
-    [string]$BaseUrl = "http://127.0.0.1:8000",
+    [string]$BaseUrl = "http://127.0.0.1:8080",
     [string]$Source = "cointracking",
     [string]$UserId = "demo"
 )
@@ -132,7 +132,7 @@ try {
     Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host ""
     Write-Host "Possible causes:" -ForegroundColor Yellow
-    Write-Host "   - API server not running (uvicorn api.main:app --reload --port 8000)" -ForegroundColor Gray
+    Write-Host "   - API server not running (uvicorn api.main:app --reload --port 8080)" -ForegroundColor Gray
     Write-Host "   - Wrong BaseUrl or Source parameter" -ForegroundColor Gray
     Write-Host "   - Network/firewall issue" -ForegroundColor Gray
     exit 1

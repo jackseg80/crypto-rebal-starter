@@ -1,5 +1,5 @@
 # Simple test script for new features
-$base = "http://127.0.0.1:8000"
+$base = "http://127.0.0.1:8080"
 
 Write-Host "🧪 Testing New Features" -ForegroundColor Green
 
@@ -20,4 +20,4 @@ Write-Host "   - Models trained: $($ml.pipeline_trained)" -ForegroundColor Cyan
 Write-Host "   - Available models: $($ml.models_count)" -ForegroundColor Cyan
 
 Write-Host "`n✅ All APIs working!" -ForegroundColor Green
-Write-Host "Next: Open http://localhost:8000/static/portfolio-optimization.html" -ForegroundColor Yellow
+Write-Host "Next: Open http://localhost:8080/static/portfolio-optimization.html" -ForegroundColor Yellow

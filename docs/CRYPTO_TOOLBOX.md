@@ -426,10 +426,10 @@ docker build -t crypto-rebal .
 **Run container** (FastAPI mode by default):
 ```bash
 # Default (CRYPTO_TOOLBOX_NEW=1)
-docker run -p 8000:8000 crypto-rebal
+docker run -p 8080:8080 crypto-rebal
 
 # Override to legacy mode
-docker run -p 8000:8000 -e CRYPTO_TOOLBOX_NEW=0 crypto-rebal
+docker run -p 8080:8080 -e CRYPTO_TOOLBOX_NEW=0 crypto-rebal
 ```
 
 **Note**: Docker image includes Playwright dependencies (~300MB additional size). To reduce image size for legacy-only deployments, remove lines 34-36 from Dockerfile.

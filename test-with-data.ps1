@@ -1,5 +1,5 @@
 # Test with real portfolio data
-$base = "http://127.0.0.1:8000"
+$base = "http://127.0.0.1:8080"
 
 Write-Host "🧪 Testing with Portfolio Data" -ForegroundColor Green
 
@@ -97,8 +97,8 @@ try {
 Write-Host "`n🎉 Testing Complete!" -ForegroundColor Green
 Write-Host "=============================" -ForegroundColor Green
 Write-Host "🌐 Web Interfaces:" -ForegroundColor Cyan
-Write-Host "   • Portfolio Optimization: http://localhost:8000/static/portfolio-optimization.html" -ForegroundColor Gray
-Write-Host "   • API Documentation: http://localhost:8000/docs" -ForegroundColor Gray
-Write-Host "   • Risk Dashboard: http://localhost:8000/static/risk-dashboard.html" -ForegroundColor Gray
+Write-Host "   • Portfolio Optimization: http://localhost:8080/static/portfolio-optimization.html" -ForegroundColor Gray
+Write-Host "   • API Documentation: http://localhost:8080/docs" -ForegroundColor Gray
+Write-Host "   • Risk Dashboard: http://localhost:8080/static/risk-dashboard.html" -ForegroundColor Gray
 
 Write-Host "`n📚 Ready to use!" -ForegroundColor Green

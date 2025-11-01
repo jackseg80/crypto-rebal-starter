@@ -1,7 +1,7 @@
 ﻿# Test de l'intégration CoinGecko pour l'enrichissement des classifications
 # Usage: .\test-coingecko-integration.ps1
 
-$base = "http://127.0.0.1:8000"
+$base = "http://127.0.0.1:8080"
 
 try { chcp 65001 | Out-Null } catch {}
 

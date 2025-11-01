@@ -1,7 +1,7 @@
 ﻿# Test des patterns de classification automatique
 # Usage: .\test-patterns.ps1
 
-$base = "http://127.0.0.1:8000"
+$base = "http://127.0.0.1:8080"
 
 # (Optionnel) Forcer l'affichage correct en console
 try { chcp 65001 | Out-Null } catch {}

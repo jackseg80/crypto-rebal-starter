@@ -1,7 +1,7 @@
 # Test du système de classification automatique
 # Usage: .\test-auto-classification.ps1
 
-$base = "http://127.0.0.1:8000"
+$base = "http://127.0.0.1:8080"
 
 Write-Host "🧪 Tests du système de classification automatique" -ForegroundColor Cyan
 Write-Host "=" * 60

@@ -33,8 +33,8 @@ export default defineConfig({
   ],
 
   use: {
-    // URL de base (localhost:8000)
-    baseURL: 'http://localhost:8000',
+    // URL de base (localhost:8080)
+    baseURL: 'http://localhost:8080',
 
     // Traces en cas d'échec (debugging)
     trace: 'on-first-retry',
@@ -89,11 +89,11 @@ export default defineConfig({
 
   // Serveur de dev (géré manuellement)
   // IMPORTANT: Démarrez le serveur backend dans un terminal séparé avant de lancer les tests:
-  // python -m uvicorn api.main:app --reload --port 8000
+  // python -m uvicorn api.main:app --reload --port 8080
   //
   // webServer: {
-  //   command: 'python -m uvicorn api.main:app --port 8000',
-  //   url: 'http://localhost:8000',
+  //   command: 'python -m uvicorn api.main:app --port 8080',
+  //   url: 'http://localhost:8080',
   //   reuseExistingServer: !process.env.CI,
   //   timeout: 120000,
   //   stdout: 'ignore',

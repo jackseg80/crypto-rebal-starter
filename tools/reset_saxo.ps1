@@ -38,7 +38,7 @@ foreach ($folder in $folders) {
 Write-Host ""
 Write-Host "Test API..." -ForegroundColor Yellow
 try {
-    $resp = Invoke-WebRequest -Uri "http://localhost:8000/api/saxo/portfolios" -Headers @{"X-User"="jack"} -UseBasicParsing
+    $resp = Invoke-WebRequest -Uri "http://localhost:8080/api/saxo/portfolios" -Headers @{"X-User"="jack"} -UseBasicParsing
     Write-Host "  [OK] API accessible" -ForegroundColor Green
 } catch {
     Write-Host "  [!!] API non accessible" -ForegroundColor Red
@@ -52,7 +52,7 @@ Write-Host "1. Console navigateur (F12):" -ForegroundColor White
 Write-Host ""
 Write-Host "   localStorage.clear();" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "2. Recharger: http://localhost:8000/static/saxo-dashboard.html" -ForegroundColor White
+Write-Host "2. Recharger: http://localhost:8080/static/saxo-dashboard.html" -ForegroundColor White
 Write-Host ""
-Write-Host "3. Uploader CSV: http://localhost:8000/static/settings.html#tab-sources" -ForegroundColor White
+Write-Host "3. Uploader CSV: http://localhost:8080/static/settings.html#tab-sources" -ForegroundColor White
 Write-Host ""

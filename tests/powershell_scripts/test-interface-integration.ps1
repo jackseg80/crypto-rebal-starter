@@ -1,7 +1,7 @@
 ﻿# Test de l'intégration avec l'interface (simulation des appels de l'Alias Manager)
 # Usage: .\test-interface-integration.ps1
 
-$base = "http://127.0.0.1:8000"
+$base = "http://127.0.0.1:8080"
 
 try { chcp 65001 | Out-Null } catch {}
 
