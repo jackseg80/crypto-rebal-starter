@@ -16,8 +16,8 @@ function updatePhaseChips(unifiedState) {
         // Get phase detection from unified state or Phase Engine
         const phaseEngine = window.debugPhaseEngine || {};
         const currentPhase = phaseEngine.currentPhase ||
-                           (unifiedState.phase?.detected) ||
-                           null;
+            (unifiedState.phase?.detected) ||
+            null;
 
         // Reset all chips to inactive
         const riskOffChip = document.getElementById('phase-risk-off');
@@ -397,8 +397,8 @@ function setupExportButtons() {
         cryptoExportBtn.addEventListener('click', () => {
             import('./export-button.js').then(({ openExportModal }) => {
                 const cryptoSource = window.globalConfig?.get('data_source') ||
-                                    localStorage.getItem('data_source') ||
-                                    'cointracking';
+                    localStorage.getItem('data_source') ||
+                    'cointracking';
                 openExportModal('crypto', '/api/portfolio/export-lists', 'crypto-portfolio', cryptoSource);
             });
         });
@@ -2526,6 +2526,19 @@ async function refreshGlobalTile() {
         const currentSource = (window.globalConfig && window.globalConfig.get('data_source')) || 'auto';
         const minThreshold = (window.globalConfig && window.globalConfig.get('min_usd_threshold')) || 1.0;
 
+        // ✅ FIX: Pre-load exchange rates for EUR and CHF conversions
+        if (window.currencyManager) {
+            try {
+                await Promise.all([
+                    window.currencyManager.ensureRate('EUR'),
+                    window.currencyManager.ensureRate('CHF')
+                ]);
+                debugLogger.debug('💱 Exchange rates loaded (EUR, CHF)');
+            } catch (err) {
+                debugLogger.warn('Currency rates pre-load failed, using fallbacks', err);
+            }
+        }
+
         // ✅ FIX: Get Bourse source from WealthContextBar and extract file_key
         let bourseFileKey = null;
         const bourseSource = window.wealthContextBar?.getContext()?.bourse;
@@ -2567,6 +2580,30 @@ async function refreshGlobalTile() {
 
         // Update total value
         if (totalValueEl) totalValueEl.textContent = formatCurrency(data.total_value_usd);
+
+        // Update currency conversions (EUR and CHF)
+        const eurEl = document.getElementById('global-total-eur');
+        const chfEl = document.getElementById('global-total-chf');
+
+        if (eurEl || chfEl) {
+            const totalValueUSD = data.total_value_usd || 0;
+
+            // Get rates from currencyManager
+            const eurRate = (window.currencyManager && window.currencyManager.getRateSync('EUR')) || 0.920;
+            const chfRate = (window.currencyManager && window.currencyManager.getRateSync('CHF')) || 0.880;
+
+            // Format EUR value
+            if (eurEl) {
+                const eurValue = totalValueUSD * eurRate;
+                eurEl.textContent = `${Math.round(eurValue).toLocaleString('fr-FR')} EUR`;
+            }
+
+            // Format CHF value
+            if (chfEl) {
+                const chfValue = totalValueUSD * chfRate;
+                chfEl.textContent = `${Math.round(chfValue).toLocaleString('fr-FR')} CHF`;
+            }
+        }
 
         // Update P&L Today if available (Dashboard V2)
         const pnlTodayEl = document.getElementById('global-pnl-today');
