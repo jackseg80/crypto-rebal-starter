@@ -1197,7 +1197,10 @@
 
                 // 3. Statut corrélations via API réelle
                 try {
-                    const correlationResponse = await fetch(`${config.api_base_url}/api/risk/correlation?source=${config.data_source}`);
+                    const activeUser = localStorage.getItem('activeUser') || 'demo';
+                    const correlationResponse = await fetch(`${config.api_base_url}/api/risk/correlation?source=${config.data_source}`, {
+                        headers: { 'X-User': activeUser }
+                    });
                     if (correlationResponse.ok) {
                         const correlationData = await correlationResponse.json();
                         if (correlationData.success && correlationData.correlation_matrix) {
