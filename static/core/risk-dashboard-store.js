@@ -146,21 +146,25 @@ const storeActions = {
     }, action);
   },
 
-  // Persist key data to localStorage
-  persist(key = 'risk-dashboard-state') {
+  // Persist key data to localStorage (user-specific)
+  persist(baseKey = 'risk-dashboard-state') {
     const state = getState();
+    const userId = localStorage.getItem('activeUser') || 'demo';
+    const key = `${baseKey}:${userId}`;
+
     const toSave = {
       ccs: state.ccs,
       cycle: state.cycle,
       scores: state.scores,  // ✅ FIX: Persist scores to survive F5
       targets: state.targets,
       governance: state.governance,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      userId: userId  // Track which user this data belongs to
     };
 
     try {
       localStorage.setItem(key, JSON.stringify(toSave));
-      console.debug('✅ Store persisted with scores:', {
+      console.debug('✅ Store persisted with scores for user:', userId, {
         onchain: state.scores?.onchain,
         risk: state.scores?.risk,
         blended: state.scores?.blended
@@ -170,12 +174,21 @@ const storeActions = {
     }
   },
 
-  // Restore from localStorage
-  hydrate(key = 'risk-dashboard-state') {
+  // Restore from localStorage (user-specific)
+  hydrate(baseKey = 'risk-dashboard-state') {
     try {
+      const userId = localStorage.getItem('activeUser') || 'demo';
+      const key = `${baseKey}:${userId}`;
       const saved = localStorage.getItem(key);
+
       if (saved) {
-        const { ccs, cycle, scores, targets, governance, timestamp } = JSON.parse(saved);
+        const { ccs, cycle, scores, targets, governance, timestamp, userId: savedUserId } = JSON.parse(saved);
+
+        // Verify this data belongs to the current user
+        if (savedUserId && savedUserId !== userId) {
+          console.debug('⚠️ Persisted state belongs to different user, skipping hydration');
+          return;
+        }
 
         // Only restore if not too old (1 hour max)
         if (Date.now() - timestamp < 60 * 60 * 1000) {
@@ -189,7 +202,7 @@ const storeActions = {
             _hydration_timestamp: timestamp  // ✅ FIX: Add timestamp for dashboard.html compatibility
           }), 'hydrate');
 
-          console.debug('✅ Store hydrated from localStorage with scores:', {
+          console.debug('✅ Store hydrated from localStorage for user:', userId, {
             onchain: scores?.onchain,
             risk: scores?.risk,
             blended: scores?.blended,
@@ -198,10 +211,24 @@ const storeActions = {
         } else {
           console.debug('⚠️ Persisted state too old, skipping hydration');
         }
+      } else {
+        console.debug('📭 No persisted state found for user:', userId);
       }
     } catch (error) {
       (window.debugLogger?.warn || console.warn)('Failed to hydrate state:', error);
     }
+  },
+
+  // Clear store and reload for new user
+  clearAndRehydrate() {
+    const userId = localStorage.getItem('activeUser') || 'demo';
+    console.debug('🔄 Clearing store and rehydrating for user:', userId);
+
+    // Reset to initial state
+    setState(initialStateFactory(), 'clearAndRehydrate');
+
+    // Load data for current user
+    this.hydrate();
   },
 
   // --- DEBOUNCING TIMERS ---

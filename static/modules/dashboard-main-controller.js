@@ -386,6 +386,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 500);
     });
 
+    // Listen for user changes to clear and reload store
+    window.addEventListener('activeUserChanged', (event) => {
+        const { oldUser, newUser } = event.detail;
+        console.debug(`🔄 User changed from ${oldUser} to ${newUser}, clearing store...`);
+        store.clearAndRehydrate();
+    });
+
     // Smart initial load - wait for data to be ready
     setTimeout(waitForStoreReady, 800); // Give time for analytics-unified to start loading
 });
@@ -1112,13 +1119,63 @@ async function updatePortfolioDisplay(data) {
     });
 
     if (!data || !data.ok) {
-        console.debug('❌ Portfolio data invalid or missing, showing error');
-        document.getElementById('total-value').textContent = 'Erreur';
-        document.getElementById('daily-pnl').textContent = 'Erreur';
-        const st = document.getElementById('portfolio-status');
-        st.className = 'status-badge status-error'; st.textContent = 'Erreur';
+        console.debug('❌ Portfolio data invalid or missing, showing empty state');
+
+        // Hide normal metrics
+        const metricsContainer = document.querySelector('#crypto .metric');
+        if (metricsContainer && metricsContainer.parentElement) {
+            Array.from(metricsContainer.parentElement.querySelectorAll('.metric')).forEach(el => el.style.display = 'none');
+        }
+
+        // Hide chart
+        const chartEl = document.getElementById('portfolio-chart');
+        if (chartEl) chartEl.style.display = 'none';
+
+        // Hide export button
+        const exportBtn = document.getElementById('crypto-export-btn');
+        if (exportBtn) exportBtn.style.display = 'none';
+
+        // Hide source display
+        const sourceDisplay = document.getElementById('portfolio-source-display');
+        if (sourceDisplay) sourceDisplay.style.display = 'none';
+
+        // Hide status badge
+        const statusEl = document.getElementById('portfolio-status');
+        if (statusEl) statusEl.style.display = 'none';
+
+        // Show empty state
+        const emptyState = document.getElementById('crypto-empty-state');
+        if (emptyState) emptyState.style.display = 'block';
+
         return;
     }
+
+    // Hide empty state and show normal elements
+    const emptyState = document.getElementById('crypto-empty-state');
+    if (emptyState) emptyState.style.display = 'none';
+
+    // Show normal metrics
+    const metricsContainer = document.querySelector('#crypto .metric');
+    if (metricsContainer && metricsContainer.parentElement) {
+        Array.from(metricsContainer.parentElement.querySelectorAll('.metric')).forEach(el => el.style.display = 'flex');
+    }
+
+    // Show chart
+    const chartEl = document.getElementById('portfolio-chart');
+    if (chartEl) chartEl.style.display = 'flex';
+
+    // Show export button
+    const exportBtn = document.getElementById('crypto-export-btn');
+    if (exportBtn) exportBtn.style.display = 'flex';
+
+    // Show source display
+    const sourceDisplay = document.getElementById('portfolio-source-display');
+    if (sourceDisplay) sourceDisplay.style.display = 'inline';
+
+    // Show status badge
+    const statusBadge = document.getElementById('portfolio-status');
+    if (statusBadge) statusBadge.style.display = 'inline';
+
     const { metrics, performance } = data;
 
     document.getElementById('total-value').textContent = formatUSD(metrics.total_value_usd || 0);
@@ -2345,15 +2402,10 @@ async function refreshSaxoTile() {
     isRefreshingSaxo = true;
     debugLogger.debug('🏦 Refreshing Saxo tile...');
 
-    const statusEl = document.getElementById('saxo-status');
     const totalValueEl = document.getElementById('saxo-total-value');
     const positionsCountEl = document.getElementById('saxo-positions-count');
     const lastImportEl = document.getElementById('saxo-last-import');
     const emptyStateEl = document.getElementById('saxo-empty-state');
-
-    // Set loading state
-    if (statusEl) statusEl.textContent = 'Loading';
-    if (statusEl) statusEl.className = 'status-badge status-loading';
 
     try {
         // Dynamic import to access module functions
@@ -2361,32 +2413,38 @@ async function refreshSaxoTile() {
         const summary = await fetchSaxoSummary();
 
         if (summary.isEmpty || summary.error) {
-            // Empty state or error
-            if (totalValueEl) totalValueEl.textContent = formatCurrency(0);
-            if (positionsCountEl) positionsCountEl.textContent = '0';
-            if (lastImportEl) lastImportEl.textContent = summary.asof || 'Aucune donnée';
+            // Empty state or error - hide all normal elements
+            const metricsElements = document.querySelectorAll('#bourse .metric');
+            metricsElements.forEach(el => el.style.display = 'none');
+
+            const chartEl = document.getElementById('saxo-chart');
+            if (chartEl) chartEl.style.display = 'none';
+
+            const exportBtn = document.getElementById('saxo-export-btn');
+            if (exportBtn) exportBtn.style.display = 'none';
 
             if (emptyStateEl) emptyStateEl.style.display = 'block';
-            if (statusEl) {
-                statusEl.textContent = summary.error ? 'Erreur' : 'Vide';
-                statusEl.className = 'status-badge status-warning';
-            }
 
             debugLogger.warn('[Saxo Tile] Empty state or error:', summary.error || 'No positions');
         } else {
-            // Success with data
+            // Success with data - show all normal elements
+            if (emptyStateEl) emptyStateEl.style.display = 'none';
+
+            const metricsElements = document.querySelectorAll('#bourse .metric');
+            metricsElements.forEach(el => el.style.display = 'flex');
+
+            const chartEl = document.getElementById('saxo-chart');
+            if (chartEl) chartEl.style.display = 'flex';
+
+            const exportBtn = document.getElementById('saxo-export-btn');
+            if (exportBtn) exportBtn.style.display = 'flex';
+
             if (totalValueEl) {
                 totalValueEl.textContent = formatCurrency(summary.total_value);
                 totalValueEl.style.color = getMetricColor(summary.total_value);
             }
             if (positionsCountEl) positionsCountEl.textContent = summary.positions_count.toString();
             if (lastImportEl) lastImportEl.textContent = summary.asof;
-
-            if (emptyStateEl) emptyStateEl.style.display = 'none';
-            if (statusEl) {
-                statusEl.textContent = 'OK';
-                statusEl.className = 'status-badge status-active';
-            }
 
             debugLogger.debug('✅ Saxo tile updated:', {
                 total_value: summary.total_value,
@@ -2428,15 +2486,17 @@ async function refreshSaxoTile() {
     } catch (error) {
         debugLogger.error('[Saxo Tile] Error refreshing:', error);
 
-        if (totalValueEl) totalValueEl.textContent = '--';
-        if (positionsCountEl) positionsCountEl.textContent = '--';
-        if (lastImportEl) lastImportEl.textContent = 'Erreur';
+        // Hide all normal elements on error
+        const metricsElements = document.querySelectorAll('#bourse .metric');
+        metricsElements.forEach(el => el.style.display = 'none');
+
+        const chartEl = document.getElementById('saxo-chart');
+        if (chartEl) chartEl.style.display = 'none';
+
+        const exportBtn = document.getElementById('saxo-export-btn');
+        if (exportBtn) exportBtn.style.display = 'none';
 
         if (emptyStateEl) emptyStateEl.style.display = 'block';
-        if (statusEl) {
-            statusEl.textContent = 'Erreur';
-            statusEl.className = 'status-badge status-error';
-        }
     } finally {
         isRefreshingSaxo = false;
     }
@@ -2843,11 +2903,17 @@ async function loadRiskAlerts() {
     try {
         debugLogger.debug('🚨 Loading risk alerts...');
 
+        const activeUser = localStorage.getItem('activeUser') || 'demo';
+
         const [riskRes, alertsRes] = await Promise.all([
-            fetch('/api/risk/dashboard')
+            fetch('/api/risk/dashboard', {
+                headers: { 'X-User': activeUser }
+            })
                 .then(r => r.ok ? r.json() : null)
                 .catch(() => null),
-            fetch('/api/alerts/active')
+            fetch('/api/alerts/active', {
+                headers: { 'X-User': activeUser }
+            })
                 .then(r => r.ok ? r.json() : null)
                 .catch(() => {
                     debugLogger.debug('⏭️ Alerts endpoint not available (404), skipping');
