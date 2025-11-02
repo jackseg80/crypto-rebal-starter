@@ -69,13 +69,15 @@ async def create_snapshot(
         url = f"{base_url}/portfolio/snapshot"
         params = {
             "source": source,
-            "user_id": user_id,
             "min_usd": min_usd
+        }
+        headers = {
+            "X-User": user_id
         }
 
         # Call API with timeout
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, params=params)
+            response = await client.post(url, params=params, headers=headers)
 
             # Parse response
             if response.status_code == 200:

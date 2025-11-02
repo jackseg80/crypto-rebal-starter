@@ -76,18 +76,20 @@ data/scheduler.lock
 # Log files (text dumps moved to data/logs/)
 data/logs/*.txt
 
-# Data files (keep raw data, exclude generated/temp)
+# Data files (keep raw data & config, exclude generated/temp/snapshots)
 data/monitoring/metrics_*.json
 data/monitoring/portfolio_metrics.json
+data/monitoring/alerts.json
 data/execution_history/sessions_*.json
 data/*_backup_*.json
 data/alerts.json
 data/portfolio_history.json
+data/prices.json
+data/pricing_cache.json
+data/rebalance_history.json
+data/wealth/*snapshot*.json
 data/users/*/banks/
-data/users/*/config.json
 data/catalogs/
-data/wealth/saxo_snapshot.json
-data/users/*/config/sources.json
 *.csv
 !data/raw/*.csv
 !docs/*.csv
@@ -118,11 +120,12 @@ data/price_history/
 data/cache/
 
 # User data files (should not be committed)
-data/users/*/config.json
-data/users/*/config/config.json
-data/users/*/sources.json
-data/users/*/config/sources.json
-data/users/jack/
+# Keep only demo user for examples
+data/users/*
+!data/users/demo/
+data/users/demo/config/config.json
+data/users/demo/config/sources.json
+data/users/demo/*/cash/
 
 # Temporary test/validation files
 *_recs.json
