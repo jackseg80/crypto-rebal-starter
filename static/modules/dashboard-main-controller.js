@@ -1953,17 +1953,31 @@ async function updateBanksChart(positions) {
 
     const ctx = canvas.getContext('2d');
 
-    // Regrouper par banque (bank_name ou account_type)
+    // Regrouper par devise (currency)
+    const currencyEmojis = {
+        'CHF': '🇨🇭',
+        'EUR': '🇪🇺',
+        'USD': '🇺🇸',
+        'GBP': '🇬🇧',
+        'JPY': '🇯🇵',
+        'CAD': '🇨🇦',
+        'AUD': '🇦🇺',
+        'CNY': '🇨🇳'
+    };
+
     const grouped = {};
     positions.forEach(pos => {
-        const bankName = pos.bank_name || pos.account_type || 'Autre';
+        // Extraire la devise depuis le champ currency
+        const currency = pos.currency || 'Autre';
+        const emoji = currencyEmojis[currency] || '💵';
+        const label = `${emoji} ${currency}`;
         const value = pos.market_value || 0;
 
-        if (!grouped[bankName]) {
-            grouped[bankName] = { label: bankName, value: 0, count: 0 };
+        if (!grouped[currency]) {
+            grouped[currency] = { label: label, value: 0, count: 0, currency: currency };
         }
-        grouped[bankName].value += value;
-        grouped[bankName].count += 1;
+        grouped[currency].value += value;
+        grouped[currency].count += 1;
     });
 
     // Convertir en tableau et trier
