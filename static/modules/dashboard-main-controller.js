@@ -79,12 +79,15 @@ async function refreshGI() {
             }
         }
 
-        // Update component scores with enhanced data
+        // Update component scores with enhanced data + colors
         const cycleEl = document.getElementById('gi-cycle');
         if (cycleEl) {
             const cycleScore = unifiedState.cycle?.score ?? '--';
             const cyclePhase = unifiedState.cycle?.phase?.phase;
             cycleEl.textContent = cycleScore;
+            if (typeof cycleScore === 'number') {
+                cycleEl.style.color = colorForScore(cycleScore);
+            }
             cycleEl.title = cyclePhase ? `Phase: ${cyclePhase.replace('_', ' ')} | Confiance: ${Math.round((unifiedState.cycle?.confidence || 0) * 100)}%` : '';
         }
 
@@ -92,6 +95,9 @@ async function refreshGI() {
         if (onchainEl) {
             const onchainScore = unifiedState.onchain?.score;
             onchainEl.textContent = (onchainScore != null) ? onchainScore : '--';
+            if (onchainScore != null) {
+                onchainEl.style.color = colorForScore(onchainScore);
+            }
             if (unifiedState.onchain?.criticalCount > 0) {
                 onchainEl.title = `${unifiedState.onchain.criticalCount} indicateur(s) critique(s) détecté(s)`;
                 onchainEl.style.fontWeight = '700';
@@ -102,6 +108,9 @@ async function refreshGI() {
         if (riskEl) {
             const riskScore = unifiedState.risk?.score;
             riskEl.textContent = (riskScore != null) ? riskScore : '--';
+            if (riskScore != null) {
+                riskEl.style.color = colorForScore(riskScore);
+            }
             if (unifiedState.risk?.budget?.percentages?.stables) {
                 riskEl.title = `Budget recommandé - Stables: ${unifiedState.risk.budget.percentages.stables}%`;
             }
@@ -160,9 +169,23 @@ async function refreshGI() {
         const el = document.getElementById('gi-score');
         if (el) { el.textContent = score; el.style.color = colorForScore(score); }
 
-        const ec = document.getElementById('gi-cycle'); if (ec) ec.textContent = cycle || '--';
-        const eo = document.getElementById('gi-onchain'); if (eo) eo.textContent = onch != null ? Math.round(onch) : '--';
-        const er = document.getElementById('gi-risk'); if (er) er.textContent = risk != null ? Math.round(risk) : '--';
+        const ec = document.getElementById('gi-cycle');
+        if (ec) {
+            ec.textContent = cycle || '--';
+            if (typeof cycle === 'number') ec.style.color = colorForScore(cycle);
+        }
+        const eo = document.getElementById('gi-onchain');
+        if (eo) {
+            const onchRounded = onch != null ? Math.round(onch) : '--';
+            eo.textContent = onchRounded;
+            if (onch != null) eo.style.color = colorForScore(onch);
+        }
+        const er = document.getElementById('gi-risk');
+        if (er) {
+            const riskRounded = risk != null ? Math.round(risk) : '--';
+            er.textContent = riskRounded;
+            if (risk != null) er.style.color = colorForScore(risk);
+        }
 
         const reco = document.getElementById('gi-reco');
         if (reco) {
