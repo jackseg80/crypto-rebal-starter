@@ -745,9 +745,22 @@ async function saveAllSettings() {
     const current = (window.userSettings || getDefaultSettings())[settingKey] || '';
     const masked = current ? maskApiKey(current) : '';
     const incoming = (field.value || '').trim();
-    if (!incoming) return; // rien saisi
+
+    // Si le champ est vide, effacer la clé (userSettings + globalConfig)
+    if (!incoming) {
+      window.userSettings[settingKey] = '';
+      if (window.globalConfig) {
+        window.globalConfig.set(settingKey, '');
+      }
+      return;
+    }
+
+    // Si le champ est visible (type=text) ou si la valeur est différente du masque
     if (field.type === 'text' || incoming !== masked) {
       window.userSettings[settingKey] = incoming;
+      if (window.globalConfig) {
+        window.globalConfig.set(settingKey, incoming);
+      }
     }
   }
 
@@ -1340,8 +1353,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Tenter de récupérer le DEBUG_TOKEN depuis le serveur
     autoDetectDebugToken();
   });
-  // Tenter l'auto-détection des clés immédiatement
-  autoDetectApiKeys();
+  // Auto-détection des clés désactivée pour respecter le choix utilisateur
+  // Utilisez le bouton "Sync depuis .env" manuellement si besoin
+  // autoDetectApiKeys();
 
   // Écouter les changements de thème système pour mettre à jour l'interface
   window.addEventListener('themeChanged', (event) => {
