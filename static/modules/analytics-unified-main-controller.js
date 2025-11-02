@@ -85,6 +85,45 @@ async function renderUnifiedInsights(containerId = 'unified-root') {
   try {
     console.debug('🔥 LOCAL: Loading corrected UnifiedInsights logic...');
 
+    // Check if we have real balance data
+    let realBalances = store.get('wallet.balances');
+    let totalValue = store.get('wallet.total');
+
+    // Try to reload if missing
+    if (!realBalances || !totalValue) {
+      if (typeof window.loadBalanceData === 'function') {
+        try {
+          const balanceResult = await window.loadBalanceData();
+          if (balanceResult.success) {
+            realBalances = balanceResult.data?.items || [];
+            totalValue = realBalances.reduce((sum, item) => sum + (parseFloat(item.value_usd) || 0), 0);
+          }
+        } catch (e) {
+          debugLogger.warn('Failed to reload balance data:', e.message);
+        }
+      }
+    }
+
+    // If still no data, show empty state
+    if (!realBalances || realBalances.length === 0 || !totalValue || totalValue === 0) {
+      el.innerHTML = `
+        <div style="background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: var(--radius-md); padding: var(--space-xl); text-align: center;">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
+          <div style="font-size: 1.2rem; font-weight: 600; color: var(--theme-text); margin-bottom: 0.5rem;">
+            Aucune donnée crypto disponible
+          </div>
+          <div style="font-size: 0.9rem; color: var(--theme-text-muted); margin-bottom: 1.5rem;">
+            Configurez une source de données dans Settings pour afficher vos analytics
+          </div>
+          <a href="settings.html#sources" style="display: inline-block; padding: 0.75rem 1.5rem; background: var(--brand-primary); color: white; text-decoration: none; border-radius: var(--radius-md); font-weight: 600;">
+            Configurer une source
+          </a>
+        </div>
+      `;
+      window.__unified_rendering = false;
+      return;
+    }
+
     // Import des modules nécessaires - CACHE BUST pour forcer rechargement
     const cacheBust = new Date().toISOString();
     const { renderUnifiedInsights: originalRender } = await import(`../components/UnifiedInsights.js?v=${cacheBust}`);
@@ -1362,6 +1401,31 @@ document.addEventListener('DOMContentLoaded', async () => {
       updateRiskMetrics();
     }
   }, { once: true });
+
+  // Listen for user changes to clear and reload all data
+  window.addEventListener('activeUserChanged', async (event) => {
+    const { oldUser, newUser } = event.detail;
+    debugLogger.debug(`🔄 User changed from ${oldUser} to ${newUser}, reloading analytics data...`);
+
+    try {
+      // Clear store and reload for new user
+      store.clearAndRehydrate();
+
+      // Clear cache to force fresh data
+      lastStoreHash = '';
+
+      // Reload all data for new user
+      await loadUnifiedData(true);
+
+      // Re-render UI
+      await renderUnifiedInsightsOnce();
+      updateRiskMetrics();
+
+      debugLogger.debug('✅ Analytics data reloaded for new user');
+    } catch (error) {
+      debugLogger.error('❌ Failed to reload analytics for new user:', error);
+    }
+  });
 
   // Simple fallback banner toggle
   setInterval(() => {
