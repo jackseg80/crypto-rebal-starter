@@ -468,7 +468,7 @@ def train_regime_model(data, epochs: int = 200, patience: int = 15):
     )
     
     # Modèle sur GPU
-    model = RegimeClassifier(input_size=X.shape[1], hidden_sizes=[128, 64], num_classes=4).to(device)
+    model = RegimeClassifier(input_size=X.shape[1], hidden_size=128, num_regimes=4, dropout=0.3).to(device)
     # Désactiver torch.compile pour éviter les erreurs mémoire
     # if hasattr(torch, 'compile') and device.type == 'cuda':
     #     try:
@@ -705,7 +705,7 @@ def train_volatility_model(data, symbol="BTC", epochs: int = 200, patience: int 
     
     # Modèle optimisé sur GPU avec architecture adaptée
     hidden_size = hidden_override if hidden_override and hidden_override > 0 else max(64, min(256, X.shape[2] * 8))
-    model = VolatilityPredictor(input_size=X.shape[2], hidden_size=hidden_size, num_layers=2).to(device)
+    model = VolatilityPredictor(input_size=X.shape[2], hidden_size=hidden_size, num_layers=2, dropout=0.2, output_horizons=1).to(device)
     # Désactiver torch.compile pour éviter les erreurs mémoire
     compiled_vol = False
     criterion = nn.MSELoss()
