@@ -899,7 +899,9 @@ async function loadRealCSVPortfolioData() {
     try {
         const activeUser = localStorage.getItem('activeUser') || 'demo';
         const pnlUrl = `${window.location.origin}/portfolio/metrics?source=${currentSource}&user_id=${activeUser}`;
-        const pnlResponse = await fetch(pnlUrl);
+        const pnlResponse = await fetch(pnlUrl, {
+            headers: { 'X-User': activeUser }
+        });
 
         if (pnlResponse.ok) {
             const pnlData = await pnlResponse.json();
