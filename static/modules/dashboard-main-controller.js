@@ -447,15 +447,15 @@ function setupExportButtons() {
         console.debug('✅ Saxo export button initialized');
     }
 
-    // Banks export button
-    const banksExportBtn = document.getElementById('banks-export-btn');
-    if (banksExportBtn) {
-        banksExportBtn.addEventListener('click', () => {
+    // Patrimoine export button
+    const patrimoineExportBtn = document.getElementById('patrimoine-export-btn');
+    if (patrimoineExportBtn) {
+        patrimoineExportBtn.addEventListener('click', () => {
             import('./export-button.js').then(({ openExportModal }) => {
-                openExportModal('banks', '/api/wealth/banks/export-lists', 'bank-accounts');
+                openExportModal('patrimoine', '/api/wealth/patrimoine/export-lists', 'patrimoine-items');
             });
         });
-        console.debug('✅ Banks export button initialized');
+        console.debug('✅ Patrimoine export button initialized');
     }
 }
 
@@ -487,12 +487,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ✅ Initialize wealth tiles sequentially to avoid race conditions
     await refreshSaxoTile();
-    await refreshBanksTile();
+    await refreshPatrimoineTile();
     await refreshGlobalTile();
 
     // Set up periodic refresh intervals (store IDs for cleanup)
     saxoRefreshInterval = setInterval(refreshSaxoTile, 120000); // Refresh every 2 minutes
-    banksRefreshInterval = setInterval(refreshBanksTile, 120000); // Refresh every 2 minutes
+    banksRefreshInterval = setInterval(refreshPatrimoineTile, 120000); // Refresh every 2 minutes
     globalRefreshInterval = setInterval(refreshGlobalTile, 120000); // Refresh every 2 minutes
 
     // Also check for data source changes more frequently (every 5 seconds)
@@ -1983,77 +1983,60 @@ async function updateSaxoChart(positions) {
     });
 }
 
-// Créer ou mettre à jour le graphique Banks (Banque)
-async function updateBanksChart(positions) {
-    log.debug('updateBanksChart - positions:', positions);
+// Créer ou mettre à jour le graphique Patrimoine
+async function updatePatrimoineChart(breakdown, counts) {
+    log.debug('updatePatrimoineChart - breakdown:', breakdown, 'counts:', counts);
 
-    if (!positions || positions.length === 0) {
-        const container = document.getElementById('banks-chart');
+    if (!breakdown || !counts) {
+        const container = document.getElementById('patrimoine-chart');
         if (container) {
-            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">Aucun compte</div>';
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">Aucune donnée</div>';
         }
         return;
     }
 
-    let canvas = document.getElementById('banksChartCanvas');
+    let canvas = document.getElementById('patrimoineChartCanvas');
     if (!canvas) {
-        console.debug('❌ Banks canvas element not found');
+        console.debug('❌ Patrimoine canvas element not found');
         return;
     }
 
     // Vérifier que Chart.js est chargé
     if (typeof Chart === 'undefined') {
         console.debug('❌ Chart.js not loaded');
-        document.getElementById('banks-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--danger);">❌ Chart.js non chargé</div>';
+        document.getElementById('patrimoine-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--danger);">❌ Chart.js non chargé</div>';
         return;
     }
 
     const ctx = canvas.getContext('2d');
 
-    // Regrouper par devise (currency)
-    const currencyEmojis = {
-        'CHF': '🇨🇭',
-        'EUR': '🇪🇺',
-        'USD': '🇺🇸',
-        'GBP': '🇬🇧',
-        'JPY': '🇯🇵',
-        'CAD': '🇨🇦',
-        'AUD': '🇦🇺',
-        'CNY': '🇨🇳'
-    };
+    // Préparer les données pour le graphique (4 catégories)
+    const categories = [
+        { key: 'liquidity', label: '💰 Liquidités', value: breakdown.liquidity || 0, color: '#3b82f6' },
+        { key: 'tangible', label: '🏠 Biens Réels', value: breakdown.tangible || 0, color: '#10b981' },
+        { key: 'insurance', label: '🛡️ Assurances', value: breakdown.insurance || 0, color: '#8b5cf6' },
+        { key: 'liability', label: '💳 Passifs', value: Math.abs(breakdown.liability || 0), color: '#ef4444' }
+    ];
 
-    const grouped = {};
-    positions.forEach(pos => {
-        // Extraire la devise depuis le champ currency
-        const currency = pos.currency || 'Autre';
-        const emoji = currencyEmojis[currency] || '💵';
-        const label = `${emoji} ${currency}`;
-        const value = pos.market_value || 0;
+    // Filtrer les catégories avec valeur > 0
+    const nonZeroCategories = categories.filter(cat => cat.value > 0);
 
-        if (!grouped[currency]) {
-            grouped[currency] = { label: label, value: 0, count: 0, currency: currency };
-        }
-        grouped[currency].value += value;
-        grouped[currency].count += 1;
-    });
-
-    // Convertir en tableau et trier
-    const sortedData = Object.values(grouped).sort((a, b) => b.value - a.value);
-    const labels = sortedData.map(item => item.label);
-    const values = sortedData.map(item => item.value);
+    const labels = nonZeroCategories.map(cat => cat.label);
+    const values = nonZeroCategories.map(cat => cat.value);
+    const colors = nonZeroCategories.map(cat => cat.color);
     const total = values.reduce((sum, v) => sum + v, 0);
 
-    log.debug('Banks chart data:', { labels, values, total: total.toFixed(2) });
+    log.debug('Patrimoine chart data:', { labels, values, total: total.toFixed(2) });
 
-    if (total === 0) {
-        document.getElementById('banks-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">Aucune valeur</div>';
+    if (total === 0 || nonZeroCategories.length === 0) {
+        document.getElementById('patrimoine-chart').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--theme-text-muted);">Aucune valeur</div>';
         return;
     }
 
     // Détruire l'ancien graphique s'il existe
-    if (window.banksChart) {
-        window.banksChart.destroy();
-        window.banksChart = null;
+    if (window.patrimoineChart) {
+        window.patrimoineChart.destroy();
+        window.patrimoineChart = null;
     }
 
     // Obtenir les couleurs du thème actuel
@@ -2063,13 +2046,13 @@ async function updateBanksChart(positions) {
     const tooltipBorder = isDark ? '#6b7280' : '#d1d5db';
 
     // Créer le nouveau graphique
-    window.banksChart = new Chart(ctx, {
+    window.patrimoineChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: labels,
             datasets: [{
                 data: values,
-                backgroundColor: values.map((_, i) => PORTFOLIO_COLORS[i % PORTFOLIO_COLORS.length]),
+                backgroundColor: colors,
                 borderColor: isDark ? '#374151' : '#ffffff',
                 borderWidth: 2,
                 hoverBorderWidth: 3
@@ -2094,8 +2077,10 @@ async function updateBanksChart(positions) {
                         label: function (context) {
                             const value = context.parsed;
                             const percentage = ((value / total) * 100).toFixed(1);
-                            const groupData = sortedData[context.dataIndex];
-                            return `${context.label}: ${formatUSD(value)} (${percentage}%) - ${groupData.count} comptes`;
+                            const formatUSD = (val) => `$${Math.round(val).toLocaleString()}`;
+                            const categoryData = nonZeroCategories[context.dataIndex];
+                            const itemCount = counts[categoryData.key] || 0;
+                            return `${context.label}: ${formatUSD(value)} (${percentage}%) - ${itemCount} item${itemCount > 1 ? 's' : ''}`;
                         }
                     }
                 }
@@ -2502,29 +2487,24 @@ async function refreshSaxoTile() {
     }
 }
 
-async function refreshBanksTile() {
+async function refreshPatrimoineTile() {
     // ✅ Guard: éviter appels concurrents
     if (isRefreshingBanks) {
-        console.debug('⏭️ refreshBanksTile already in progress, skipping...');
+        console.debug('⏭️ refreshPatrimoineTile already in progress, skipping...');
         return;
     }
 
     isRefreshingBanks = true;
-    debugLogger.debug('💰 Refreshing Banks tile...');
+    debugLogger.debug('💼 Refreshing Patrimoine tile...');
 
-    const statusEl = document.getElementById('banks-status');
-    const totalValueEl = document.getElementById('banks-total-value');
-    const accountsCountEl = document.getElementById('banks-accounts-count');
-    const currenciesCountEl = document.getElementById('banks-currencies-count');
-    const emptyStateEl = document.getElementById('banks-empty-state');
-
-    // Set loading state
-    if (statusEl) statusEl.textContent = 'Loading';
-    if (statusEl) statusEl.className = 'status-badge status-loading';
+    const netWorthEl = document.getElementById('patrimoine-net-worth');
+    const assetsLiabilitiesEl = document.getElementById('patrimoine-assets-liabilities');
+    const itemsCountEl = document.getElementById('patrimoine-items-count');
+    const emptyStateEl = document.getElementById('patrimoine-empty-state');
 
     try {
         const activeUser = localStorage.getItem('activeUser') || 'demo';
-        const response = await fetch(`${window.location.origin}/api/wealth/banks/positions?user_id=${activeUser}`, {
+        const response = await fetch(`${window.location.origin}/api/wealth/patrimoine/summary`, {
             headers: {
                 'X-User': activeUser
             }
@@ -2532,69 +2512,61 @@ async function refreshBanksTile() {
 
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        const positions = await response.json();
+        const summary = await response.json();
         const formatCurrency = (val) => `$${Math.round(val).toLocaleString()}`;
 
-        // Calculate metrics (market_value is already in USD from backend)
-        const totalValueUSD = positions.reduce((sum, pos) => {
-            return sum + (pos.market_value || 0);
-        }, 0);
-
-        const accountsCount = positions.length;
-        const currencies = new Set(positions.map(p => p.currency));
-        const currenciesCount = currencies.size;
+        // Calculate metrics
+        const netWorth = summary.net_worth || 0;
+        const totalAssets = summary.total_assets || 0;
+        const totalLiabilities = summary.total_liabilities || 0;
+        const totalItems = Object.values(summary.counts || {}).reduce((sum, count) => sum + count, 0);
 
         // Update UI
-        if (positions.length === 0) {
+        if (totalItems === 0) {
             // Empty state
-            if (totalValueEl) totalValueEl.textContent = formatCurrency(0);
-            if (accountsCountEl) accountsCountEl.textContent = '0';
-            if (currenciesCountEl) currenciesCountEl.textContent = '0';
+            if (netWorthEl) netWorthEl.textContent = formatCurrency(0);
+            if (assetsLiabilitiesEl) assetsLiabilitiesEl.textContent = '0 / 0';
+            if (itemsCountEl) itemsCountEl.textContent = '0';
 
             if (emptyStateEl) emptyStateEl.style.display = 'block';
-            if (statusEl) {
-                statusEl.textContent = 'Vide';
-                statusEl.className = 'status-badge status-warning';
-            }
 
-            debugLogger.warn('[Banks Tile] Empty state - no bank accounts');
+            debugLogger.warn('[Patrimoine Tile] Empty state - no patrimoine items');
         } else {
             // Success with data
-            if (totalValueEl) {
-                totalValueEl.textContent = formatCurrency(totalValueUSD);
-                totalValueEl.style.color = totalValueUSD > 0 ? 'var(--success)' : 'var(--theme-text)';
+            if (netWorthEl) {
+                netWorthEl.textContent = formatCurrency(netWorth);
+                netWorthEl.style.color = netWorth > 0 ? 'var(--success)' : netWorth < 0 ? 'var(--danger)' : 'var(--theme-text)';
             }
-            if (accountsCountEl) accountsCountEl.textContent = accountsCount.toString();
-            if (currenciesCountEl) currenciesCountEl.textContent = currenciesCount.toString();
+            if (assetsLiabilitiesEl) {
+                assetsLiabilitiesEl.textContent = `${formatCurrency(totalAssets)} / ${formatCurrency(totalLiabilities)}`;
+            }
+            if (itemsCountEl) {
+                const assetsCount = (summary.counts.liquidity || 0) + (summary.counts.tangible || 0) + (summary.counts.insurance || 0);
+                const liabilitiesCount = summary.counts.liability || 0;
+                itemsCountEl.textContent = `${assetsCount + liabilitiesCount} (${assetsCount}A/${liabilitiesCount}P)`;
+            }
 
             if (emptyStateEl) emptyStateEl.style.display = 'none';
-            if (statusEl) {
-                statusEl.textContent = 'OK';
-                statusEl.className = 'status-badge status-active';
-            }
 
-            debugLogger.debug('✅ Banks tile updated:', {
-                total_value_usd: totalValueUSD,
-                accounts_count: accountsCount,
-                currencies_count: currenciesCount
+            debugLogger.debug('✅ Patrimoine tile updated:', {
+                net_worth: netWorth,
+                total_assets: totalAssets,
+                total_liabilities: totalLiabilities,
+                total_items: totalItems
             });
 
-            // Update chart
-            await updateBanksChart(positions);
+            // Update chart with breakdown
+            await updatePatrimoineChart(summary.breakdown, summary.counts);
         }
 
     } catch (error) {
-        debugLogger.error('[Banks Tile] Error refreshing:', error);
+        debugLogger.error('[Patrimoine Tile] Error refreshing:', error);
 
-        if (totalValueEl) totalValueEl.textContent = '--';
-        if (accountsCountEl) accountsCountEl.textContent = '--';
-        if (currenciesCountEl) currenciesCountEl.textContent = '--';
+        if (netWorthEl) netWorthEl.textContent = '--';
+        if (assetsLiabilitiesEl) assetsLiabilitiesEl.textContent = '--';
+        if (itemsCountEl) itemsCountEl.textContent = '--';
 
         if (emptyStateEl) emptyStateEl.style.display = 'block';
-        if (statusEl) {
-            statusEl.textContent = 'Erreur';
-            statusEl.className = 'status-badge status-error';
-        }
     } finally {
         isRefreshingBanks = false;
     }
@@ -2722,7 +2694,7 @@ async function refreshGlobalTile() {
             const modules = [
                 { name: 'Crypto', icon: '₿', value: data.breakdown.crypto, color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)' },
                 { name: 'Bourse', icon: '📈', value: data.breakdown.saxo, color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)' },
-                { name: 'Banque', icon: '💰', value: data.breakdown.banks, color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' }
+                { name: 'Patrimoine', icon: '💼', value: data.breakdown.patrimoine, color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' }
             ].filter(m => m.value > 0);
 
             breakdownEl.innerHTML = modules.map(m => {
@@ -3082,7 +3054,7 @@ async function updateSystemStatus() {
 
 // Make functions globally available for onclick
 window.refreshSaxoTile = refreshSaxoTile;
-window.refreshBanksTile = refreshBanksTile;
+window.refreshPatrimoineTile = refreshPatrimoineTile;
 window.refreshGlobalTile = refreshGlobalTile;
 window.loadMarketRegimes = loadMarketRegimes;
 window.loadRiskAlerts = loadRiskAlerts;

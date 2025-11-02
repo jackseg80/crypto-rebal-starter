@@ -549,7 +549,7 @@ async def global_summary(
     bourse_file_key: Optional[str] = Query(None, description="Bourse file key for specific CSV selection")
 ) -> dict:
     """
-    Agrégation globale de tous les modules wealth (crypto + saxo + banks).
+    Agrégation globale de tous les modules wealth (crypto + saxo + patrimoine).
 
     Retourne un summary unifié avec total_value_usd et breakdown par module.
 
@@ -568,7 +568,7 @@ async def global_summary(
             "breakdown": {
                 "crypto": 133100.0,
                 "saxo": 423000.0,
-                "banks": 0.0
+                "patrimoine": 0.0
             },
             "user_id": "jack",
             "timestamp": "2025-10-12T..."
@@ -579,7 +579,7 @@ async def global_summary(
     breakdown = {
         "crypto": 0.0,
         "saxo": 0.0,
-        "banks": 0.0
+        "patrimoine": 0.0
     }
 
     # 1) Crypto
@@ -633,14 +633,18 @@ async def global_summary(
     except Exception as e:
         logger.error(f"[wealth][global] ❌ saxo failed for user={user}: {e}", exc_info=True)
 
-    # 3) Banks
+    # 3) Patrimoine (net worth: actifs - passifs)
     try:
-        if await _module_available("banks", user):
-            banks_positions = await banks_adapter.list_positions(user_id=user)
-            breakdown["banks"] = sum((p.market_value or 0.0) for p in banks_positions)
-            logger.info(f"[wealth][global] banks={breakdown['banks']:.2f} USD for user={user}")
+        from services.wealth import patrimoine_service
+
+        logger.info(f"[wealth][global] 🔍 Loading Patrimoine summary for user={user}")
+        patrimoine_summary = patrimoine_service.get_summary(user_id=user)
+
+        # Use net_worth (assets - liabilities) for accurate wealth representation
+        breakdown["patrimoine"] = patrimoine_summary.get("net_worth", 0.0)
+        logger.info(f"[wealth][global] ✅ patrimoine={breakdown['patrimoine']:.2f} USD (net worth) for user={user}")
     except Exception as e:
-        logger.warning(f"[wealth][global] banks failed for user={user}: {e}")
+        logger.warning(f"[wealth][global] ⚠️ patrimoine failed for user={user}: {e}")
 
     total_value_usd = sum(breakdown.values())
 

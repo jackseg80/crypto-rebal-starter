@@ -583,37 +583,37 @@
                 </div>
             </div>
 
-            <!-- Banque (Banks) Overview -->
+            <!-- Patrimoine (Wealth) Overview -->
             <div class="card level-1" id="banque" draggable="true"
-                data-tooltip="Vue d'ensemble de vos comptes bancaires (comptes courants, épargne)."
-                data-source="API /api/wealth/banks/positions">
+                data-tooltip="Vue d'ensemble de votre patrimoine : liquidités, biens réels, passifs et assurances."
+                data-source="API /api/wealth/patrimoine/summary">
                 <div class="card-header">
-                    <a href="banks-manager.html" class="card-title" style="text-decoration: none; color: inherit;">
-                        <span class="card-icon">💰</span>Banque
+                    <a href="wealth-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
+                        <span class="card-icon">💼</span>Patrimoine
                     </a>
                 </div>
 
                 <div class="metric">
-                    <span class="metric-label">Valeur Totale</span>
-                    <span class="metric-value" id="banks-total-value">--</span>
+                    <span class="metric-label">Net Worth</span>
+                    <span class="metric-value" id="patrimoine-net-worth">--</span>
                 </div>
 
                 <div class="metric">
-                    <span class="metric-label">Comptes</span>
-                    <span class="metric-value" id="banks-accounts-count">--</span>
+                    <span class="metric-label">Actifs / Passifs</span>
+                    <span class="metric-value" id="patrimoine-assets-liabilities" style="font-size: 0.85rem;">--</span>
                 </div>
 
                 <div class="metric">
-                    <span class="metric-label">Devises</span>
-                    <span class="metric-value" id="banks-currencies-count">--</span>
+                    <span class="metric-label">Items</span>
+                    <span class="metric-value" id="patrimoine-items-count">--</span>
                 </div>
 
-                <div class="portfolio-chart" id="banks-chart" style="height: 140px; margin-top: 12px;">
-                    <canvas id="banksChartCanvas"></canvas>
+                <div class="portfolio-chart" id="patrimoine-chart" style="height: 140px; margin-top: 12px;">
+                    <canvas id="patrimoineChartCanvas"></canvas>
                 </div>
 
                 <!-- Export Button -->
-                <button id="banks-export-btn" class="action-btn secondary" style="margin-top: 12px; width: 100%;">
+                <button id="patrimoine-export-btn" class="action-btn secondary" style="margin-top: 12px; width: 100%;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>
@@ -622,10 +622,10 @@
                     Export Lists
                 </button>
 
-                <div id="banks-empty-state"
+                <div id="patrimoine-empty-state"
                     style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;margin-top:12px;">
-                    Aucun compte bancaire.<br>
-                    <a href="banks-manager.html" style="color:var(--theme-accent);">Ajoutez-en un maintenant</a>
+                    Aucun actif patrimonial.<br>
+                    <a href="wealth-dashboard.html" style="color:var(--theme-accent);">Ajoutez-en un maintenant</a>
                 </div>
             </div>
         </div>

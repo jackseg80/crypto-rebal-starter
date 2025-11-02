@@ -95,9 +95,20 @@ Structure :
 - Menu principal : "Banque" → "Patrimoine"
 - Lien : `wealth-dashboard.html`
 
-**Redirection** ([static/banks-manager.html](../static/banks-manager.html))
-- Ancien fichier converti en redirection automatique
-- Redirige vers `wealth-dashboard.html?tab=liquidity`
+**Redirection** ([static/banks-manager.html](../static/banks-manager.html), [static/banks-dashboard.html](../static/banks-dashboard.html))
+- Anciens fichiers convertis en redirection automatique
+- Redirigent vers `wealth-dashboard.html?tab=liquidity`
+
+**Dashboard Principal** ([static/dashboard.html](../static/dashboard.html:586-630))
+- Tuile "Patrimoine" dans le dashboard principal (Niveau 1)
+- Affiche : Net Worth, Actifs/Passifs, Items count
+- Graphique doughnut chart avec breakdown par catégorie
+- Bouton Export Lists
+
+**Global Overview** ([api/wealth_endpoints.py](../api/wealth_endpoints.py:544-652))
+- Intégration dans `/api/wealth/global/summary`
+- Affiche le **Net Worth** (actifs - passifs) dans le breakdown global
+- Cohérent avec modules Crypto et Bourse
 
 ## Données
 
