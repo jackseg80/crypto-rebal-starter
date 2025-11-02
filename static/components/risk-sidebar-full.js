@@ -4,6 +4,9 @@
 
 import { fetchRisk, waitForGlobalEventOrTimeout } from './utils.js';
 
+// Safe debugLogger avec fallback
+const debugLogger = window.debugLogger || console;
+
 /**
  * Normalise la réponse API vers le contrat RiskState attendu par _updateFromState()
  * Tolère structure à plat ou imbriquée sous { risk: {...} }
