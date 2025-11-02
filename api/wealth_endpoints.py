@@ -18,6 +18,8 @@ from models.wealth import (
     ProposedTrade,
     BankAccountInput,
     BankAccountOutput,
+    PatrimoineItemInput,
+    PatrimoineItemOutput,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,7 +48,172 @@ def _ensure_module(module: str) -> None:
         raise HTTPException(status_code=404, detail="unknown_module")
 
 
-# ===== Banks CRUD Endpoints (MUST be before generic /{module} routes) =====
+# ===== Patrimoine CRUD Endpoints (NEW - Oct 2025) =====
+
+
+@router.get("/patrimoine/items", response_model=list)
+async def list_patrimoine_items(
+    user: str = Depends(get_active_user),
+    category: Optional[str] = Query(None, regex="^(liquidity|tangible|liability|insurance)$"),
+    type: Optional[str] = Query(None, description="Item type filter")
+):
+    """
+    List all patrimoine items for user with optional filters.
+
+    Args:
+        user: Active user ID (injected via Depends)
+        category: Optional category filter
+        type: Optional type filter
+
+    Returns:
+        List of PatrimoineItemOutput with USD conversions
+    """
+    from services.wealth.patrimoine_service import list_items
+
+    items = list_items(user, category=category, type=type)
+    logger.info(f"[wealth][patrimoine] listed {len(items)} items for user={user}")
+    return items
+
+
+@router.get("/patrimoine/items/{item_id}")
+async def get_patrimoine_item(
+    item_id: str,
+    user: str = Depends(get_active_user)
+):
+    """Get a specific patrimoine item by ID."""
+    from services.wealth.patrimoine_service import get_item
+
+    item = get_item(user, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="item_not_found")
+
+    logger.info(f"[wealth][patrimoine] retrieved item id={item_id} user={user}")
+    return item
+
+
+@router.post("/patrimoine/items", status_code=201)
+async def create_patrimoine_item(
+    item: "PatrimoineItemInput",
+    user: str = Depends(get_active_user)
+):
+    """
+    Create a new patrimoine item for the user.
+
+    Args:
+        item: Patrimoine item data
+        user: Active user ID (injected via Depends)
+
+    Returns:
+        PatrimoineItemOutput with generated ID and USD conversion
+    """
+    from services.wealth.patrimoine_service import create_item
+
+    new_item = create_item(user, item)
+    logger.info(
+        f"[wealth][patrimoine] item created id={new_item.id} user={user} category={item.category}"
+    )
+    return new_item
+
+
+@router.put("/patrimoine/items/{item_id}")
+async def update_patrimoine_item(
+    item_id: str,
+    item: "PatrimoineItemInput",
+    user: str = Depends(get_active_user)
+):
+    """
+    Update an existing patrimoine item.
+
+    Args:
+        item_id: Item ID to update
+        item: Updated item data
+        user: Active user ID (injected via Depends)
+
+    Returns:
+        Updated PatrimoineItemOutput
+
+    Raises:
+        HTTPException 404 if item not found
+    """
+    from services.wealth.patrimoine_service import update_item
+
+    updated_item = update_item(user, item_id, item)
+    if not updated_item:
+        logger.warning(f"[wealth][patrimoine] item not found id={item_id} user={user}")
+        raise HTTPException(status_code=404, detail="item_not_found")
+
+    logger.info(f"[wealth][patrimoine] item updated id={item_id} user={user}")
+    return updated_item
+
+
+@router.delete("/patrimoine/items/{item_id}", status_code=204)
+async def delete_patrimoine_item(
+    item_id: str,
+    user: str = Depends(get_active_user)
+):
+    """
+    Delete a patrimoine item.
+
+    Args:
+        item_id: Item ID to delete
+        user: Active user ID (injected via Depends)
+
+    Returns:
+        204 No Content on success
+
+    Raises:
+        HTTPException 404 if item not found
+    """
+    from services.wealth.patrimoine_service import delete_item
+
+    deleted = delete_item(user, item_id)
+    if not deleted:
+        logger.warning(f"[wealth][patrimoine] item not found for deletion id={item_id} user={user}")
+        raise HTTPException(status_code=404, detail="item_not_found")
+
+    logger.info(f"[wealth][patrimoine] item deleted id={item_id} user={user}")
+
+
+@router.get("/patrimoine/summary")
+async def get_patrimoine_summary(
+    user: str = Depends(get_active_user)
+):
+    """
+    Get patrimoine summary for user.
+
+    Returns breakdown by category with total net worth in USD.
+
+    Args:
+        user: Active user ID (injected via Depends)
+
+    Returns:
+        Dict with net_worth, breakdown by category, and counts
+    """
+    from services.wealth.patrimoine_service import get_summary
+
+    summary = get_summary(user)
+    logger.info(f"[wealth][patrimoine] summary generated for user={user} net_worth={summary['net_worth']:.2f}")
+    return summary
+
+
+# ===== Banks CRUD Endpoints (RETROCOMPAT - redirects to patrimoine) =====
+
+
+def _patrimoine_to_bank_account(item: PatrimoineItemOutput) -> BankAccountOutput:
+    """Convert PatrimoineItemOutput to BankAccountOutput for retrocompat."""
+    # Extract bank_name and account_type from metadata
+    metadata = item.metadata or {}
+    bank_name = metadata.get("bank_name", "Unknown Bank")
+    account_type = metadata.get("account_type", "other")
+
+    return BankAccountOutput(
+        id=item.id,
+        bank_name=bank_name,
+        account_type=account_type,
+        balance=item.value,
+        currency=item.currency,
+        balance_usd=item.value_usd,
+    )
 
 
 @router.get("/banks/accounts", response_model=list[BankAccountOutput])
@@ -56,35 +223,23 @@ async def list_bank_accounts(
     """
     List all bank accounts for user with balance_usd calculated.
 
+    RETROCOMPAT: This endpoint now redirects to patrimoine service internally.
+
     Args:
         user: Active user ID (injected via Depends)
 
     Returns:
         List of BankAccountOutput with USD conversions
     """
-    from services.fx_service import convert as fx_convert
+    from services.wealth.patrimoine_service import list_items
 
-    # Load snapshot
-    snapshot = banks_adapter.load_snapshot(user)
-    accounts = snapshot.get("accounts", [])
+    # Get patrimoine items filtered by category=liquidity and type=bank_account
+    items = list_items(user, category="liquidity", type="bank_account")
 
-    # Build output with USD conversions
-    result = []
-    for account in accounts:
-        balance = account.get("balance", 0)
-        currency = account.get("currency", "USD").upper()
-        balance_usd = fx_convert(balance, currency, "USD")
+    # Convert to BankAccountOutput format
+    result = [_patrimoine_to_bank_account(item) for item in items]
 
-        result.append(BankAccountOutput(
-            id=account.get("id"),
-            bank_name=account.get("bank_name"),
-            account_type=account.get("account_type"),
-            balance=balance,
-            currency=currency,
-            balance_usd=balance_usd
-        ))
-
-    logger.info("[wealth][banks] listed %s accounts for user=%s", len(result), user)
+    logger.info("[wealth][banks][retrocompat] listed %s accounts for user=%s", len(result), user)
     return result
 
 
@@ -95,6 +250,8 @@ async def create_bank_account(
 ) -> BankAccountOutput:
     """
     Create a new bank account for the user.
+
+    RETROCOMPAT: This endpoint now redirects to patrimoine service internally.
 
     Args:
         account: Bank account data (bank_name, account_type, balance, currency)
@@ -112,47 +269,35 @@ async def create_bank_account(
             "currency": "CHF"
         }
     """
-    import uuid
-    from services.fx_service import convert as fx_convert
+    from services.wealth.patrimoine_service import create_item
 
-    # Load current snapshot
-    snapshot = banks_adapter.load_snapshot(user)
-    accounts = snapshot.get("accounts", [])
+    # Convert BankAccountInput to PatrimoineItemInput
+    patrimoine_item = PatrimoineItemInput(
+        name=f"{account.bank_name} ({account.account_type})",
+        category="liquidity",
+        type="bank_account",
+        value=account.balance,
+        currency=account.currency,
+        acquisition_date=None,
+        notes=None,
+        metadata={
+            "bank_name": account.bank_name,
+            "account_type": account.account_type,
+        },
+    )
 
-    # Generate unique ID
-    account_id = str(uuid.uuid4())
-
-    # Create new account dict
-    new_account = {
-        "id": account_id,
-        "bank_name": account.bank_name,
-        "account_type": account.account_type,
-        "balance": account.balance,
-        "currency": account.currency.upper(),
-    }
-
-    # Append and save
-    accounts.append(new_account)
-    banks_adapter.save_snapshot({"accounts": accounts}, user)
-
-    # Calculate USD value for response
-    balance_usd = fx_convert(account.balance, account.currency.upper(), "USD")
+    # Create using patrimoine service
+    new_item = create_item(user, patrimoine_item)
 
     logger.info(
-        "[wealth][banks] account created id=%s user=%s bank=%s",
-        account_id,
+        "[wealth][banks][retrocompat] account created id=%s user=%s bank=%s",
+        new_item.id,
         user,
         account.bank_name
     )
 
-    return BankAccountOutput(
-        id=account_id,
-        bank_name=account.bank_name,
-        account_type=account.account_type,
-        balance=account.balance,
-        currency=account.currency.upper(),
-        balance_usd=balance_usd,
-    )
+    # Convert back to BankAccountOutput
+    return _patrimoine_to_bank_account(new_item)
 
 
 @router.put("/banks/accounts/{account_id}", response_model=BankAccountOutput)
@@ -163,6 +308,8 @@ async def update_bank_account(
 ) -> BankAccountOutput:
     """
     Update an existing bank account.
+
+    RETROCOMPAT: This endpoint now redirects to patrimoine service internally.
 
     Args:
         account_id: Account ID to update
@@ -175,51 +322,39 @@ async def update_bank_account(
     Raises:
         HTTPException 404 if account not found
     """
-    from services.fx_service import convert as fx_convert
+    from services.wealth.patrimoine_service import update_item
 
-    # Load current snapshot
-    snapshot = banks_adapter.load_snapshot(user)
-    accounts = snapshot.get("accounts", [])
+    # Convert BankAccountInput to PatrimoineItemInput
+    patrimoine_item = PatrimoineItemInput(
+        name=f"{account.bank_name} ({account.account_type})",
+        category="liquidity",
+        type="bank_account",
+        value=account.balance,
+        currency=account.currency,
+        acquisition_date=None,
+        notes=None,
+        metadata={
+            "bank_name": account.bank_name,
+            "account_type": account.account_type,
+        },
+    )
 
-    # Find and update account
-    found = False
-    for i, acc in enumerate(accounts):
-        if acc.get("id") == account_id:
-            accounts[i] = {
-                "id": account_id,
-                "bank_name": account.bank_name,
-                "account_type": account.account_type,
-                "balance": account.balance,
-                "currency": account.currency.upper(),
-            }
-            found = True
-            break
+    # Update using patrimoine service
+    updated_item = update_item(user, account_id, patrimoine_item)
 
-    if not found:
-        logger.warning("[wealth][banks] account not found id=%s user=%s", account_id, user)
+    if not updated_item:
+        logger.warning("[wealth][banks][retrocompat] account not found id=%s user=%s", account_id, user)
         raise HTTPException(status_code=404, detail="account_not_found")
 
-    # Save updated snapshot
-    banks_adapter.save_snapshot({"accounts": accounts}, user)
-
-    # Calculate USD value for response
-    balance_usd = fx_convert(account.balance, account.currency.upper(), "USD")
-
     logger.info(
-        "[wealth][banks] account updated id=%s user=%s bank=%s",
+        "[wealth][banks][retrocompat] account updated id=%s user=%s bank=%s",
         account_id,
         user,
         account.bank_name
     )
 
-    return BankAccountOutput(
-        id=account_id,
-        bank_name=account.bank_name,
-        account_type=account.account_type,
-        balance=account.balance,
-        currency=account.currency.upper(),
-        balance_usd=balance_usd,
-    )
+    # Convert back to BankAccountOutput
+    return _patrimoine_to_bank_account(updated_item)
 
 
 @router.delete("/banks/accounts/{account_id}", status_code=204)
@@ -229,6 +364,8 @@ async def delete_bank_account(
 ):
     """
     Delete a bank account.
+
+    RETROCOMPAT: This endpoint now redirects to patrimoine service internally.
 
     Args:
         account_id: Account ID to delete
@@ -240,22 +377,16 @@ async def delete_bank_account(
     Raises:
         HTTPException 404 if account not found
     """
-    # Load current snapshot
-    snapshot = banks_adapter.load_snapshot(user)
-    accounts = snapshot.get("accounts", [])
+    from services.wealth.patrimoine_service import delete_item
 
-    # Filter out account to delete
-    initial_count = len(accounts)
-    filtered_accounts = [acc for acc in accounts if acc.get("id") != account_id]
+    # Delete using patrimoine service
+    deleted = delete_item(user, account_id)
 
-    if len(filtered_accounts) == initial_count:
-        logger.warning("[wealth][banks] account not found for deletion id=%s user=%s", account_id, user)
+    if not deleted:
+        logger.warning("[wealth][banks][retrocompat] account not found for deletion id=%s user=%s", account_id, user)
         raise HTTPException(status_code=404, detail="account_not_found")
 
-    # Save updated snapshot
-    banks_adapter.save_snapshot({"accounts": filtered_accounts}, user)
-
-    logger.info("[wealth][banks] account deleted id=%s user=%s", account_id, user)
+    logger.info("[wealth][banks][retrocompat] account deleted id=%s user=%s", account_id, user)
 
 
 # ===== Generic Wealth Endpoints =====

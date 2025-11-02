@@ -115,6 +115,53 @@ class BankAccountOutput(WealthBaseModel):
     balance_usd: Optional[float] = Field(default=None, description="Balance converted to USD")
 
 
+# ===== Patrimoine Models (Phase 1 - Oct 2025) =====
+
+
+class PatrimoineItemInput(BaseModel):
+    """Input model for creating/updating patrimoine items (mutable for forms)."""
+
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    name: str = Field(..., min_length=1, max_length=200, description="Item name (e.g., 'Maison Lyon', 'Revolut')")
+    category: Literal["liquidity", "tangible", "liability", "insurance"] = Field(
+        ..., description="Item category"
+    )
+    type: Literal[
+        "bank_account",
+        "neobank",
+        "cash",
+        "real_estate",
+        "vehicle",
+        "precious_metals",
+        "credit_card",
+        "mortgage",
+        "loan",
+        "life_insurance",
+        "investment_insurance",
+    ] = Field(..., description="Item type within category")
+    value: float = Field(..., description="Current value (positive for assets, negative for liabilities)")
+    currency: str = Field(..., pattern="^(CHF|EUR|USD|GBP)$", description="Currency (ISO 4217)")
+    acquisition_date: Optional[str] = Field(default=None, description="Acquisition date (YYYY-MM-DD)")
+    notes: Optional[str] = Field(default=None, max_length=500, description="Free-form notes")
+    metadata: Optional[dict] = Field(default_factory=dict, description="Type-specific metadata (JSON)")
+
+
+class PatrimoineItemOutput(WealthBaseModel):
+    """Output model for patrimoine items with computed fields."""
+
+    id: str = Field(..., description="Unique item identifier")
+    name: str = Field(..., description="Item name")
+    category: str = Field(..., description="Item category")
+    type: str = Field(..., description="Item type")
+    value: float = Field(..., description="Current value")
+    currency: str = Field(..., description="Currency (ISO 4217)")
+    value_usd: Optional[float] = Field(default=None, description="Value converted to USD")
+    acquisition_date: Optional[str] = Field(default=None, description="Acquisition date")
+    notes: Optional[str] = Field(default=None, description="Free-form notes")
+    metadata: dict = Field(default_factory=dict, description="Type-specific metadata")
+
+
 __all__ = [
     "AccountModel",
     "InstrumentModel",
@@ -124,4 +171,6 @@ __all__ = [
     "ProposedTrade",
     "BankAccountInput",
     "BankAccountOutput",
+    "PatrimoineItemInput",
+    "PatrimoineItemOutput",
 ]

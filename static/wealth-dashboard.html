@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💼 Patrimoine - SmartFolio</title>
+    <link rel="stylesheet" href="shared-theme.css">
+    <link rel="stylesheet" href="theme-compat.css">
+    <script type="module" src="components/nav.js"></script>
+    <script type="module">
+        import { initDeepLinks } from './components/deep-links.js';
+        import { wealthContextBar } from './components/WealthContextBar.js';
+        import { safeFetch } from './modules/http.js';
+
+        initDeepLinks({
+            'overview': 'Vue d\'ensemble',
+            'liquidity': 'Liquidités',
+            'tangible': 'Biens réels',
+            'liability': 'Passifs',
+            'insurance': 'Assurances'
+        });
+
+        window.wealthContextBar = wealthContextBar;
+        window.safeFetch = safeFetch;
+    </script>
+    <script src="debug-logger.js"></script>
+    <script src="global-config.js"></script>
+    <script src="appearance.js"></script>
+
+    <!-- Chart.js for graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <style>
+        .container {
+            width: 100%;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            max-width: none;
+        }
+
+        @media (min-width: 2000px) {
+            .container {
+                padding: 1rem 4rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+        }
+
+        /* Net Worth Dashboard */
+        .net-worth-dashboard {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .net-worth-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .net-worth-value {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--brand-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .net-worth-label {
+            color: var(--theme-text-muted);
+            font-size: 1rem;
+        }
+
+        .net-worth-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .net-worth-card {
+            background: var(--theme-bg);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .net-worth-card-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .net-worth-card-value.positive {
+            color: var(--success);
+        }
+
+        .net-worth-card-value.negative {
+            color: var(--danger);
+        }
+
+        .net-worth-card-label {
+            color: var(--theme-text-muted);
+            font-size: 0.875rem;
+        }
+
+        .net-worth-card-count {
+            color: var(--theme-text-muted);
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Tabs */
+        .tabs-container {
+            background: var(--theme-surface);
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .tabs-header {
+            display: flex;
+            background: var(--theme-bg);
+            border-bottom: 1px solid var(--theme-border);
+            overflow-x: auto;
+        }
+
+        .tab-button {
+            flex: 1;
+            min-width: 150px;
+            padding: 1rem 1.5rem;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--theme-text-muted);
+            transition: all 0.2s;
+        }
+
+        .tab-button:hover {
+            background: var(--theme-surface);
+            color: var(--theme-text);
+        }
+
+        .tab-button.active {
+            color: var(--brand-primary);
+            border-bottom-color: var(--brand-primary);
+            background: var(--theme-surface);
+        }
+
+        .tab-content {
+            padding: 2rem;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Tables */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--theme-border);
+            background: var(--brand-primary);
+            color: white;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            background: var(--theme-surface);
+            color: var(--theme-text);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 2rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: var(--theme-bg);
+        }
+
+        th {
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--theme-text-muted);
+            border-bottom: 1px solid var(--theme-border);
+        }
+
+        td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--theme-border);
+        }
+
+        tbody tr:hover {
+            background: var(--theme-bg);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--theme-text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--theme-surface);
+            border-radius: var(--radius-lg);
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--theme-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--theme-text-muted);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            padding: 1.5rem;
+            border-top: 1px solid var(--theme-border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--theme-border);
+            border-radius: var(--radius-md);
+            background: var(--theme-bg);
+            color: var(--theme-text);
+            font-size: 0.875rem;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--brand-primary);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-liquidity {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .badge-tangible {
+            background: #10b981;
+            color: white;
+        }
+
+        .badge-liability {
+            background: #ef4444;
+            color: white;
+        }
+
+        .badge-insurance {
+            background: #8b5cf6;
+            color: white;
+        }
+
+        .text-success {
+            color: var(--success);
+        }
+
+        .text-danger {
+            color: var(--danger);
+        }
+
+        .text-muted {
+            color: var(--theme-text-muted);
+        }
+    </style>
+</head>
+
+<body>
+    <nav-header></nav-header>
+
+    <div class="container">
+        <!-- Net Worth Dashboard -->
+        <div class="net-worth-dashboard" id="overview">
+            <div class="net-worth-header">
+                <div class="net-worth-value" id="netWorthValue">-</div>
+                <div class="net-worth-label">Patrimoine Net (Net Worth)</div>
+            </div>
+
+            <div class="net-worth-grid">
+                <div class="net-worth-card">
+                    <div class="net-worth-card-value positive" id="assetsValue">-</div>
+                    <div class="net-worth-card-label">Total Actifs</div>
+                    <div class="net-worth-card-count" id="assetsCount">-</div>
+                </div>
+
+                <div class="net-worth-card">
+                    <div class="net-worth-card-value negative" id="liabilitiesValue">-</div>
+                    <div class="net-worth-card-label">Total Passifs</div>
+                    <div class="net-worth-card-count" id="liabilitiesCount">-</div>
+                </div>
+
+                <div class="net-worth-card">
+                    <div class="net-worth-card-value" id="liquidityValue">-</div>
+                    <div class="net-worth-card-label">Liquidités</div>
+                    <div class="net-worth-card-count" id="liquidityCount">-</div>
+                </div>
+
+                <div class="net-worth-card">
+                    <div class="net-worth-card-value" id="tangibleValue">-</div>
+                    <div class="net-worth-card-label">Biens Réels</div>
+                    <div class="net-worth-card-count" id="tangibleCount">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Container -->
+        <div class="tabs-container">
+            <div class="tabs-header">
+                <button class="tab-button active" data-tab="liquidity" id="liquidity">
+                    💰 Liquidités
+                </button>
+                <button class="tab-button" data-tab="tangible" id="tangible">
+                    🏠 Biens Réels
+                </button>
+                <button class="tab-button" data-tab="liability" id="liability">
+                    💳 Passifs
+                </button>
+                <button class="tab-button" data-tab="insurance" id="insurance">
+                    🛡️ Assurances
+                </button>
+            </div>
+
+            <!-- Liquidity Tab -->
+            <div class="tab-content active" data-tab-content="liquidity">
+                <div class="section-header">
+                    <h2 class="section-title">Comptes Bancaires</h2>
+                    <button class="btn" onclick="openItemModal('liquidity', 'bank_account')">
+                        + Ajouter un compte
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="bankAccountsTable">
+                        <thead>
+                            <tr>
+                                <th>Nom</th>
+                                <th>Type</th>
+                                <th>Solde</th>
+                                <th>Devise</th>
+                                <th>Valeur USD</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bankAccountsBody">
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    <div class="empty-state-icon">📭</div>
+                                    <div>Aucun compte bancaire</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="section-header">
+                    <h2 class="section-title">Néobanques</h2>
+                    <button class="btn" onclick="openItemModal('liquidity', 'neobank')">
+                        + Ajouter une néobanque
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="neobanksTable">
+                        <thead>
+                            <tr>
+                                <th>Nom</th>
+                                <th>Solde</th>
+                                <th>Devise</th>
+                                <th>Valeur USD</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="neobanksBody">
+                            <tr>
+                                <td colspan="5" class="empty-state">
+                                    <div class="empty-state-icon">📭</div>
+                                    <div>Aucune néobanque</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tangible Tab -->
+            <div class="tab-content" data-tab-content="tangible">
+                <div class="section-header">
+                    <h2 class="section-title">Immobilier</h2>
+                    <button class="btn" onclick="openItemModal('tangible', 'real_estate')">
+                        + Ajouter un bien immobilier
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="realEstateTable">
+                        <thead>
+                            <tr>
+                                <th>Nom</th>
+                                <th>Valeur</th>
+                                <th>Devise</th>
+                                <th>Valeur USD</th>
+                                <th>Date acquisition</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="realEstateBody">
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    <div class="empty-state-icon">🏠</div>
+                                    <div>Aucun bien immobilier</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="section-header">
+                    <h2 class="section-title">Véhicules</h2>
+                    <button class="btn" onclick="openItemModal('tangible', 'vehicle')">
+                        + Ajouter un véhicule
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="vehiclesTable">
+                        <thead>
+                            <tr>
+                                <th>Nom</th>
+                                <th>Valeur</th>
+                                <th>Devise</th>
+                                <th>Valeur USD</th>
+                                <th>Date acquisition</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vehiclesBody">
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    <div class="empty-state-icon">🚗</div>
+                                    <div>Aucun véhicule</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Liability Tab -->
+            <div class="tab-content" data-tab-content="liability">
+                <div class="section-header">
+                    <h2 class="section-title">Prêts Immobiliers</h2>
+                    <button class="btn" onclick="openItemModal('liability', 'mortgage')">
+                        + Ajouter un prêt immobilier
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="mortgagesTable">
+                        <thead>
+                            <tr>
+                                <th>Nom</th>
+                                <th>Restant dû</th>
+                                <th>Devise</th>
+                                <th>Valeur USD</th>
+                                <th>Mensualité</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mortgagesBody">
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    <div class="empty-state-icon">🏦</div>
+                                    <div>Aucun prêt immobilier</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="section-header">
+                    <h2 class="section-title">Autres Prêts</h2>
+                    <button class="btn" onclick="openItemModal('liability', 'loan')">
+                        + Ajouter un prêt
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="loansTable">
+                        <thead>
+                            <tr>
+                                <th>Nom</th>
+                                <th>Restant dû</th>
+                                <th>Devise</th>
+                                <th>Valeur USD</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="loansBody">
+                            <tr>
+                                <td colspan="5" class="empty-state">
+                                    <div class="empty-state-icon">💸</div>
+                                    <div>Aucun autre prêt</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Insurance Tab -->
+            <div class="tab-content" data-tab-content="insurance">
+                <div class="section-header">
+                    <h2 class="section-title">Assurances Vie</h2>
+                    <button class="btn" onclick="openItemModal('insurance', 'life_insurance')">
+                        + Ajouter une assurance vie
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="lifeInsuranceTable">
+                        <thead>
+                            <tr>
+                                <th>Nom</th>
+                                <th>Valeur rachat</th>
+                                <th>Devise</th>
+                                <th>Valeur USD</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lifeInsuranceBody">
+                            <tr>
+                                <td colspan="5" class="empty-state">
+                                    <div class="empty-state-icon">🛡️</div>
+                                    <div>Aucune assurance vie</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Item Modal -->
+    <div class="modal" id="itemModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Ajouter un item</h3>
+                <button class="modal-close" onclick="closeItemModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="itemForm">
+                    <input type="hidden" id="itemId">
+                    <input type="hidden" id="itemCategory">
+                    <input type="hidden" id="itemType">
+
+                    <div class="form-group">
+                        <label class="form-label">Nom *</label>
+                        <input type="text" class="form-control" id="itemName" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Valeur *</label>
+                            <input type="number" step="0.01" class="form-control" id="itemValue" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Devise *</label>
+                            <select class="form-control" id="itemCurrency" required>
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                                <option value="CHF">CHF</option>
+                                <option value="GBP">GBP</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Date d'acquisition</label>
+                        <input type="date" class="form-control" id="itemAcquisitionDate">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="itemNotes"></textarea>
+                    </div>
+
+                    <!-- Dynamic fields container -->
+                    <div id="dynamicFields"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeItemModal()">Annuler</button>
+                <button class="btn" onclick="saveItem()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // ===== State =====
+        let allItems = [];
+        let currentEditId = null;
+
+        // ===== Init =====
+        document.addEventListener('DOMContentLoaded', async () => {
+            initTabs();
+            await loadData();
+            initTabFromURL();
+        });
+
+        // ===== Tabs =====
+        function initTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tabName = button.getAttribute('data-tab');
+                    switchTab(tabName);
+                    updateURL(tabName);
+                });
+            });
+        }
+
+        function switchTab(tabName) {
+            // Update buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelector(`[data-tab-content="${tabName}"]`).classList.add('active');
+        }
+
+        function initTabFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            if (tab && ['liquidity', 'tangible', 'liability', 'insurance'].includes(tab)) {
+                switchTab(tab);
+            }
+        }
+
+        function updateURL(tab) {
+            const url = new URL(window.location);
+            url.searchParams.set('tab', tab);
+            window.history.pushState({}, '', url);
+        }
+
+        // ===== Data Loading =====
+        async function loadData() {
+            try {
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+
+                // Load summary
+                const summaryRes = await fetch('/api/wealth/patrimoine/summary', {
+                    headers: { 'X-User': activeUser }
+                });
+                const summary = await summaryRes.json();
+                updateNetWorthDashboard(summary);
+
+                // Load all items
+                const itemsRes = await fetch('/api/wealth/patrimoine/items', {
+                    headers: { 'X-User': activeUser }
+                });
+                allItems = await itemsRes.json();
+
+                // Render tables
+                renderLiquidityTables();
+                renderTangibleTables();
+                renderLiabilityTables();
+                renderInsuranceTables();
+
+            } catch (error) {
+                console.error('Error loading patrimoine data:', error);
+            }
+        }
+
+        // ===== Net Worth Dashboard =====
+        function updateNetWorthDashboard(summary) {
+            const formatUSD = (value) => {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                }).format(value);
+            };
+
+            document.getElementById('netWorthValue').textContent = formatUSD(summary.net_worth);
+            document.getElementById('assetsValue').textContent = formatUSD(summary.total_assets);
+            document.getElementById('liabilitiesValue').textContent = formatUSD(summary.total_liabilities);
+            document.getElementById('liquidityValue').textContent = formatUSD(summary.breakdown.liquidity);
+            document.getElementById('tangibleValue').textContent = formatUSD(summary.breakdown.tangible);
+
+            const totalAssets = summary.counts.liquidity + summary.counts.tangible + summary.counts.insurance;
+            document.getElementById('assetsCount').textContent = `${totalAssets} item${totalAssets > 1 ? 's' : ''}`;
+            document.getElementById('liabilitiesCount').textContent = `${summary.counts.liability} item${summary.counts.liability > 1 ? 's' : ''}`;
+            document.getElementById('liquidityCount').textContent = `${summary.counts.liquidity} item${summary.counts.liquidity > 1 ? 's' : ''}`;
+            document.getElementById('tangibleCount').textContent = `${summary.counts.tangible} item${summary.counts.tangible > 1 ? 's' : ''}`;
+        }
+
+        // ===== Render Tables =====
+        function renderLiquidityTables() {
+            const bankAccounts = allItems.filter(i => i.category === 'liquidity' && i.type === 'bank_account');
+            const neobanks = allItems.filter(i => i.category === 'liquidity' && i.type === 'neobank');
+
+            renderTable('bankAccountsBody', bankAccounts, renderBankAccountRow);
+            renderTable('neobanksBody', neobanks, renderNeobankRow);
+        }
+
+        function renderTangibleTables() {
+            const realEstate = allItems.filter(i => i.category === 'tangible' && i.type === 'real_estate');
+            const vehicles = allItems.filter(i => i.category === 'tangible' && i.type === 'vehicle');
+
+            renderTable('realEstateBody', realEstate, renderRealEstateRow);
+            renderTable('vehiclesBody', vehicles, renderVehicleRow);
+        }
+
+        function renderLiabilityTables() {
+            const mortgages = allItems.filter(i => i.category === 'liability' && i.type === 'mortgage');
+            const loans = allItems.filter(i => i.category === 'liability' && i.type === 'loan');
+
+            renderTable('mortgagesBody', mortgages, renderMortgageRow);
+            renderTable('loansBody', loans, renderLoanRow);
+        }
+
+        function renderInsuranceTables() {
+            const lifeInsurance = allItems.filter(i => i.category === 'insurance' && i.type === 'life_insurance');
+            renderTable('lifeInsuranceBody', lifeInsurance, renderLifeInsuranceRow);
+        }
+
+        function renderTable(bodyId, items, rowRenderer) {
+            const tbody = document.getElementById(bodyId);
+            if (items.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <div>Aucune donnée</div>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                tbody.innerHTML = items.map(rowRenderer).join('');
+            }
+        }
+
+        // ===== Row Renderers =====
+        const formatCurrency = (value, currency) => {
+            return new Intl.NumberFormat('fr-FR', {
+                style: 'currency',
+                currency: currency
+            }).format(Math.abs(value));
+        };
+
+        const formatUSD = (value) => {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(Math.abs(value));
+        };
+
+        function renderBankAccountRow(item) {
+            const metadata = item.metadata || {};
+            return `
+                <tr>
+                    <td>${item.name}</td>
+                    <td><span class="badge badge-liquidity">${metadata.account_type || 'other'}</span></td>
+                    <td>${formatCurrency(item.value, item.currency)}</td>
+                    <td>${item.currency}</td>
+                    <td>${formatUSD(item.value_usd)}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="editItem('${item.id}')">✏️</button>
+                        <button class="btn btn-danger" onclick="deleteItem('${item.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderNeobankRow(item) {
+            return `
+                <tr>
+                    <td>${item.name}</td>
+                    <td>${formatCurrency(item.value, item.currency)}</td>
+                    <td>${item.currency}</td>
+                    <td>${formatUSD(item.value_usd)}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="editItem('${item.id}')">✏️</button>
+                        <button class="btn btn-danger" onclick="deleteItem('${item.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderRealEstateRow(item) {
+            return `
+                <tr>
+                    <td>${item.name}</td>
+                    <td>${formatCurrency(item.value, item.currency)}</td>
+                    <td>${item.currency}</td>
+                    <td>${formatUSD(item.value_usd)}</td>
+                    <td>${item.acquisition_date || '-'}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="editItem('${item.id}')">✏️</button>
+                        <button class="btn btn-danger" onclick="deleteItem('${item.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderVehicleRow(item) {
+            return `
+                <tr>
+                    <td>${item.name}</td>
+                    <td>${formatCurrency(item.value, item.currency)}</td>
+                    <td>${item.currency}</td>
+                    <td>${formatUSD(item.value_usd)}</td>
+                    <td>${item.acquisition_date || '-'}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="editItem('${item.id}')">✏️</button>
+                        <button class="btn btn-danger" onclick="deleteItem('${item.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderMortgageRow(item) {
+            const metadata = item.metadata || {};
+            return `
+                <tr>
+                    <td>${item.name}</td>
+                    <td class="text-danger">${formatCurrency(item.value, item.currency)}</td>
+                    <td>${item.currency}</td>
+                    <td class="text-danger">${formatUSD(item.value_usd)}</td>
+                    <td>${metadata.monthly_payment ? formatCurrency(metadata.monthly_payment, item.currency) : '-'}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="editItem('${item.id}')">✏️</button>
+                        <button class="btn btn-danger" onclick="deleteItem('${item.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderLoanRow(item) {
+            return `
+                <tr>
+                    <td>${item.name}</td>
+                    <td class="text-danger">${formatCurrency(item.value, item.currency)}</td>
+                    <td>${item.currency}</td>
+                    <td class="text-danger">${formatUSD(item.value_usd)}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="editItem('${item.id}')">✏️</button>
+                        <button class="btn btn-danger" onclick="deleteItem('${item.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderLifeInsuranceRow(item) {
+            return `
+                <tr>
+                    <td>${item.name}</td>
+                    <td>${formatCurrency(item.value, item.currency)}</td>
+                    <td>${item.currency}</td>
+                    <td>${formatUSD(item.value_usd)}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="editItem('${item.id}')">✏️</button>
+                        <button class="btn btn-danger" onclick="deleteItem('${item.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // ===== Modal =====
+        window.openItemModal = (category, type) => {
+            currentEditId = null;
+            document.getElementById('itemForm').reset();
+            document.getElementById('itemId').value = '';
+            document.getElementById('itemCategory').value = category;
+            document.getElementById('itemType').value = type;
+
+            // Set title
+            const titles = {
+                'bank_account': 'Compte Bancaire',
+                'neobank': 'Néobanque',
+                'real_estate': 'Bien Immobilier',
+                'vehicle': 'Véhicule',
+                'mortgage': 'Prêt Immobilier',
+                'loan': 'Prêt',
+                'life_insurance': 'Assurance Vie'
+            };
+            document.getElementById('modalTitle').textContent = `Ajouter ${titles[type] || 'un item'}`;
+
+            // Clear dynamic fields
+            document.getElementById('dynamicFields').innerHTML = '';
+
+            // Add type-specific fields
+            addDynamicFields(type);
+
+            // Show modal
+            document.getElementById('itemModal').classList.add('show');
+        };
+
+        window.closeItemModal = () => {
+            document.getElementById('itemModal').classList.remove('show');
+        };
+
+        function addDynamicFields(type) {
+            const container = document.getElementById('dynamicFields');
+
+            if (type === 'bank_account') {
+                container.innerHTML = `
+                    <div class="form-group">
+                        <label class="form-label">Type de compte</label>
+                        <select class="form-control" id="accountType">
+                            <option value="current">Compte courant</option>
+                            <option value="savings">Compte épargne</option>
+                            <option value="pel">PEL</option>
+                            <option value="livret_a">Livret A</option>
+                            <option value="other">Autre</option>
+                        </select>
+                    </div>
+                `;
+            } else if (type === 'real_estate') {
+                container.innerHTML = `
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Surface (m²)</label>
+                            <input type="number" class="form-control" id="surface">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Mensualité prêt</label>
+                            <input type="number" step="0.01" class="form-control" id="monthlyPayment">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Adresse</label>
+                        <input type="text" class="form-control" id="address">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Prêt restant</label>
+                        <input type="number" step="0.01" class="form-control" id="remainingLoan">
+                    </div>
+                `;
+            } else if (type === 'vehicle') {
+                container.innerHTML = `
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Marque</label>
+                            <input type="text" class="form-control" id="brand">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Modèle</label>
+                            <input type="text" class="form-control" id="model">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Année</label>
+                        <input type="number" class="form-control" id="year">
+                    </div>
+                `;
+            } else if (type === 'mortgage' || type === 'loan') {
+                container.innerHTML = `
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Mensualité</label>
+                            <input type="number" step="0.01" class="form-control" id="monthlyPayment">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Mois restants</label>
+                            <input type="number" class="form-control" id="remainingMonths">
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        window.editItem = (itemId) => {
+            const item = allItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            currentEditId = itemId;
+            document.getElementById('itemId').value = itemId;
+            document.getElementById('itemCategory').value = item.category;
+            document.getElementById('itemType').value = item.type;
+            document.getElementById('itemName').value = item.name;
+            document.getElementById('itemValue').value = Math.abs(item.value);
+            document.getElementById('itemCurrency').value = item.currency;
+            document.getElementById('itemAcquisitionDate').value = item.acquisition_date || '';
+            document.getElementById('itemNotes').value = item.notes || '';
+
+            const titles = {
+                'bank_account': 'Compte Bancaire',
+                'neobank': 'Néobanque',
+                'real_estate': 'Bien Immobilier',
+                'vehicle': 'Véhicule',
+                'mortgage': 'Prêt Immobilier',
+                'loan': 'Prêt',
+                'life_insurance': 'Assurance Vie'
+            };
+            document.getElementById('modalTitle').textContent = `Modifier ${titles[item.type] || 'un item'}`;
+
+            // Add dynamic fields and populate
+            addDynamicFields(item.type);
+            populateDynamicFields(item);
+
+            document.getElementById('itemModal').classList.add('show');
+        };
+
+        function populateDynamicFields(item) {
+            const metadata = item.metadata || {};
+
+            if (item.type === 'bank_account') {
+                const accountTypeEl = document.getElementById('accountType');
+                if (accountTypeEl) accountTypeEl.value = metadata.account_type || 'other';
+            } else if (item.type === 'real_estate') {
+                const surfaceEl = document.getElementById('surface');
+                const monthlyPaymentEl = document.getElementById('monthlyPayment');
+                const addressEl = document.getElementById('address');
+                const remainingLoanEl = document.getElementById('remainingLoan');
+
+                if (surfaceEl) surfaceEl.value = metadata.surface || '';
+                if (monthlyPaymentEl) monthlyPaymentEl.value = metadata.monthly_payment || '';
+                if (addressEl) addressEl.value = metadata.address || '';
+                if (remainingLoanEl) remainingLoanEl.value = metadata.remaining_loan || '';
+            } else if (item.type === 'vehicle') {
+                const brandEl = document.getElementById('brand');
+                const modelEl = document.getElementById('model');
+                const yearEl = document.getElementById('year');
+
+                if (brandEl) brandEl.value = metadata.brand || '';
+                if (modelEl) modelEl.value = metadata.model || '';
+                if (yearEl) yearEl.value = metadata.year || '';
+            } else if (item.type === 'mortgage' || item.type === 'loan') {
+                const monthlyPaymentEl = document.getElementById('monthlyPayment');
+                const remainingMonthsEl = document.getElementById('remainingMonths');
+
+                if (monthlyPaymentEl) monthlyPaymentEl.value = metadata.monthly_payment || '';
+                if (remainingMonthsEl) remainingMonthsEl.value = metadata.remaining_months || '';
+            }
+        }
+
+        window.saveItem = async () => {
+            const category = document.getElementById('itemCategory').value;
+            const type = document.getElementById('itemType').value;
+            const name = document.getElementById('itemName').value;
+            let value = parseFloat(document.getElementById('itemValue').value);
+            const currency = document.getElementById('itemCurrency').value;
+            const acquisitionDate = document.getElementById('itemAcquisitionDate').value;
+            const notes = document.getElementById('itemNotes').value;
+
+            // For liabilities, value should be negative
+            if (category === 'liability') {
+                value = -Math.abs(value);
+            }
+
+            // Build metadata
+            const metadata = {};
+
+            if (type === 'bank_account') {
+                const accountType = document.getElementById('accountType')?.value;
+                if (accountType) {
+                    metadata.bank_name = name.split('(')[0].trim();
+                    metadata.account_type = accountType;
+                }
+            } else if (type === 'real_estate') {
+                const surface = document.getElementById('surface')?.value;
+                const monthlyPayment = document.getElementById('monthlyPayment')?.value;
+                const address = document.getElementById('address')?.value;
+                const remainingLoan = document.getElementById('remainingLoan')?.value;
+
+                if (surface) metadata.surface = parseInt(surface);
+                if (monthlyPayment) metadata.monthly_payment = parseFloat(monthlyPayment);
+                if (address) metadata.address = address;
+                if (remainingLoan) metadata.remaining_loan = parseFloat(remainingLoan);
+            } else if (type === 'vehicle') {
+                const brand = document.getElementById('brand')?.value;
+                const model = document.getElementById('model')?.value;
+                const year = document.getElementById('year')?.value;
+
+                if (brand) metadata.brand = brand;
+                if (model) metadata.model = model;
+                if (year) metadata.year = parseInt(year);
+            } else if (type === 'mortgage' || type === 'loan') {
+                const monthlyPayment = document.getElementById('monthlyPayment')?.value;
+                const remainingMonths = document.getElementById('remainingMonths')?.value;
+
+                if (monthlyPayment) metadata.monthly_payment = parseFloat(monthlyPayment);
+                if (remainingMonths) metadata.remaining_months = parseInt(remainingMonths);
+            }
+
+            const payload = {
+                name,
+                category,
+                type,
+                value,
+                currency,
+                acquisition_date: acquisitionDate || null,
+                notes: notes || null,
+                metadata
+            };
+
+            try {
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+                const itemId = document.getElementById('itemId').value;
+
+                let response;
+                if (itemId) {
+                    // Update
+                    response = await fetch(`/api/wealth/patrimoine/items/${itemId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-User': activeUser
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    // Create
+                    response = await fetch('/api/wealth/patrimoine/items', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-User': activeUser
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                if (!response.ok) {
+                    throw new Error('Failed to save item');
+                }
+
+                closeItemModal();
+                await loadData();
+
+            } catch (error) {
+                console.error('Error saving item:', error);
+                alert('Erreur lors de l\'enregistrement');
+            }
+        };
+
+        window.deleteItem = async (itemId) => {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer cet item ?')) {
+                return;
+            }
+
+            try {
+                const activeUser = localStorage.getItem('activeUser') || 'demo';
+                const response = await fetch(`/api/wealth/patrimoine/items/${itemId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-User': activeUser
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to delete item');
+                }
+
+                await loadData();
+
+            } catch (error) {
+                console.error('Error deleting item:', error);
+                alert('Erreur lors de la suppression');
+            }
+        };
+
+        // Close modal on outside click
+        document.getElementById('itemModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('itemModal')) {
+                closeItemModal();
+            }
+        });
+    </script>
+</body>
+
+</html>

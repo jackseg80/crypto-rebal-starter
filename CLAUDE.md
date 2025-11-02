@@ -89,17 +89,20 @@ risk-dashboard.html     # Risk management + Governance
 rebalance.html         # Plans de rééquilibrage
 execution.html         # Exécution temps réel
 simulations.html       # Simulateur complet
+wealth-dashboard.html   # Patrimoine unifié (liquidités, biens, passifs, assurances)
 ```
 
 ### API Namespaces
 ```
-/balances/current      # Données portfolio (CSV/API)
-/portfolio/metrics     # Métriques + P&L
-/api/ml/*             # ML unifié
-/api/risk/*           # Risk management
-/api/wealth/*         # Cross-asset wealth
-/api/sources/*        # Sources System v2
-/execution/governance/* # Decision Engine
+/balances/current           # Données portfolio (CSV/API)
+/portfolio/metrics          # Métriques + P&L
+/api/ml/*                   # ML unifié
+/api/risk/*                 # Risk management
+/api/wealth/patrimoine/*    # Patrimoine (liquidités, biens, passifs, assurances)
+/api/wealth/banks/*         # Banks (retrocompat → redirige patrimoine)
+/api/wealth/*               # Cross-asset wealth (crypto, saxo, banks)
+/api/sources/*              # Sources System v2
+/execution/governance/*     # Decision Engine
 ```
 
 ### Fichiers Clés
@@ -642,6 +645,7 @@ EOF
 - **Cap Stability**: `docs/CAP_STABILITY_FIX.md` (hystérésis, anti flip-flop)
 - **P&L**: `docs/P&L_TODAY_USAGE.md`
 - **Multi-tenant**: `docs/SIMULATOR_USER_ISOLATION_FIX.md`
+- **Patrimoine**: `docs/PATRIMOINE_MODULE.md` (liquidités, biens, passifs, assurances - Nov 2025)
 - **Wealth**: `docs/TODO_WEALTH_MERGE.md`
 - **Sources**: `docs/SOURCES_MIGRATION_DATA_FOLDER.md`
 - **Logging**: `docs/LOGGING.md` (système de logs rotatifs pour debug/IA)
