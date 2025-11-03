@@ -19,13 +19,16 @@ htmlcov/
 .claude/settings.local.json
 
 # ML Models & Cache (too large, auto-generated)
-models/regime/*.pth
-models/regime/*.pkl
-models/volatility/*.pth
-models/volatility/*.pkl
+# All ML model formats
+*.pth
+*.pkl
+*.h5
+*.onnx
+*.joblib
 models/stocks/
-cache/ml_pipeline/
-cache/portfolio_optimization/
+
+# Cache directories (all cache types)
+cache/
 data/monitoring/portfolio_alerts.json
 
 # ML Predictions (generated files)
@@ -119,12 +122,14 @@ nul
 data/price_history/
 data/cache/
 
-# User data files (should not be committed)
-# Keep only demo user for examples
+# User data files (multi-tenant isolation)
+# Keep only demo user structure, ignore all real user data
 data/users/*
 !data/users/demo/
 data/users/demo/config/config.json
 data/users/demo/config/sources.json
+data/users/demo/*/data/*.csv
+data/users/demo/*/api_cache/
 data/users/demo/*/cash/
 
 # Temporary test/validation files
