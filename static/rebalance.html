@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
   <meta charset="utf-8" />
@@ -23,16 +23,16 @@
     import { initDeepLinks } from './components/deep-links.js';
     import { wealthContextBar } from './components/WealthContextBar.js';
 
-    // Ancres pour rebalance.html : #proposed-targets #optimization #funding-plan #dca-schedule #constraints
+    // Anchors for rebalance.html: #proposed-targets #optimization #funding-plan #dca-schedule #constraints
     initDeepLinks({
-      'proposed-targets': 'Objectifs Proposés',
+      'proposed-targets': 'Proposed Targets',
       'optimization': 'Optimization',
-      'funding-plan': 'Plan de Financement',
-      'dca-schedule': 'Planning DCA',
-      'constraints': 'Contraintes'
+      'funding-plan': 'Funding Plan',
+      'dca-schedule': 'DCA Schedule',
+      'constraints': 'Constraints'
     });
 
-    // Exposer wealthContextBar globalement pour usage dans le script principal
+    // Expose wealthContextBar globally for use in main script
     window.wealthContextBar = wealthContextBar;
   </script>
 
@@ -46,9 +46,9 @@
   <script type="module" src="components/flyout-panel.js"></script>
   <script type="module" src="components/risk-sidebar-full.js"></script>
   <script type="module">
-    // Adapter le layout quand la sidebar est épinglée
+    // Adapt layout when sidebar is pinned
     import { enableFlyoutLayoutAdapter } from './components/flyout-layout-adapter.js';
-    enableFlyoutLayoutAdapter('.wrap'); // Décaler uniquement le contenu, pas le menu
+    enableFlyoutLayoutAdapter('.wrap'); // Shift only content, not menu
   </script>
 
   <script type="module" src="components/tooltips.js"></script>
@@ -66,15 +66,15 @@
     <!-- Governance Panel (Decision Engine) -->
     <div id="governance-container"></div>
 
-    <!-- Stratégies de Rebalancing -->
+    <!-- Rebalancing Strategies -->
     <div id="proposed-targets" class="card" style="margin-bottom: 16px;">
       <h3 style="display:flex; align-items:center; justify-content:space-between;">
-        <span style="cursor:pointer" onclick="toggleStrategiesSection()">🎯 Stratégies Prédéfinies</span>
+        <span style="cursor:pointer" onclick="toggleStrategiesSection()">🎯 Predefined Strategies</span>
         <span style="display:flex; align-items:center; gap:8px">
-          <span class="small muted">Vue :</span>
-          <button class="btn small secondary" id="btnViewDetailed">Détaillée</button>
+          <span class="small muted">View:</span>
+          <button class="btn small secondary" id="btnViewDetailed">Detailed</button>
           <button class="btn small" id="btnViewCompact"
-            style="background: var(--theme-surface-elevated);">Compacte</button>
+            style="background: var(--theme-surface-elevated);">Compact</button>
           <span id="strategies-toggle" style="cursor:pointer; transition: transform .3s; margin-left:8px"
             onclick="toggleStrategiesSection()">▼</span>
         </span>

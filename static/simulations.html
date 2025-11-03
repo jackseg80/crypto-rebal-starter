@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Simulateur - SmartFolio</title>
+  <title>Simulator - SmartFolio</title>
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
   <link rel="stylesheet" href="components/decision-index-panel.css?v=20250130h">
@@ -14,7 +14,7 @@
     // ✅ Enregistrement datalabels (idempotent)
     if (window.Chart && window.ChartDataLabels && !window.__di_dl_registered__) {
       window.Chart.register(window.ChartDataLabels);
-      // ✅ Désactiver globalement, puis réactiver seulement sur barre empilée
+      // ✅ Disable globally, then reactivate only on stacked bar
       window.Chart.defaults.set('plugins.datalabels', { display: false });
       window.__di_dl_registered__ = true;
       console.debug('✅ chartjs-plugin-datalabels registered (global display: false)');
@@ -26,11 +26,11 @@
   <script type="module" src="components/nav.js"></script>
   <script type="module">
     import { initDeepLinks } from './components/deep-links.js';
-    // Ancres pour simulations.html : #controls #results #inspector
+    // Anchors for simulations.html: #controls #results #inspector
     initDeepLinks({
-      'controls': 'Contrôles',
-      'results': 'Résultats',
-      'inspector': 'Inspecteur'
+      'controls': 'Controls',
+      'results': 'Results',
+      'inspector': 'Inspector'
     });
   </script>
   <style>

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📈 Dashboard Bourse - SmartFolio</title>
+    <title>📈 Stock Market Dashboard - SmartFolio</title>
     <link rel="stylesheet" href="shared-theme.css">
     <link rel="stylesheet" href="theme-compat.css">
     <script type="module" src="components/nav.js"></script>
@@ -13,9 +13,9 @@
         import { wealthContextBar } from './components/WealthContextBar.js';
         import { safeFetch } from './modules/http.js';
 
-        // Ancres pour saxo-dashboard.html
+        // Anchors for saxo-dashboard.html
         initDeepLinks({
-            'overview': 'Vue d\'ensemble',
+            'overview': 'Overview',
             'positions': 'Positions',
             'allocation': 'Allocation',
             'performance': 'Performance'
@@ -45,7 +45,7 @@
 
         @media (min-width: 2000px) {
             .container {
-                padding: 1rem 4rem;  /* Plus d'espace sur très grands écrans */
+                padding: 1rem 4rem;  /* More space on very large screens */
             }
         }
 

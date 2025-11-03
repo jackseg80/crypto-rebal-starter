@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Analytics Unifiés - SmartFolio</title>
+  <title>Unified Analytics - SmartFolio</title>
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
   <link rel="stylesheet" href="components/governance-panel.css">
@@ -50,10 +50,10 @@
     window.selectEffectiveCap = selectEffectiveCap;
     window.selectGovernanceTimestamp = selectGovernanceTimestamp;
 
-    // Ancres pour analytics-unified.html - pointent vers le contenu réel
+    // Anchors for analytics-unified.html - point to actual content
     initDeepLinks({
-      'unified-root': 'Analytics Unifiés',
-      'tab-intelligence-ml': 'Intelligence ML',
+      'unified-root': 'Unified Analytics',
+      'tab-intelligence-ml': 'ML Intelligence',
       'tab-risk': 'Risk Dashboard',
       'tab-performance': 'Performance Monitor',
       'tab-cycles': 'Cycle Analysis',
@@ -77,7 +77,7 @@
 <body>
   <div id="backend-fallback-banner"
     style="display:none; background: color-mix(in oklab, var(--warning) 20%, transparent); border: 1px solid var(--warning); color: var(--theme-text); padding: .6rem; margin: .5rem auto; max-width: 95vw; border-radius: 6px;">
-    ⚠ Backend indisponible — mode prudent (cap réduit).
+    ⚠ Backend unavailable — prudent mode (reduced cap).
   </div>
   <div class="wrap">
     <!-- Governance Panel -->
@@ -92,7 +92,7 @@
       <button class="tab-btn" data-target="#tab-cycles">Cycles</button>
       <button class="tab-btn" data-target="#tab-monitoring">Monitoring</button>
       <button class="tab-btn" data-target="#tab-intelligence-ml">🤖 Intelligence ML</button>
-      <button class="btn-refresh" id="manual-refresh-onchain" title="Forcer le rafraîchissement des indicateurs on-chain">🔄 Actualiser</button>
+      <button class="btn-refresh" id="manual-refresh-onchain" title="Force refresh of on-chain indicators">🔄 Refresh</button>
     </div>
 
     <!-- Tab Panels -->

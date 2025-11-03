@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🚀 Exécution - SmartFolio</title>
+  <title>🚀 Execution - SmartFolio</title>
   <link rel="stylesheet" href="shared-theme.css">
   <link rel="stylesheet" href="theme-compat.css">
   <link rel="stylesheet" href="components/governance-panel.css">
@@ -13,15 +13,15 @@
     import { initDeepLinks } from './components/deep-links.js';
     import { wealthContextBar } from './components/WealthContextBar.js';
 
-    // Ancres pour execution.html : #orders #history #costs #venues
+    // Anchors for execution.html: #orders #history #costs #venues
     initDeepLinks({
-      'orders': 'Créer Plan',
-      'history': 'Historique',
+      'orders': 'Create Plan',
+      'history': 'History',
       'costs': 'Monitoring',
       'venues': 'Exchanges'
     });
 
-    // Exposer wealthContextBar globalement pour usage dans le script principal
+    // Expose wealthContextBar globally for use in main script
     window.wealthContextBar = wealthContextBar;
   </script>
 

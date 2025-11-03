@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8" />
@@ -11,14 +11,14 @@
     <script type="module" src="components/tooltips.js"></script>
     <script type="module">
         import { initDeepLinks } from './components/deep-links.js';
-        // Ancres pour dashboard.html : #overview #crypto #bourse #banque #divers #fx
+        // Anchors for dashboard.html: #overview #crypto #bourse #banque #divers #fx
         initDeepLinks({
-            'overview': 'Vue d\'ensemble',
+            'overview': 'Overview',
             'crypto': 'Crypto Portfolio',
-            'bourse': 'Actions & ETF',
-            'banque': 'Comptes bancaires',
-            'divers': 'Actifs divers',
-            'fx': 'Devises & Changes'
+            'bourse': 'Stocks & ETF',
+            'banque': 'Bank Accounts',
+            'divers': 'Other Assets',
+            'fx': 'Currencies & FX'
         });
     </script>
 
@@ -179,7 +179,7 @@
             background: var(--theme-surface-hover);
         }
 
-        /* Container pour graphique Chart.js */
+        /* Container for Chart.js charts */
         .portfolio-chart {
             height: 210px;
             position: relative;
@@ -455,25 +455,25 @@
 
 <body>
     <div class="wrap">
-        <!-- NIVEAU 1 : PATRIMOINE -->
+        <!-- LEVEL 1: WEALTH -->
         <div class="dashboard-grid" id="grid-niveau-1">
-            <!-- Global Overview ENRICHI -->
+            <!-- Global Overview ENHANCED -->
             <div class="card level-1" id="global" draggable="true"
-                data-tooltip="Vue d'ensemble globale de votre patrimoine (Crypto + Bourse + Banques) avec P&L Today total"
+                data-tooltip="Global overview of your wealth (Crypto + Stock Market + Banks) with total P&L Today"
                 data-source="API /api/wealth/global/summary">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🌐</span>Global Overview</div>
                 </div>
 
-                <!-- Total Global + P&L Today en tête -->
+                <!-- Total Global + P&L Today header -->
                 <div style="text-align:center;padding:12px 0;border-bottom:1px solid var(--theme-border);">
-                    <div style="font-size:0.85rem;color:var(--theme-text-muted);margin-bottom:4px;">Total Patrimoine
+                    <div style="font-size:0.85rem;color:var(--theme-text-muted);margin-bottom:4px;">Total Wealth
                     </div>
                     <div id="global-total-value" style="font-size:2rem;font-weight:900;color:var(--theme-text);">--
                     </div>
                     <div id="global-pnl-today" style="font-size:0.95rem;font-weight:600;margin-top:4px;">--</div>
 
-                    <!-- Valeurs en EUR et CHF -->
+                    <!-- Values in EUR and CHF -->
                     <div id="global-currency-conversions"
                         style="margin-top:8px;font-size:0.75rem;color:var(--theme-text-muted);">
                         <div id="global-total-eur">-- EUR</div>
@@ -481,7 +481,7 @@
                     </div>
                 </div>
 
-                <!-- Modules avec graphiques intégrés -->
+                <!-- Modules with integrated charts -->
                 <div id="global-breakdown" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
                     <!-- Module cards will be added here by JS -->
                 </div>
@@ -489,8 +489,8 @@
 
             <!-- Crypto Overview -->
             <div class="card level-1" id="crypto" draggable="true"
-                data-tooltip="Vue d'ensemble de votre portefeuille crypto avec métriques de performance"
-                data-source="API /balances/current + prix CoinGecko/CoinGlass">
+                data-tooltip="Overview of your crypto portfolio with performance metrics"
+                data-source="API /balances/current + prices CoinGecko/CoinGlass">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">₿</span>Crypto</div>
                     <div style="display:flex;gap:8px;align-items:center;">
@@ -531,23 +531,23 @@
 
                 <div id="crypto-empty-state"
                     style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;margin-top:12px;">
-                    Aucune donnée crypto.<br>
-                    <a href="settings.html#sources" style="color:var(--theme-accent);">Configurez une source dans Settings</a>
+                    No crypto data.<br>
+                    <a href="settings.html#sources" style="color:var(--theme-accent);">Configure a source in Settings</a>
                 </div>
             </div>
 
-            <!-- Bourse (Saxo) Overview -->
+            <!-- Stock Market (Saxo) Overview -->
             <div class="card level-1" id="bourse" draggable="true"
-                data-tooltip="Vue d'ensemble de votre portefeuille d'actions et ETF via Saxo Bank en lecture seule."
+                data-tooltip="Overview of your stocks and ETF portfolio via Saxo Bank in read-only mode."
                 data-source="API /api/saxo/positions (legacy)">
                 <div class="card-header">
                     <a href="saxo-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
-                        <span class="card-icon">🏦</span>Bourse
+                        <span class="card-icon">🏦</span>Stock Market
                     </a>
                 </div>
 
                 <div class="metric">
-                    <span class="metric-label">Valeur Totale</span>
+                    <span class="metric-label">Total Value</span>
                     <span class="metric-value" id="saxo-total-value">--</span>
                 </div>
 
@@ -557,7 +557,7 @@
                 </div>
 
                 <div class="metric">
-                    <span class="metric-label">Dernier Import</span>
+                    <span class="metric-label">Last Import</span>
                     <span class="metric-value" id="saxo-last-import" style="font-size:0.9rem;">--</span>
                 </div>
 
@@ -577,19 +577,19 @@
 
                 <div id="saxo-empty-state"
                     style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;margin-top:12px;">
-                    Aucune position Saxo.<br>
-                    <a href="settings.html#sources" style="color:var(--theme-accent);">Importez un fichier dans
+                    No Saxo positions.<br>
+                    <a href="settings.html#sources" style="color:var(--theme-accent);">Import a file in
                         Settings</a>
                 </div>
             </div>
 
-            <!-- Patrimoine (Wealth) Overview -->
+            <!-- Wealth Overview -->
             <div class="card level-1" id="banque" draggable="true"
-                data-tooltip="Vue d'ensemble de votre patrimoine : liquidités, biens réels, passifs et assurances."
+                data-tooltip="Overview of your wealth: cash, real estate, liabilities and insurance."
                 data-source="API /api/wealth/patrimoine/summary">
                 <div class="card-header">
                     <a href="wealth-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
-                        <span class="card-icon">💼</span>Patrimoine
+                        <span class="card-icon">💼</span>Wealth
                     </a>
                 </div>
 
@@ -599,7 +599,7 @@
                 </div>
 
                 <div class="metric">
-                    <span class="metric-label">Actifs / Passifs</span>
+                    <span class="metric-label">Assets / Liabilities</span>
                     <span class="metric-value" id="patrimoine-assets-liabilities" style="font-size: 0.85rem;">--</span>
                 </div>
 
@@ -624,18 +624,18 @@
 
                 <div id="patrimoine-empty-state"
                     style="display:none;text-align:center;color:var(--theme-text-muted);font-size:0.85rem;margin-top:12px;">
-                    Aucun actif patrimonial.<br>
-                    <a href="wealth-dashboard.html" style="color:var(--theme-accent);">Ajoutez-en un maintenant</a>
+                    No wealth assets.<br>
+                    <a href="wealth-dashboard.html" style="color:var(--theme-accent);">Add one now</a>
                 </div>
             </div>
         </div>
 
-        <!-- NIVEAU 2 : DÉCISION -->
+        <!-- LEVEL 2: DECISION -->
         <div class="dashboard-grid" id="grid-niveau-2" style="margin-top: 20px;">
             <!-- Global Insight -->
             <div class="card level-2" id="overview" draggable="true" style="grid-column: span 2;"
-                data-tooltip="Vue unifiée: décision, cycle, on-chain, risque + Phase Engine intelligent"
-                data-source="Scores unifiés du Risk Dashboard + Phase Engine">
+                data-tooltip="Unified view: decision, cycle, on-chain, risk + intelligent Phase Engine"
+                data-source="Unified scores from Risk Dashboard + Phase Engine">
                 <div class="card-header">
                     <a href="analytics-unified.html" class="card-title" style="text-decoration: none; color: inherit;">
                         <span class="card-icon">🧭</span> Global Insight
@@ -677,7 +677,7 @@
 
             <!-- Market Regime -->
             <div class="card level-2" id="market-regime" draggable="true"
-                data-tooltip="Détection intelligente des régimes de marché pour BTC, ETH et actions"
+                data-tooltip="Intelligent detection of market regimes for BTC, ETH and stocks"
                 data-source="ML Regime Detection API">
                 <div class="card-header">
                     <a href="ai-dashboard.html#regimes" class="card-title"
@@ -724,7 +724,7 @@
 
             <!-- Risk & Alerts -->
             <div class="card level-2" id="risk-alerts" draggable="true"
-                data-tooltip="Alertes de risque actives, niveau de risque portfolio et VaR"
+                data-tooltip="Active risk alerts, portfolio risk level and VaR"
                 data-source="Risk Dashboard + Governance Alerts">
                 <div class="card-header">
                     <a href="risk-dashboard.html" class="card-title" style="text-decoration: none; color: inherit;">
@@ -746,12 +746,12 @@
             </div>
         </div>
 
-        <!-- NIVEAU 3 : OPÉRATIONS & SYSTÈME -->
+        <!-- LEVEL 3: OPERATIONS & SYSTEM -->
         <div class="dashboard-grid" id="grid-niveau-3" style="margin-top: 20px;">
             <!-- Execution Status -->
             <div class="card level-3" id="card-execution" draggable="true"
-                data-tooltip="Statut des exécutions automatiques de trades avec historique des performances et volumes traités."
-                data-source="API /execution/status + logs internes">
+                data-tooltip="Status of automatic trade executions with performance history and processed volumes."
+                data-source="API /execution/status + internal logs">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🎯</span>Execution</div>
                 </div>
@@ -771,8 +771,8 @@
 
             <!-- Recent Activity -->
             <div class="card level-3" id="card-activity" draggable="true"
-                data-tooltip="Historique des dernières opérations de trading, rebalancing et événements système."
-                data-source="API /execution/history + logs système">
+                data-tooltip="History of recent trading operations, rebalancing and system events."
+                data-source="API /execution/history + system logs">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">📋</span>Activity</div>
                 </div>
@@ -781,10 +781,10 @@
                 </div>
             </div>
 
-            <!-- System Status FUSIONNÉ (Exchange + Health) -->
+            <!-- System Status MERGED (Exchange + Health) -->
             <div class="card level-3" id="card-system" draggable="true"
-                data-tooltip="État du système : connexions exchanges, APIs, fraîcheur des données et sécurité."
-                data-source="Monitoring interne + tests API + connectivité">
+                data-tooltip="System status: exchange connections, APIs, data freshness and security."
+                data-source="Internal monitoring + API tests + connectivity">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">⚡</span>System Status</div>
                 </div>
@@ -804,8 +804,8 @@
 
             <!-- Tools & Analytics -->
             <div class="card level-3" id="card-tools" draggable="true"
-                data-tooltip="Accès rapide aux outils avancés : Analytics, AI Dashboard, Optimisation et Performance."
-                data-source="Liens internes et outils avancés">
+                data-tooltip="Quick access to advanced tools: Analytics, AI Dashboard, Optimization and Performance."
+                data-source="Internal links and advanced tools">
                 <div class="card-header">
                     <div class="card-title"><span class="card-icon">🔧</span>Tools & Analytics</div>
                 </div>
