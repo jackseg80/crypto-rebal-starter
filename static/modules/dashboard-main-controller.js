@@ -905,8 +905,10 @@ async function loadRealCSVPortfolioData() {
 
         if (pnlResponse.ok) {
             const pnlData = await pnlResponse.json();
-            if (pnlData.ok && pnlData.performance && pnlData.performance.performance_available) {
-                performance = pnlData.performance;
+            // Fix: API returns pnlData.data.performance (success_response format)
+            const performanceData = pnlData.data?.performance || pnlData.performance;
+            if (pnlData.ok && performanceData && performanceData.performance_available) {
+                performance = performanceData;
                 debugLogger.debug('✅ [PNL] P&L loaded from API:', {
                     pnl: performance.absolute_change_usd,
                     pnlPct: performance.percentage_change

@@ -648,9 +648,82 @@ async def global_summary(
 
     total_value_usd = sum(breakdown.values())
 
+    # Calculate P&L Today (aggregate across all modules)
+    pnl_today = 0.0
+    pnl_today_pct = 0.0
+
+    try:
+        from services.portfolio import portfolio_analytics
+
+        # Calculate P&L for crypto module
+        if breakdown["crypto"] > 0:
+            try:
+                crypto_metrics = {"total_value_usd": breakdown["crypto"]}
+                crypto_perf = portfolio_analytics.calculate_performance_metrics(
+                    crypto_metrics,
+                    user_id=user,
+                    source=source,
+                    anchor="prev_snapshot",
+                    window="24h"
+                )
+                if crypto_perf.get("performance_available"):
+                    pnl_today += crypto_perf.get("absolute_change_usd", 0.0)
+                    logger.debug(f"[wealth][global] 💰 Crypto P&L: {crypto_perf.get('absolute_change_usd', 0.0):.2f} USD")
+            except Exception as e:
+                logger.debug(f"[wealth][global] ⚠️ Crypto P&L calculation skipped: {e}")
+
+        # Calculate P&L for saxo module (use 'saxobank' as source)
+        if breakdown["saxo"] > 0:
+            try:
+                saxo_metrics = {"total_value_usd": breakdown["saxo"]}
+                saxo_perf = portfolio_analytics.calculate_performance_metrics(
+                    saxo_metrics,
+                    user_id=user,
+                    source="saxobank",
+                    anchor="prev_snapshot",
+                    window="24h"
+                )
+                if saxo_perf.get("performance_available"):
+                    pnl_today += saxo_perf.get("absolute_change_usd", 0.0)
+                    logger.debug(f"[wealth][global] 📊 Saxo P&L: {saxo_perf.get('absolute_change_usd', 0.0):.2f} USD")
+            except Exception as e:
+                logger.debug(f"[wealth][global] ⚠️ Saxo P&L calculation skipped: {e}")
+
+        # Calculate P&L for patrimoine module (use 'patrimoine' as source)
+        if breakdown["patrimoine"] > 0:
+            try:
+                patrimoine_metrics = {"total_value_usd": breakdown["patrimoine"]}
+                patrimoine_perf = portfolio_analytics.calculate_performance_metrics(
+                    patrimoine_metrics,
+                    user_id=user,
+                    source="patrimoine",
+                    anchor="prev_snapshot",
+                    window="24h"
+                )
+                if patrimoine_perf.get("performance_available"):
+                    pnl_today += patrimoine_perf.get("absolute_change_usd", 0.0)
+                    logger.debug(f"[wealth][global] 💼 Patrimoine P&L: {patrimoine_perf.get('absolute_change_usd', 0.0):.2f} USD")
+            except Exception as e:
+                logger.debug(f"[wealth][global] ⚠️ Patrimoine P&L calculation skipped: {e}")
+
+        # Calculate percentage if we have historical data
+        if total_value_usd > 0:
+            historical_value = total_value_usd - pnl_today
+            if historical_value > 0:
+                pnl_today_pct = (pnl_today / historical_value) * 100
+
+        logger.info(f"[wealth][global] 📈 Total P&L Today: {pnl_today:.2f} USD ({pnl_today_pct:.2f}%)")
+    except Exception as e:
+        logger.warning(f"[wealth][global] ⚠️ P&L Today calculation failed: {e}")
+        # Set to 0 on error (non-blocking)
+        pnl_today = 0.0
+        pnl_today_pct = 0.0
+
     return {
         "total_value_usd": total_value_usd,
         "breakdown": breakdown,
+        "pnl_today": pnl_today,
+        "pnl_today_pct": pnl_today_pct,
         "user_id": user,
         "timestamp": datetime.utcnow().isoformat(),
     }
