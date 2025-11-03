@@ -511,7 +511,7 @@ def train_regime_model(data, epochs: int = 200, patience: int = 15):
             batch_y = batch_y.to(device, non_blocking=True)
             optimizer.zero_grad(set_to_none=True)
             with autocast('cuda', enabled=(device.type == 'cuda'), dtype=amp_dtype):
-                outputs = model(batch_X)
+                outputs, _ = model(batch_X)  # Model returns (logits, attention_weights)
                 loss = criterion(outputs, batch_y)
             if amp_scaler.is_enabled():
                 amp_scaler.scale(loss).backward()
@@ -529,7 +529,7 @@ def train_regime_model(data, epochs: int = 200, patience: int = 15):
         # Validation
         model.eval()
         with torch.no_grad():
-            val_outputs = model(X_val_tensor)
+            val_outputs, _ = model(X_val_tensor)  # Model returns (logits, attention_weights)
             val_loss = criterion(val_outputs, y_val_tensor)
             _, val_predicted = torch.max(val_outputs, 1)
             val_accuracy = accuracy_score(y_val, val_predicted.cpu().numpy())
@@ -557,7 +557,7 @@ def train_regime_model(data, epochs: int = 200, patience: int = 15):
     model.eval()
     
     with torch.no_grad():
-        test_outputs = model(X_test_tensor)
+        test_outputs, _ = model(X_test_tensor)  # Model returns (logits, attention_weights)
         _, predicted = torch.max(test_outputs, 1)
         accuracy = accuracy_score(y_test, predicted.cpu().numpy())
         
@@ -575,7 +575,7 @@ def train_regime_model(data, epochs: int = 200, patience: int = 15):
     
     # Calibration température (grid-search simple sur val)
     with torch.no_grad():
-        val_logits = model(X_val_tensor)
+        val_logits, _ = model(X_val_tensor)  # Model returns (logits, attention_weights)
     Ts = np.linspace(0.5, 3.0, 26)
     best_T = 1.0
     best_nll = float('inf')
@@ -731,13 +731,13 @@ def train_volatility_model(data, symbol="BTC", epochs: int = 200, patience: int 
         model.train()
         total_loss = 0
         num_batches = 0
-        
+
         for batch_X, batch_y in train_loader:
             batch_X = batch_X.to(device, non_blocking=True)
             batch_y = batch_y.to(device, non_blocking=True)
             optimizer.zero_grad(set_to_none=True)
             with autocast('cuda', enabled=(device.type == 'cuda'), dtype=amp_dtype):
-                outputs = model(batch_X)
+                outputs = model(batch_X)  # Volatility model returns single tensor
                 loss = criterion(outputs, batch_y)
             if amp_scaler.is_enabled():
                 amp_scaler.scale(loss).backward()
@@ -748,10 +748,10 @@ def train_volatility_model(data, symbol="BTC", epochs: int = 200, patience: int 
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
-            
+
             total_loss += loss.item()
             num_batches += 1
-        
+
         # Validation
         model.eval()
         with torch.no_grad():
