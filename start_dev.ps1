@@ -77,9 +77,10 @@ else {
         if ($LASTEXITCODE -eq 0) {
             Write-Host "   Starting Redis via WSL2..." -ForegroundColor Gray
 
-            # Auto-provide sudo password for WSL2
-            $wslPassword = "Hgbdhgbd1"
-            Write-Output $wslPassword | wsl -d Ubuntu bash -c "sudo -S service redis-server start" 2>$null
+            # Start Redis (requires NOPASSWD sudoers config)
+            # To configure: wsl -d Ubuntu sudo visudo
+            # Add line: %sudo ALL=(ALL) NOPASSWD: /usr/sbin/service redis-server *
+            wsl -d Ubuntu bash -c "sudo service redis-server start" 2>$null
 
             # Get WSL2 IP address
             $wslIP = wsl -d Ubuntu hostname -I 2>$null | ForEach-Object { $_.Trim().Split()[0] }
@@ -194,7 +195,7 @@ else {
 }
 
 # Start server
-Write-Host "�� Checking if port $Port is available..." -ForegroundColor Cyan
+Write-Host "🔌 Checking if port $Port is available..." -ForegroundColor Cyan
 Start-Sleep -Milliseconds 200 # Brief pause to allow ports to be released
 
 $portInUse = $null
@@ -209,11 +210,11 @@ if ($portInUse) {
     Write-Host "`n❌ Port $Port is already in use by another process!" -ForegroundColor Red
     Write-Host "   Please stop the existing process or use a different port." -ForegroundColor Yellow
     Write-Host "   To find the process, run: Get-Process -Id (Get-NetTCPConnection -LocalPort $Port).OwningProcess" -ForegroundColor Gray
-    Write-Host "   Example: .\\start_dev.ps1 -Port 8001`n" -ForegroundColor Gray
+    Write-Host "   Example: .\start_dev.ps1 -Port 8001`n" -ForegroundColor Gray
     exit 1
 }
 
-Write-Host "� Starting Uvicorn...`n" -ForegroundColor Cyan
+Write-Host "🚀 Starting Uvicorn...`n" -ForegroundColor Cyan
 
 if ($UseReload) {
     # For --reload, uvicorn uses single worker (--workers flag is incompatible)

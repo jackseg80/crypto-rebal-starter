@@ -138,4 +138,5 @@ data/users/demo/*/cash/
 *_report.txt
 validation_report.txt
 *_OLD.md
+analyze_*.py  # Temporary analysis scripts
 
