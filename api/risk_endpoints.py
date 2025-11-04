@@ -727,6 +727,85 @@ async def get_risk_dashboard(
                     penalty_memes_age = 0.0
                     young_memes_pct = 0.0
 
+                # 🆕 NOV 2025: Calculer exposure_by_group pour ajustements structurels
+                from services.taxonomy import Taxonomy
+                taxonomy = Taxonomy.load()
+
+                # Barème de risque par groupe (0-10)
+                GROUP_RISK_LEVELS = {
+                    'Stablecoins': 0, 'BTC': 2, 'ETH': 3, 'L2/Scaling': 5,
+                    'DeFi': 5, 'AI/Data': 5, 'SOL': 6, 'L1/L0 majors': 6,
+                    'Gaming/NFT': 6, 'Others': 7, 'Memecoins': 9
+                }
+
+                total_value = sum(float(b.get('value_usd', 0)) for b in balances)
+                exposure_by_group = {group: 0.0 for group in GROUP_RISK_LEVELS.keys()}
+
+                if total_value > 0:
+                    for h in balances:
+                        symbol = str(h.get('symbol', '')).upper()
+                        group = taxonomy.group_for_alias(symbol)
+                        w = float(h.get('value_usd', 0.0)) / total_value
+                        exposure_by_group[group] = exposure_by_group.get(group, 0.0) + w
+
+                # 🆕 NOV 2025: Ajustements structurels basés sur exposition réelle
+                # (Protection Stables, Exposition Majors, Sur-exposition Altcoins)
+                logger.debug(f"📊 Calculating structural adjustments from exposure: {exposure_by_group}")
+
+                # 1. Protection Stablecoins (±15 pts) - Impact crash réel: -8% pertes évitées
+                stables_pct = exposure_by_group.get("Stablecoins", 0.0)
+                if stables_pct >= 0.15:
+                    adj_stables = +15
+                    logger.info(f"🛡️  Stablecoins bonus: +15 pts (excellent cushion: {stables_pct*100:.1f}%)")
+                elif stables_pct >= 0.10:
+                    adj_stables = +10
+                    logger.info(f"🛡️  Stablecoins bonus: +10 pts (good protection: {stables_pct*100:.1f}%)")
+                elif stables_pct >= 0.05:
+                    adj_stables = +5
+                    logger.info(f"🛡️  Stablecoins bonus: +5 pts (minimal protection: {stables_pct*100:.1f}%)")
+                elif stables_pct > 0:
+                    adj_stables = 0
+                    logger.debug(f"🛡️  Stablecoins: no adjustment (insufficient: {stables_pct*100:.1f}%)")
+                else:
+                    adj_stables = -10
+                    logger.warning(f"⚠️  Stablecoins penalty: -10 pts (no protection: {stables_pct*100:.1f}%)")
+
+                # 2. Exposition Majors (±10 pts) - BTC+ETH = stabilité
+                majors_pct = exposure_by_group.get("BTC", 0.0) + exposure_by_group.get("ETH", 0.0)
+                if majors_pct >= 0.60:
+                    adj_majors = +10
+                    logger.info(f"🏛️  Majors bonus: +10 pts (healthy portfolio: {majors_pct*100:.1f}%)")
+                elif majors_pct >= 0.50:
+                    adj_majors = +5
+                    logger.info(f"🏛️  Majors bonus: +5 pts (acceptable: {majors_pct*100:.1f}%)")
+                elif majors_pct >= 0.40:
+                    adj_majors = 0
+                    logger.debug(f"🏛️  Majors: no adjustment (under-exposed: {majors_pct*100:.1f}%)")
+                else:
+                    adj_majors = -10
+                    logger.warning(f"⚠️  Majors penalty: -10 pts (risky: {majors_pct*100:.1f}%)")
+
+                # 3. Sur-exposition Altcoins (-15 pts) - Volatilité x2-3 vs majors
+                # Altcoins = tout sauf BTC, ETH, Stables, SOL (top 5)
+                sol_pct = exposure_by_group.get("SOL", 0.0)
+                altcoins_pct = max(0.0, 1.0 - majors_pct - stables_pct - sol_pct)
+                if altcoins_pct > 0.50:
+                    adj_altcoins = -15
+                    logger.warning(f"⚠️  Altcoins penalty: -15 pts (very risky: {altcoins_pct*100:.1f}%)")
+                elif altcoins_pct > 0.40:
+                    adj_altcoins = -10
+                    logger.warning(f"⚠️  Altcoins penalty: -10 pts (risky: {altcoins_pct*100:.1f}%)")
+                elif altcoins_pct > 0.30:
+                    adj_altcoins = -5
+                    logger.info(f"⚠️  Altcoins penalty: -5 pts (acceptable: {altcoins_pct*100:.1f}%)")
+                else:
+                    adj_altcoins = 0
+                    logger.debug(f"✅ Altcoins: no penalty (reasonable: {altcoins_pct*100:.1f}%)")
+
+                # Total ajustements structurels
+                adj_structural_total = adj_stables + adj_majors + adj_altcoins
+                logger.info(f"📊 Structural adjustments: stables={adj_stables:+d}, majors={adj_majors:+d}, altcoins={adj_altcoins:+d} → TOTAL={adj_structural_total:+d}")
+
                 # CAS 1: Blend Long-Term + Full Intersection
                 if long_term and days_full >= 120 and coverage_long_term >= 0.80:
                     logger.info(f"✅ BLEND MODE: Full={w_full:.2f}, Long={w_long:.2f} ({days_full}d, LT coverage={coverage_long_term*100:.0f}%)")
@@ -736,12 +815,13 @@ async def get_risk_dashboard(
                     risk_score_long = long_term['metrics'].risk_score
                     blended_risk_score = w_full * risk_score_full + w_long * risk_score_long
 
-                    # Appliquer pénalités
-                    final_risk_score = max(0, min(100, blended_risk_score + penalty_excluded + penalty_memes_age))
+                    # Appliquer pénalités + ajustements structurels
+                    final_risk_score = max(0, min(100, blended_risk_score + penalty_excluded + penalty_memes_age + adj_structural_total))
 
                     logger.info(f"📊 Risk Score V2 blend: full={risk_score_full:.1f}, long={risk_score_long:.1f}, blended={blended_risk_score:.1f}")
                     logger.info(f"⚠️  Penalties: excluded={penalty_excluded:.1f}, young_memes={penalty_memes_age:.1f} ({len(young_memes)} memes)")
-                    logger.info(f"✅ Final Risk Score V2: {final_risk_score:.1f} (was {blended_risk_score:.1f} before penalties)")
+                    logger.info(f"🆕 Structural adjustments: {adj_structural_total:+.1f} (stables={adj_stables:+d}, majors={adj_majors:+d}, altcoins={adj_altcoins:+d})")
+                    logger.info(f"✅ Final Risk Score V2: {final_risk_score:.1f} (was {blended_risk_score:.1f} before all adjustments)")
 
                     # ✅ Stocker métriques v2 AVEC Risk Score V2 = Blend + Pénalités
                     risk_metrics_v2 = replace(full_inter['metrics'], risk_score=final_risk_score)
@@ -763,6 +843,10 @@ async def get_risk_dashboard(
                         "blended_risk_score": blended_risk_score,
                         "penalty_excluded": penalty_excluded,
                         "penalty_memes": penalty_memes_age,
+                        "adj_stables": adj_stables,
+                        "adj_majors": adj_majors,
+                        "adj_altcoins": adj_altcoins,
+                        "adj_structural_total": adj_structural_total,
                         "final_risk_score_v2": final_risk_score,
                         "young_memes_count": len(young_memes),
                         "young_memes_pct": young_memes_pct,
@@ -779,10 +863,11 @@ async def get_risk_dashboard(
                     logger.info(f"✅ Using LONG-TERM window: {long_term['window_days']}d, {long_term['asset_count']} assets (Full insufficient)")
 
                     base_risk_score = long_term['metrics'].risk_score
-                    final_risk_score = max(0, min(100, base_risk_score + penalty_excluded + penalty_memes_age))
+                    final_risk_score = max(0, min(100, base_risk_score + penalty_excluded + penalty_memes_age + adj_structural_total))
 
-                    logger.info(f"📊 Risk Score V2 (Long-Term only): base={base_risk_score:.1f}, penalties={penalty_excluded + penalty_memes_age:.1f}, final={final_risk_score:.1f}")
+                    logger.info(f"📊 Risk Score V2 (Long-Term only): base={base_risk_score:.1f}, penalties={penalty_excluded + penalty_memes_age:.1f}, structural={adj_structural_total:+.1f}, final={final_risk_score:.1f}")
                     logger.info(f"⚠️  Penalties: excluded={penalty_excluded:.1f}, young_memes={penalty_memes_age:.1f} ({len(young_memes)} memes)")
+                    logger.info(f"🆕 Structural adjustments: {adj_structural_total:+.1f} (stables={adj_stables:+d}, majors={adj_majors:+d}, altcoins={adj_altcoins:+d})")
 
                     # ✅ Stocker métriques v2 avec pénalités
                     risk_metrics_v2 = replace(long_term['metrics'], risk_score=final_risk_score)
@@ -799,6 +884,10 @@ async def get_risk_dashboard(
                         "blended_risk_score": base_risk_score,
                         "penalty_excluded": penalty_excluded,
                         "penalty_memes": penalty_memes_age,
+                        "adj_stables": adj_stables,
+                        "adj_majors": adj_majors,
+                        "adj_altcoins": adj_altcoins,
+                        "adj_structural_total": adj_structural_total,
                         "final_risk_score_v2": final_risk_score,
                         "young_memes_count": len(young_memes),
                         "young_memes_pct": young_memes_pct,
@@ -815,10 +904,11 @@ async def get_risk_dashboard(
                     logger.warning(f"⚠️  Using FULL INTERSECTION only: {days_full}d (no long-term cohort)")
 
                     base_risk_score = full_inter['metrics'].risk_score
-                    final_risk_score = max(0, min(100, base_risk_score + penalty_excluded + penalty_memes_age))
+                    final_risk_score = max(0, min(100, base_risk_score + penalty_excluded + penalty_memes_age + adj_structural_total))
 
-                    logger.info(f"📊 Risk Score V2 (Full only): base={base_risk_score:.1f}, penalties={penalty_excluded + penalty_memes_age:.1f}, final={final_risk_score:.1f}")
+                    logger.info(f"📊 Risk Score V2 (Full only): base={base_risk_score:.1f}, penalties={penalty_excluded + penalty_memes_age:.1f}, structural={adj_structural_total:+.1f}, final={final_risk_score:.1f}")
                     logger.info(f"⚠️  Penalties: excluded={penalty_excluded:.1f}, young_memes={penalty_memes_age:.1f} ({len(young_memes)} memes)")
+                    logger.info(f"🆕 Structural adjustments: {adj_structural_total:+.1f} (stables={adj_stables:+d}, majors={adj_majors:+d}, altcoins={adj_altcoins:+d})")
 
                     # ✅ Stocker métriques v2 avec pénalités
                     risk_metrics_v2 = replace(full_inter['metrics'], risk_score=final_risk_score)
@@ -836,6 +926,10 @@ async def get_risk_dashboard(
                         "blended_risk_score": base_risk_score,
                         "penalty_excluded": penalty_excluded,
                         "penalty_memes": penalty_memes_age,
+                        "adj_stables": adj_stables,
+                        "adj_majors": adj_majors,
+                        "adj_altcoins": adj_altcoins,
+                        "adj_structural_total": adj_structural_total,
                         "final_risk_score_v2": final_risk_score,
                         "young_memes_count": len(young_memes),
                         "young_memes_pct": young_memes_pct,

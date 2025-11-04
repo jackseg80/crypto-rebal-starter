@@ -65,13 +65,21 @@ export async function hydrateRiskStore() {
           debugLogger.warn('⚠️ globalConfig.apiRequest not available for risk data');
           return null;
         }
+
+        // 🔧 FIX: Add _csv_hint to invalidate backend cache when CSV changes (Nov 2025)
+        const csvFile = window.userSettings?.csv_selected_file || 'latest';
+        const cacheBuster = csvFile !== 'latest' ? csvFile : Date.now().toString().substring(0, 10);
+
+        debugLogger.debug(`🔍 hydrateRiskStore - fetching risk data with _csv_hint: '${cacheBuster}'`);
+
         const riskData = await window.globalConfig.apiRequest('/api/risk/dashboard', {
           params: {
             min_usd: 1.0,
             price_history_days: 365,
             lookback_days: 90,
             use_dual_window: true,  // Cohérent avec risk-dashboard-main-controller.js
-            risk_version: 'v2_active'
+            risk_version: 'v2_active',
+            _csv_hint: cacheBuster  // 🔧 Invalide cache backend quand CSV change
           }
         });
         return riskData;
@@ -351,6 +359,37 @@ function autoInit() {
     setTimeout(autoInit, 100);
   }
 }
+
+// Listen for data source changes and re-hydrate store
+window.addEventListener('dataSourceChanged', (event) => {
+  debugLogger.debug(`🔄 Data source changed in orchestrator: ${event.detail.oldSource} → ${event.detail.newSource}`);
+
+  // Clear risk store to force fresh data fetch
+  if (window.riskStore) {
+    const clearedState = {
+      ccs: { score: null },
+      cycle: { ccsStar: null, months: null, phase: null },
+      regime: { phase: null, confidence: null, divergence: null },
+      risk: null,
+      scores: { onchain: null, blended: null, risk: null },
+      governance: { contradiction_index: null },
+      contradiction: null,
+      alerts: [],
+      _hydrated: false,
+      _cleared_for_source_change: true,
+      _cleared_timestamp: new Date().toISOString()
+    };
+    window.riskStore.setState(clearedState);
+    debugLogger.debug('✅ Risk store cleared for source change');
+  }
+
+  // Re-hydrate store with new source data
+  setTimeout(() => {
+    hydrateRiskStore().catch(err => {
+      debugLogger.error('Failed to re-hydrate store after source change:', err);
+    });
+  }, 100);
+});
 
 // Démarrer auto-init selon état du DOM
 if (document.readyState === 'loading') {
