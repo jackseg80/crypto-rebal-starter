@@ -579,7 +579,9 @@ async def get_risk_dashboard(
     use_dual_window: bool = Query(True, description="Activer système dual-window (long-term + full intersection)"),
     min_history_days: int = Query(180, ge=90, le=365, description="Jours minimum pour cohorte long-term"),
     min_coverage_pct: float = Query(0.80, ge=0.5, le=1.0, description="% minimum de valeur couverte pour cohorte"),
-    min_asset_count: int = Query(5, ge=3, le=20, description="Nombre minimum d'assets dans cohorte")
+    min_asset_count: int = Query(5, ge=3, le=20, description="Nombre minimum d'assets dans cohorte"),
+    # 🔧 FIX: CSV hint for cache invalidation (Oct 2025)
+    _csv_hint: Optional[str] = Query(None, description="Hint for cache invalidation when CSV changes (filename or timestamp)")
 ):
     """
     Endpoint pour dashboard de risque temps réel
@@ -592,11 +594,18 @@ async def get_risk_dashboard(
         effective_user = user_id or user_header
 
         # Check cache (TTL: 30 min = 1800 seconds, optimized per CACHE_TTL_OPTIMIZATION.md)
-        cache_key = f"risk_dashboard:{effective_user}:{source}:{min_usd}:{risk_version}"
+        # 🔧 FIX: Include _csv_hint in cache key to invalidate when CSV changes (Oct 2025)
+        csv_hint_part = f":{_csv_hint}" if _csv_hint else ""
+        cache_key = f"risk_dashboard:{effective_user}:{source}:{min_usd}:{risk_version}{csv_hint_part}"
+
+        logger.info(f"🔍 Risk dashboard request: user={effective_user}, source={source}, csv_hint={_csv_hint}, cache_key={cache_key}")
+
         cached_result = cache_get(_risk_cache, cache_key, 1800)
         if cached_result:
-            logger.info(f"Returning cached risk dashboard for user={effective_user}, source={source}")
+            logger.info(f"✅ Returning cached risk dashboard (cache hit)")
             return cached_result
+
+        logger.info(f"❌ Cache miss, computing fresh metrics...")
 
         # Récupération unifiée des balances (supporte stub | cointracking | cointracking_api)
         from api.unified_data import get_unified_filtered_balances
@@ -1109,6 +1118,7 @@ async def get_risk_dashboard(
 
         # Cache the result (30 min TTL)
         cache_set(_risk_cache, cache_key, sanitized_dashboard)
+        logger.info(f"✅ Risk dashboard computed and cached: {cache_key}")
 
         return sanitized_dashboard
         

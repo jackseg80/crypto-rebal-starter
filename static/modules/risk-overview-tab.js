@@ -102,7 +102,11 @@ async function fetchRiskData() {
     const apiBaseUrl = globalConfig.get('api_base_url');
     const minUsd = globalConfig.get('min_usd_threshold');
 
-    console.debug(`🔍 Risk Overview using data source: ${dataSource}`);
+    // 🔧 FIX: Read csv_selected_file from window.userSettings (updated by WealthContextBar)
+    const csvFile = window.userSettings?.csv_selected_file || 'latest';
+    const saxoFile = window.userSettings?.saxo_selected_file || 'latest';
+
+    console.debug(`🔍 Risk Overview using data source: ${dataSource}, csvFile: '${csvFile}', saxoFile: '${saxoFile}'`);
 
     // Utiliser directement les données de balance et calculer le risque côté client
     const balanceResult = await window.globalConfig.apiRequest('/balances/current', {
@@ -112,6 +116,11 @@ async function fetchRiskData() {
     // Use the real backend endpoint for risk dashboard
     // ✅ Inclure source et user_id pour isolation multi-tenant
     // ✅ NOUVEAU (Phase 5.5): Shadow Mode V2 + Dual Window
+    // 🔧 FIX: Add _csv_hint to force backend recalculation when CSV changes
+    const cacheBuster = csvFile !== 'latest' ? csvFile : Date.now().toString().substring(0, 10);
+
+    console.debug(`🔍 fetchRiskData - calling /api/risk/dashboard with _csv_hint: '${cacheBuster}'`);
+
     const apiResult = await window.globalConfig.apiRequest('/api/risk/dashboard', {
       params: {
         source: dataSource,
@@ -119,7 +128,8 @@ async function fetchRiskData() {
         price_history_days: analysisDays,
         lookback_days: corrDays,
         risk_version: 'v2_active',  // 🆕 V2 Active: V2 est autoritaire (Oct 2025)
-        use_dual_window: true        // Dual-window metrics actives
+        use_dual_window: true,       // Dual-window metrics actives
+        _csv_hint: cacheBuster        // 🔧 Hint for backend cache: changes when CSV changes
       }
     });
 

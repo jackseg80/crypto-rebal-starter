@@ -13,9 +13,10 @@ let isRefreshing = false;
 /**
  * Switch between dashboard tabs with lazy loading
  * @param {string} tabName - Tab to switch to ('risk', 'cycles', 'targets', 'alerts')
+ * @param {boolean} forceReload - Force reload even if content exists
  */
-export async function switchTab(tabName) {
-  debugLogger.debug(`🔄 Switching to tab: ${tabName}`);
+export async function switchTab(tabName, forceReload = false) {
+  debugLogger.debug(`🔄 Switching to tab: ${tabName} (forceReload: ${forceReload})`);
 
   // Update tab buttons (classes + ARIA attributes)
   document.querySelectorAll('.tab-button').forEach(btn => {
@@ -40,18 +41,20 @@ export async function switchTab(tabName) {
       return;
     }
 
-    // Check if tab already has content
-    const hasContent = container.children.length > 1; // More than just loading div
+    // ✅ SPECIAL: Skip 'risk' tab - handled by legacy controller (risk-dashboard-main-controller.js)
+    // The legacy controller has all advanced features: GRI, Phase 3A, Structure Modulation V2, etc.
+    if (tabName === 'risk') {
+      debugLogger.debug('⏸️ Risk tab handled by legacy controller (preserves GRI, Phase 3A)');
+      return;
+    }
+
+    // Check if tab already has content (skip check if forceReload)
+    const hasContent = !forceReload && container.children.length > 1; // More than just loading div
 
     if (!hasContent) {
       showLoading(container, `Loading ${tabName} data...`);
 
       switch (tabName) {
-        case 'risk':
-          const { renderRiskOverview } = await import('./risk-overview-tab.js');
-          await renderRiskOverview(container);
-          break;
-
         case 'cycles':
           const { renderCyclesContent } = await import('./risk-cycles-tab.js');
           await renderCyclesContent();
@@ -100,8 +103,9 @@ export async function refreshDashboard(forceRefresh = false) {
   try {
     debugLogger.debug(`🔄 Refreshing dashboard (force: ${forceRefresh})`);
 
-    // Refresh current tab
-    await switchTab(currentTab);
+    // Refresh current tab with forceReload flag
+    // This will bypass the hasContent check and force re-render
+    await switchTab(currentTab, forceRefresh);
 
     // Update timestamp
     const timestamp = document.getElementById('last-update');
@@ -191,7 +195,9 @@ export async function initDashboard() {
     // Listen for data source changes
     window.addEventListener('dataSourceChanged', (event) => {
       debugLogger.debug(`🔄 Data source changed: ${event.detail.oldSource} → ${event.detail.newSource}`);
-      setTimeout(() => refreshDashboard(true), 500);
+      // Let the legacy controller handle it to preserve advanced sections (GRI, Phase 3A, VaR, etc.)
+      // The legacy controller (risk-dashboard-main-controller.js) has its own listener at line 194-203
+      debugLogger.debug('⏸️ Modular system defers to legacy controller for source changes');
     });
 
     // Initialize first tab
