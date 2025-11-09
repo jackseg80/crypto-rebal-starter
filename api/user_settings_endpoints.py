@@ -110,11 +110,25 @@ async def save_user_settings(
         project_root = str(Path(__file__).parent.parent)
         user_fs = UserScopedFS(project_root, user)
 
-        # Convertir en dict et sauvegarder
-        settings_dict = validated_settings.dict()
-        user_fs.write_json("config.json", settings_dict)
+        # ✅ FIX: Merger avec l'ancien config au lieu d'écraser
+        # Charger l'ancien config s'il existe
+        old_config = {}
+        try:
+            old_config = user_fs.read_json("config.json")
+            logger.debug(f"Merging with existing config: {len(old_config)} keys")
+        except (FileNotFoundError, ValueError):
+            logger.debug("No existing config found, creating new one")
 
-        logger.info(f"Settings saved for user {user}: {len(settings_dict)} keys")
+        # Convertir les nouveaux settings en dict
+        new_settings = validated_settings.dict()
+
+        # Merger (les nouveaux settings écrasent les anciens)
+        merged_settings = {**old_config, **new_settings}
+
+        # Sauvegarder
+        user_fs.write_json("config.json", merged_settings)
+
+        logger.info(f"✅ Settings saved for user {user}: {len(merged_settings)} keys, csv_selected_file='{merged_settings.get('csv_selected_file')}'")
 
         return {
             "status": "success",

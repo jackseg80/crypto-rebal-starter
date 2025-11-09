@@ -56,6 +56,7 @@ class UserDataRouter:
         self.csv_glob = self.settings.get("csv_glob", "csv/*.csv")
         # Fichier CSV sélectionné explicitement (nom de fichier)
         self.selected_csv = self.settings.get("csv_selected_file")
+        logger.info(f"🔧 UserDataRouter for user '{self.user_id}': data_source='{self.data_source}', selected_csv='{self.selected_csv}'")
         self.api_credentials = {
             "api_key": self.settings.get("cointracking_api_key", ""),
             "api_secret": self.settings.get("cointracking_api_secret", "")
@@ -109,11 +110,23 @@ class UserDataRouter:
 
         # Priorité au fichier explicitement sélectionné (comparaison par nom)
         if self.selected_csv:
+            file_names = [Path(f).name for f in files]
+            logger.info(f"🔍 Looking for selected CSV: '{self.selected_csv}' in {len(files)} files")
+            logger.info(f"📋 Available files: {file_names}")
+
             for f in files:
-                if Path(f).name == self.selected_csv:
+                file_name = Path(f).name
+                match = file_name == self.selected_csv
+                logger.debug(f"  Comparing: '{file_name}' == '{self.selected_csv}' ? {match}")
+                if match:
+                    logger.info(f"✅ Using selected CSV: {f}")
                     return f
+            logger.warning(f"⚠️ Selected CSV '{self.selected_csv}' not found in available files, using most recent")
+        else:
+            logger.debug(f"📋 No CSV selected, using most recent from {len(files)} files")
 
         # Sinon, retourner le plus récent
+        logger.info(f"📌 Using most recent CSV: {files[0]}")
         return files[0]
 
     def get_api_profile(self) -> Dict[str, Any]:
