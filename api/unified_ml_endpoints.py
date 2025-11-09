@@ -478,15 +478,27 @@ async def alias_sentiment_analyze(symbols: str = Query("BTC,ETH"), days: int = Q
 import os
 
 async def verify_admin_access(x_admin_key: str = Header(None)):
-    """Verify admin access via header"""
+    """
+    Verify admin access via header.
+
+    SECURITY: Requires ADMIN_KEY environment variable.
+    Generate with: openssl rand -hex 32
+    """
     if not x_admin_key:
         raise HTTPException(status_code=401, detail="Admin key required")
-    
-    # Simple admin key check (now configurable via environment variable)
-    expected_key = os.getenv("ADMIN_KEY", "crypto-rebal-admin-2024")
+
+    # SECURITY: No hardcoded fallback - ADMIN_KEY must be set in environment
+    expected_key = os.getenv("ADMIN_KEY")
+    if not expected_key:
+        logger.error("ADMIN_KEY environment variable not set. Generate with: openssl rand -hex 32")
+        raise HTTPException(
+            status_code=500,
+            detail="Server configuration error: ADMIN_KEY not set"
+        )
+
     if x_admin_key != expected_key:
         raise HTTPException(status_code=403, detail="Invalid admin key")
-    
+
     return True
 
 @router.get("/debug/pipeline-info")

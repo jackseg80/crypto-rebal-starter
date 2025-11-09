@@ -7,6 +7,7 @@ Teste les changements critiques du refactoring d'endpoints
 import requests
 import json
 import sys
+import os
 from typing import Dict, Any
 
 BASE_URL = "http://localhost:8080"
@@ -144,7 +145,9 @@ def main():
     
     # Avec auth admin - doit fonctionner
     try:
-        headers = {"X-Admin-Key": "crypto-rebal-admin-2024"}
+        # SECURITY: Use ADMIN_KEY from environment (required for tests)
+        admin_key = os.getenv("ADMIN_KEY", "test-key-change-in-production")
+        headers = {"X-Admin-Key": admin_key}
         response = test_endpoint("GET", f"{BASE_URL}/api/ml/debug/pipeline-info", headers=headers)
         if response.status_code == 200:
             result.add_pass("ML debug endpoint accessible with admin key")

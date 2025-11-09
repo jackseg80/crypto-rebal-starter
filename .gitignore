@@ -132,6 +132,10 @@ data/users/demo/*/data/*.csv
 data/users/demo/*/api_cache/
 data/users/demo/*/cash/
 
+# User secrets (API keys, credentials) - NEVER COMMIT
+data/users/*/secrets.json
+**/secrets.json
+
 # Temporary test/validation files
 *_recs.json
 *recommendations*.json

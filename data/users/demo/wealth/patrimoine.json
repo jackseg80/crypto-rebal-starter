@@ -1,0 +1,57 @@
+{
+  "items": [
+    {
+      "id": "383fc61c-6b0e-45e7-bd62-5de0f9aceea7",
+      "name": "UBS (savings)",
+      "category": "liquidity",
+      "type": "bank_account",
+      "value": 10000.0,
+      "currency": "CHF",
+      "acquisition_date": null,
+      "notes": null,
+      "metadata": {
+        "bank_name": "UBS",
+        "account_type": "savings"
+      }
+    },
+    {
+      "id": "c42a61f4-a274-45ab-a481-5da8736d9fcb",
+      "name": "Crédit Agricole (livret_a)",
+      "category": "liquidity",
+      "type": "bank_account",
+      "value": 5000.0,
+      "currency": "EUR",
+      "acquisition_date": null,
+      "notes": null,
+      "metadata": {
+        "bank_name": "Crédit Agricole",
+        "account_type": "livret_a"
+      }
+    },
+    {
+      "id": "a8c25718-9d04-4f50-b9c5-d22ba3674697",
+      "name": "Citibank (other)",
+      "category": "liquidity",
+      "type": "bank_account",
+      "value": 20000.0,
+      "currency": "USD",
+      "acquisition_date": null,
+      "notes": null,
+      "metadata": {
+        "bank_name": "Citibank",
+        "account_type": "other"
+      }
+    },
+    {
+      "id": "60c157e0-f8a5-48aa-8a5e-81769ebe84fb",
+      "name": "Demo Bank (current)",
+      "category": "liquidity",
+      "type": "bank_account",
+      "value": 1000.0,
+      "currency": "USD",
+      "acquisition_date": null,
+      "notes": "Demo account",
+      "metadata": {}
+    }
+  ]
+}

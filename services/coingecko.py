@@ -15,11 +15,27 @@ logger = logging.getLogger(__name__)
 
 class CoinGeckoService:
     """Service pour l'intégration CoinGecko avec cache et gestion des rate limits"""
-    
-    def __init__(self):
+
+    def __init__(self, api_key: str = None, user_id: str = None):
+        """
+        Initialise le service CoinGecko.
+
+        Args:
+            api_key: Clé API CoinGecko explicite (override user_id)
+            user_id: ID utilisateur pour récupérer la clé depuis secrets.json
+        """
         self.base_url = "https://api.coingecko.com/api/v3"
-        self.api_key = os.getenv("COINGECKO_API_KEY")  # Optionnel pour Demo API
-        
+
+        # Résolution de la clé API (priorité: api_key > user_id > .env)
+        if api_key:
+            self.api_key = api_key
+        elif user_id:
+            from services.user_secrets import get_coingecko_api_key
+            self.api_key = get_coingecko_api_key(user_id)
+        else:
+            # Fallback .env pour rétrocompatibilité
+            self.api_key = os.getenv("COINGECKO_API_KEY", "")
+
         # Cache interne
         self._symbol_to_id_cache: Dict[str, str] = {}
         self._categories_cache: Dict[str, str] = {}

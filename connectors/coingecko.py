@@ -352,10 +352,31 @@ class CoinGeckoConnector:
 # Instance globale réutilisable
 _global_connector: Optional[CoinGeckoConnector] = None
 
-def get_connector() -> CoinGeckoConnector:
-    """Retourne l'instance globale du connecteur CoinGecko."""
+def get_connector(user_id: str = None, api_key: str = None) -> CoinGeckoConnector:
+    """
+    Retourne l'instance globale du connecteur CoinGecko.
+
+    Args:
+        user_id: ID utilisateur pour récupérer la clé API depuis secrets.json
+        api_key: Clé API explicite (override user_id)
+
+    Returns:
+        Instance de CoinGeckoConnector
+    """
     global _global_connector
+
+    # Si une api_key est fournie explicitement, créer nouveau connecteur
+    if api_key:
+        return CoinGeckoConnector(api_key=api_key)
+
+    # Lazy init avec user_id ou fallback .env
     if _global_connector is None:
-        api_key = os.getenv("COINGECKO_API_KEY")
+        if user_id:
+            from services.user_secrets import get_coingecko_api_key
+            api_key = get_coingecko_api_key(user_id)
+        else:
+            api_key = os.getenv("COINGECKO_API_KEY", "")
+
         _global_connector = CoinGeckoConnector(api_key=api_key)
+
     return _global_connector

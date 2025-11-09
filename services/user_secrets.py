@@ -102,3 +102,21 @@ def get_user_secrets(user_id: str = "demo") -> Dict[str, Any]:
 def is_dev_mode(user_id: str = "demo") -> bool:
     """Helper function pour vérifier le mode dev"""
     return user_secrets_manager.is_dev_mode(user_id)
+
+def get_coingecko_api_key(user_id: str = None) -> str:
+    """
+    Récupère la clé API CoinGecko pour un utilisateur.
+
+    Args:
+        user_id: ID de l'utilisateur. Si None, utilise fallback .env
+
+    Returns:
+        Clé API CoinGecko (peut être vide si non configurée)
+    """
+    # Fallback sur .env si pas de user_id (rétrocompatibilité)
+    if user_id is None:
+        return os.getenv("COINGECKO_API_KEY", "")
+
+    # Utiliser UserSecretsManager pour récupérer la clé utilisateur
+    secrets = user_secrets_manager.get_user_secrets(user_id)
+    return secrets.get("coingecko", {}).get("api_key", "")

@@ -7,7 +7,7 @@ Features:
 - CORS-free (backend-to-backend)
 - Automatic fallback to cached data on API failures
 - Rate limit handling
-- Multi-tenant: uses user's CoinGecko API key from config.json
+- Multi-tenant: uses user's CoinGecko API key from secrets.json
 """
 from fastapi import APIRouter, HTTPException, Query, Header
 from typing import Dict, Any, Optional
@@ -18,12 +18,14 @@ import json
 import os
 from pathlib import Path
 
+from services.user_secrets import get_coingecko_api_key
+
 logger = logging.getLogger("crypto-rebalancer")
 
 def get_user_coingecko_key(user_id: str) -> Optional[str]:
     """
-    Load CoinGecko API key from user's config.json.
-    Falls back to .env if user config doesn't exist.
+    Load CoinGecko API key from user's secrets.json.
+    Falls back to .env if user secrets don't exist.
 
     Args:
         user_id: User ID
@@ -31,25 +33,14 @@ def get_user_coingecko_key(user_id: str) -> Optional[str]:
     Returns:
         CoinGecko API key or None
     """
-    try:
-        config_path = Path(f"data/users/{user_id}/config.json")
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                key = config.get("coingecko_api_key", "")
-                if key:
-                    logger.debug(f"Using CoinGecko key from user {user_id} config")
-                    return key
-    except Exception as e:
-        logger.warning(f"Failed to load user config for {user_id}: {e}")
+    # Use UserSecretsManager via helper function
+    key = get_coingecko_api_key(user_id)
 
-    # Fallback to .env
-    env_key = os.getenv("COINGECKO_API_KEY", "")
-    if env_key:
-        logger.debug("Using CoinGecko key from .env (fallback)")
-        return env_key
+    if key:
+        logger.debug(f"Using CoinGecko key from user {user_id} secrets")
+        return key
 
-    logger.debug("No CoinGecko API key found (user config or .env)")
+    logger.debug(f"No CoinGecko API key found for user {user_id}")
     return None
 
 router = APIRouter(prefix="/api/coingecko-proxy", tags=["coingecko-proxy"])

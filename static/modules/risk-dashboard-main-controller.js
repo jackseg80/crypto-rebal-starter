@@ -197,10 +197,20 @@
         localStorage.removeItem(`${config.key}_${dataSource}`);
 
         // Also clear other potential data sources to ensure complete cleanup
-        ['cointracking', 'api', 'unknown'].forEach(source => {
+        ['cointracking', 'cointracking_api', 'api', 'unknown'].forEach(source => {
           localStorage.removeItem(`${config.key}_${source}`);
         });
       });
+
+      // ✅ FIX: Also clear risk-dashboard-balance cache with pattern matching
+      // Format: risk-dashboard-balance:user:source:minUsd
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('risk-dashboard-balance:')) {
+          localStorage.removeItem(key);
+          debugLogger.debug(`🧹 Cleared balance cache: ${key}`);
+        }
+      });
+
       debugLogger.debug(`🧹 All persistent cache cleared for source ${dataSource}`);
     }
 
@@ -390,8 +400,20 @@
         const url = globalConfig.getApiUrl('/balances/current', { min_usd: minUsd });
 
         // Utiliser directement les données de balance et calculer le risque côté client
+        // 🔧 FIX: Include csv_selected_file in cache key for proper isolation
+        // Use window.userSettings directly (updated by WealthContextBar before event emission)
+        const csvFile = window.userSettings?.csv_selected_file || 'latest';
+        const saxoFile = window.userSettings?.saxo_selected_file || 'latest';
+
+        console.debug(`🔍 DEBUG - csvFile from window.userSettings: '${csvFile}'`);
+        console.debug(`🔍 DEBUG - saxoFile from window.userSettings: '${saxoFile}'`);
+
+        const cacheKey = `risk-dashboard-balance:${(localStorage.getItem('activeUser') || 'demo')}:${dataSource}:${csvFile}:${minUsd}`;
+
+        console.debug(`🔍 fetchRiskData - csvFile: '${csvFile}', dataSource: '${dataSource}', cacheKey: '${cacheKey}'`);
+
         const balanceResult = await fetchCached(
-          `risk-dashboard-balance:${(localStorage.getItem('activeUser') || 'demo')}:${dataSource}:${minUsd}`,
+          cacheKey,
           () => window.globalConfig.apiRequest('/balances/current', { params: { source: dataSource, min_usd: minUsd } }),
           'risk'
         );
@@ -399,6 +421,11 @@
         // Use the real backend endpoint for risk dashboard
         // ✅ Inclure source et user_id pour isolation multi-tenant
         // ✅ NOUVEAU (Phase 5.5): Shadow Mode V2 + Dual Window
+        // 🔧 FIX: Add cache buster to force backend recalculation when CSV changes
+        const cacheBuster = csvFile !== 'latest' ? csvFile : Date.now().toString().substring(0, 10);
+
+        console.debug(`🔍 fetchRiskData - calling /api/risk/dashboard with _csv_hint: '${cacheBuster}'`);
+
         const apiResult = await window.globalConfig.apiRequest('/api/risk/dashboard', {
           params: {
             source: dataSource,
@@ -406,7 +433,8 @@
             price_history_days: analysisDays,
             lookback_days: corrDays,
             risk_version: 'v2_active',  // 🆕 V2 Active: V2 est autoritaire (Oct 2025)
-            use_dual_window: true        // Dual-window metrics actives
+            use_dual_window: true,       // Dual-window metrics actives
+            _csv_hint: cacheBuster        // 🔧 Hint for backend cache: changes when CSV changes
           }
         });
 
@@ -2039,6 +2067,10 @@
 
     function renderRiskDashboard(data) {
       const container = document.getElementById('risk-dashboard-content');
+      if (!container) {
+        debugLogger.warn('⚠️ risk-dashboard-content not found in DOM, skipping legacy render');
+        return;
+      }
       if (!data || !data.risk_metrics || !data.correlation_metrics || !data.portfolio_summary) {
         renderError('Incomplete data received from API'); return;
       }
@@ -2759,7 +2791,12 @@
     // These modules are imported at the top of the file and called via switchTab()
 
     function renderError(message) {
-      document.getElementById('risk-dashboard-content').innerHTML = `
+      const container = document.getElementById('risk-dashboard-content');
+      if (!container) {
+        debugLogger.warn('⚠️ risk-dashboard-content not found in DOM, skipping error render');
+        return;
+      }
+      container.innerHTML = `
         <div class="error">
           <h3>❌ Error Loading Dashboard</h3>
           <p>${message}</p>
@@ -2769,7 +2806,12 @@
     }
 
     function renderBackendUnavailable(message) {
-      document.getElementById('risk-dashboard-content').innerHTML = `
+      const container = document.getElementById('risk-dashboard-content');
+      if (!container) {
+        debugLogger.warn('⚠️ risk-dashboard-content not found in DOM, skipping error render');
+        return;
+      }
+      container.innerHTML = `
         <div style="text-align: center; padding: 3rem; background: var(--warning-bg); border: 1px solid var(--warning); border-radius: var(--radius-lg); color: var(--theme-text);">
           <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
           <h3 style="color: var(--warning); margin-bottom: 1rem;">Backend de Risque Indisponible</h3>
@@ -2798,7 +2840,12 @@
     }
 
     function renderApiError(message) {
-      document.getElementById('risk-dashboard-content').innerHTML = `
+      const container = document.getElementById('risk-dashboard-content');
+      if (!container) {
+        debugLogger.warn('⚠️ risk-dashboard-content not found in DOM, skipping API error render');
+        return;
+      }
+      container.innerHTML = `
         <div style="text-align: center; padding: 3rem; background: var(--danger-bg); border: 1px solid var(--danger); border-radius: var(--radius-lg);">
           <div style="font-size: 3rem; margin-bottom: 1rem;">🚨</div>
           <h3 style="color: var(--danger); margin-bottom: 1rem;">Erreur API Backend</h3>
@@ -3080,6 +3127,54 @@ dans les 10 000 scénarios.`;
 
     // ===== PHASE 2A: TOAST NOTIFICATION SYSTEM =====
     let toastIdCounter = 0;
+    // SECURITY: Store toast actions securely instead of using eval()
+    const toastActionsRegistry = new Map();
+
+    /**
+     * SECURITY: Execute toast action safely without eval()
+     * Parses action string and calls appropriate functions
+     */
+    function executeToastAction(actionString, toastId) {
+      // Whitelist of allowed functions
+      const allowedFunctions = {
+        hideToast: window.hideToast,
+        openAlertModal: window.openAlertModal
+      };
+
+      // Parse pattern: window.openAlertModal('id').then(() => hideToast('toastId'))
+      const chainPattern = /window\.(\w+)\('([^']+)'\)\.then\(\(\)\s*=>\s*(\w+)\('([^']+)'\)\)/;
+      const chainMatch = actionString.match(chainPattern);
+
+      if (chainMatch) {
+        const [_, func1Name, arg1, func2Name, arg2] = chainMatch;
+
+        if (allowedFunctions[func1Name] && allowedFunctions[func2Name]) {
+          const result = allowedFunctions[func1Name](arg1);
+
+          if (result && typeof result.then === 'function') {
+            result.then(() => allowedFunctions[func2Name](arg2));
+          } else {
+            allowedFunctions[func2Name](arg2);
+          }
+          return;
+        }
+      }
+
+      // Parse simple pattern: hideToast('toastId')
+      const simplePattern = /(\w+)\('([^']+)'\)/;
+      const simpleMatch = actionString.match(simplePattern);
+
+      if (simpleMatch) {
+        const [_, funcName, arg] = simpleMatch;
+
+        if (allowedFunctions[funcName]) {
+          allowedFunctions[funcName](arg);
+          return;
+        }
+      }
+
+      debugLogger.warn('Toast action not recognized or not allowed:', actionString);
+    }
 
     function showToast(message, type = 'info', options = {}) {
       const {
@@ -3120,9 +3215,9 @@ dans les 10 000 scénarios.`;
       if (actions.length > 0) {
         actionsHtml = `
           <div class="toast-actions">
-            ${actions.map(action => `
-              <button class="toast-action ${action.secondary ? 'toast-action-secondary' : ''}" 
-                      onclick="${action.onclick}">${action.label}</button>
+            ${actions.map((action, idx) => `
+              <button class="toast-action ${action.secondary ? 'toast-action-secondary' : ''}"
+                      data-action-index="${idx}">${action.label}</button>
             `).join('')}
           </div>`;
       }
@@ -3143,6 +3238,11 @@ dans les 10 000 scénarios.`;
       `;
 
       toastContainer.appendChild(toast);
+
+      // SECURITY: Store actions in registry for secure execution (no eval)
+      if (actions.length > 0) {
+        toastActionsRegistry.set(toastId, actions);
+      }
 
       // Animate in
       setTimeout(() => toast.classList.add('show'), 10);
@@ -3670,13 +3770,23 @@ dans les 10 000 scénarios.`;
 
           // Handle action button clicks
           if (event.target.classList.contains('toast-action')) {
-            const onclickAttr = event.target.getAttribute('onclick');
-            if (onclickAttr) {
-              // Execute the onclick code safely
-              try {
-                eval(onclickAttr);
-              } catch (error) {
-                debugLogger.error('Error executing toast action:', error);
+            const actionIndex = parseInt(event.target.getAttribute('data-action-index'));
+            const toastElement = event.target.closest('.toast');
+
+            if (toastElement && !isNaN(actionIndex)) {
+              const toastId = toastElement.id;
+              const actions = toastActionsRegistry.get(toastId);
+
+              if (actions && actions[actionIndex]) {
+                const action = actions[actionIndex];
+
+                // SECURITY: Execute action safely without eval()
+                // Parse and execute the onclick string securely
+                try {
+                  executeToastAction(action.onclick, toastId);
+                } catch (error) {
+                  debugLogger.error('Error executing toast action:', error);
+                }
               }
             }
           }
@@ -3900,9 +4010,10 @@ dans les 10 000 scénarios.`;
       // Listen for data source changes and clear cache
       window.addEventListener('dataSourceChanged', (event) => {
         debugLogger.debug('🔄 Data source changed, clearing cache and reloading...', event.detail);
-        clearCache();
+        clearCache(true);  // ✅ FIX: Force clear all cache when source changes
         // Reload the dashboard after source change
-        setTimeout(() => refreshDashboard(true), 100);
+        // ✅ Delay increased to 500ms to give backend time to write config.json
+        setTimeout(() => refreshDashboard(true), 500);
       });
 
       // Initialize shared header

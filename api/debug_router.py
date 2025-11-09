@@ -104,8 +104,13 @@ async def debug_ctapi():
 
 
 @router.get("/api-keys")
-async def debug_api_keys(debug_token: Optional[str] = Query(None)):
-    """Expose les clés API depuis .env pour auto-configuration (sécurisé)"""
+async def debug_api_keys(debug_token: Optional[str] = Query(None), user_id: str = Query("demo")):
+    """
+    Expose les clés API pour auto-configuration (DEBUG ONLY).
+
+    SECURITY WARNING: Cet endpoint est désactivé en production (DEBUG=False).
+    Les clés API doivent être stockées dans data/users/{user_id}/secrets.json.
+    """
     if not DEBUG:
         raise HTTPException(status_code=404, detail="Debug endpoint not available")
 
@@ -114,11 +119,17 @@ async def debug_api_keys(debug_token: Optional[str] = Query(None)):
     if not expected_token or debug_token != expected_token:
         raise HTTPException(status_code=403, detail="Debug token required")
 
+    # Lire depuis secrets.json (recommandé) avec fallback .env
+    from services.user_secrets import get_coingecko_api_key
+
+    cg_key = get_coingecko_api_key(user_id) or os.getenv("COINGECKO_API_KEY", "")
+
     return {
-        "coingecko_api_key": os.getenv("COINGECKO_API_KEY", "")[:8] + "...",  # Masquer partiellement
+        "coingecko_api_key": cg_key[:8] + "..." if cg_key else "",
         "cointracking_api_key": os.getenv("COINTRACKING_API_KEY", "")[:8] + "...",
         "cointracking_api_secret": "***masked***",
-        "fred_api_key": os.getenv("FRED_API_KEY", "")[:8] + "..."
+        "fred_api_key": os.getenv("FRED_API_KEY", "")[:8] + "...",
+        "_note": "CoinGecko key loaded from secrets.json (user: {})".format(user_id)
     }
 
 

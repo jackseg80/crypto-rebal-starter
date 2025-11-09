@@ -987,6 +987,12 @@ export async function loadOnChainIndicators() {
  */
 export async function renderCyclesContent(forceRefresh = false) {
   const container = document.getElementById('cycles-content');
+
+  // GUARD: Skip if element doesn't exist (tab not visible/mounted)
+  if (!container) {
+    return;
+  }
+
   const state = window.store.snapshot();
   const currentHash = generateCycleDataHash(state);
 
@@ -1048,6 +1054,12 @@ export async function renderCyclesContent(forceRefresh = false) {
  */
 export async function renderCyclesContentUncached() {
   const container = document.getElementById('cycles-content');
+
+  // GUARD: Skip if element doesn't exist (tab not visible/mounted)
+  if (!container) {
+    return;
+  }
+
   const state = window.store.snapshot();
   const ccsData = state.ccs;
   const cycleData = state.cycle;
