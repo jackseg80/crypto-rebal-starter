@@ -119,7 +119,7 @@ Voir aussi :
 5. Tests locaux
 ======================================================================
 Lancer l’API :
-uvicorn main:app --reload --port 8080
+uvicorn main:app --port 8080
 
 Points de contrôle rapides :
 - GET /healthz           → doit retourner {"ok": true}

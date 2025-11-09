@@ -216,7 +216,7 @@ grep -r "class CycleSignals" api/ models/
 
 ```bash
 # Lancer serveur
-python -m uvicorn api.main:app --reload
+python -m uvicorn api.main:app
 
 # Monitorer logs (chercher les 3 erreurs)
 # Bug #1 : "Error building unified signals"

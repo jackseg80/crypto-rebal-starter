@@ -44,7 +44,7 @@ if dev_mode:
     return normalized_user
 ```
 
-**Usage** : Démarrer avec `DEV_OPEN_API=1 uvicorn api.main:app --reload --port 8080`
+**Usage** : Démarrer avec `DEV_OPEN_API=1 uvicorn api.main:app --port 8080`
 
 ### Fichiers secrets manquants
 

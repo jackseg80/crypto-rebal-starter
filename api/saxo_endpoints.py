@@ -231,7 +231,7 @@ async def preview_rebalance(
 
 @router.get("/cash")
 async def get_portfolio_cash(
-    user_id: str = Query(..., description="User ID"),
+    user: str = Depends(get_active_user),
     file_key: Optional[str] = Query(None, description="Specific Saxo CSV file identifier")
 ) -> dict:
     """
@@ -247,7 +247,7 @@ async def get_portfolio_cash(
     cash_key = file_key or "default"
 
     # Build cash file path
-    cash_dir = Path(f"data/users/{user_id}/saxobank/cash")
+    cash_dir = Path(f"data/users/{user}/saxobank/cash")
     cash_file = cash_dir / f"{cash_key}_cash.json"
 
     if not cash_file.exists():
@@ -268,13 +268,13 @@ async def get_portfolio_cash(
             "last_updated": data.get("last_updated")
         }
     except Exception as e:
-        logger.error(f"Failed to load cash amount for user {user_id}: {e}")
+        logger.error(f"Failed to load cash amount for user {user}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to load cash amount: {str(e)}")
 
 
 @router.post("/cash")
 async def save_portfolio_cash(
-    user_id: str = Query(..., description="User ID"),
+    user: str = Depends(get_active_user),
     file_key: Optional[str] = Query(None, description="Specific Saxo CSV file identifier"),
     payload: dict = Body(..., description="Cash amount payload")
 ) -> dict:
@@ -308,7 +308,7 @@ async def save_portfolio_cash(
     cash_key = file_key or "default"
 
     # Build cash file path
-    cash_dir = Path(f"data/users/{user_id}/saxobank/cash")
+    cash_dir = Path(f"data/users/{user}/saxobank/cash")
     cash_dir.mkdir(parents=True, exist_ok=True)
 
     cash_file = cash_dir / f"{cash_key}_cash.json"
@@ -318,7 +318,7 @@ async def save_portfolio_cash(
         "cash_amount": cash_amount,
         "currency": currency,
         "last_updated": datetime.utcnow().isoformat() + "Z",
-        "user_id": user_id,
+        "user_id": user,
         "file_key": cash_key
     }
 
@@ -326,7 +326,7 @@ async def save_portfolio_cash(
         with open(cash_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-        logger.info(f"💾 Saved cash amount ${cash_amount} for user {user_id}, file_key={cash_key}")
+        logger.info(f"💾 Saved cash amount ${cash_amount} for user {user}, file_key={cash_key}")
 
         return {
             "success": True,
@@ -335,7 +335,7 @@ async def save_portfolio_cash(
             "message": f"Cash amount saved successfully: ${cash_amount:,.2f}"
         }
     except Exception as e:
-        logger.error(f"Failed to save cash amount for user {user_id}: {e}")
+        logger.error(f"Failed to save cash amount for user {user}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save cash amount: {str(e)}")
 
 

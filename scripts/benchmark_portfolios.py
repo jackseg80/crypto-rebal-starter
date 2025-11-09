@@ -109,13 +109,23 @@ def calculate_metrics(portfolio_name: str, balances: List[Dict[str, Any]]) -> Di
     risky_pct = 100 - stables_pct
 
     # Risk score estimation (simplified)
-    # Lower stables = higher risk, higher concentration = higher risk
-    stables_factor = max(0, 100 - stables_pct)  # 0-100, higher = more risk
-    concentration_factor = hhi * 100  # 0-100, higher = more concentrated
+    # CONVENTION RISK SCORING (CLAUDE.md):
+    # - Robustness Score: 0-100, higher = better portfolio
+    # - Penalty Score: 0-100, higher = worse portfolio
+    #
+    # Calculate penalty factors (higher = worse)
+    stables_factor = max(0, 100 - stables_pct)  # 0-100, lower stables = higher penalty
+    concentration_factor = hhi * 100  # 0-100, higher concentration = higher penalty
 
-    # Inverse to get risk score (higher = less risky)
-    risk_score = 100 - (stables_factor * 0.3 + concentration_factor * 0.7)
-    risk_score = max(0, min(100, risk_score))  # Clamp to 0-100
+    # Calculate total portfolio penalty (higher = worse)
+    portfolio_penalty = stables_factor * 0.3 + concentration_factor * 0.7
+
+    # Convert penalty to robustness score (higher = better) - INVERSION REQUIRED HERE
+    robustness_score = 100 - portfolio_penalty
+    robustness_score = max(0, min(100, robustness_score))  # Clamp to 0-100
+
+    # Legacy alias for compatibility
+    risk_score = robustness_score
 
     # Build comprehensive metrics dict
     metrics = {

@@ -24,7 +24,7 @@
 .venv\Scripts\Activate.ps1
 
 # Lancer serveur avec filtre CAP_FLOW
-python -m uvicorn api.main:app --reload | findstr CAP_FLOW
+python -m uvicorn api.main:app | findstr CAP_FLOW
 ```
 
 **Sortie attendue** :
@@ -36,7 +36,7 @@ python -m uvicorn api.main:app --reload | findstr CAP_FLOW
 
 ```bash
 # Rediriger vers fichier
-python -m uvicorn api.main:app --reload > cap_logs.txt 2>&1
+python -m uvicorn api.main:app > cap_logs.txt 2>&1
 
 # Monitorer en temps réel
 Get-Content cap_logs.txt -Wait | Select-String "CAP_FLOW"
@@ -159,7 +159,7 @@ prudent_mode=False, cap_raw=8.00%, cap_final=7.82%
 
 **Test** : Lancer serveur, monitorer 20 lignes CAP_FLOW :
 ```bash
-python -m uvicorn api.main:app --reload | findstr CAP_FLOW | Select-Object -First 20
+python -m uvicorn api.main:app | findstr CAP_FLOW | Select-Object -First 20
 ```
 
 Calculer :

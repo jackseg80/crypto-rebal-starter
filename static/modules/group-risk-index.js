@@ -286,16 +286,26 @@ export class GroupRiskIndex {
 
     /**
      * Calculate overall GRI score (0-100)
+     *
+     * CONVENTION RISK SCORING (CLAUDE.md):
+     * - Robustness Score: 0-100, higher = better portfolio
+     * - Penalty Score: 0-100, higher = worse portfolio
+     * - Concentration: 0-100, higher = more concentrated (worse)
+     * NEVER use: 100 - robustness_score (violates convention)
      */
     _calculateOverallGRIScore(groupRisks, concentrationRisk) {
-        const diversificationComponent = Math.max(0, 100 - concentrationRisk.concentration_score);
+        // Concentration is a penalty (higher = worse), invert to get diversification bonus (higher = better)
+        const concentrationPenalty = concentrationRisk.concentration_score; // 0-100, higher = worse
+        const diversificationBonus = Math.max(0, 100 - concentrationPenalty); // Invert for bonus
 
+        // Group risk_score is actually a penalty in this context (higher = riskier)
+        // Invert to align with GRI convention (higher = better)
         const riskAdjustedComponent = Object.values(groupRisks).reduce((acc, group) => {
-            return acc + group.weight * (100 - group.risk_score);
+            return acc + group.weight * (100 - group.risk_score); // Invert penalty to robustness
         }, 0);
 
         // Weight the components
-        const overallScore = (diversificationComponent * 0.4 + riskAdjustedComponent * 0.6);
+        const overallScore = (diversificationBonus * 0.4 + riskAdjustedComponent * 0.6);
 
         return Math.round(Math.max(0, Math.min(100, overallScore)));
     }

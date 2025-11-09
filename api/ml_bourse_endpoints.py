@@ -8,7 +8,7 @@ Provides ML-powered predictions:
 - Technical signals aggregation
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from fastapi.responses import Response
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
@@ -17,6 +17,7 @@ import logging
 import json
 import math
 
+from api.deps import get_active_user
 from services.ml.bourse.stocks_adapter import StocksMLAdapter
 from services.ml.bourse.recommendations_orchestrator import RecommendationsOrchestrator
 
@@ -608,7 +609,7 @@ async def get_regime_history(
 
 @router.get("/api/ml/bourse/portfolio-recommendations")
 async def get_portfolio_recommendations(
-    user_id: str = Query("demo", description="User ID for portfolio positions"),
+    user: str = Depends(get_active_user),
     source: str = Query("saxobank", description="Data source (saxobank, cointracking, etc.)"),
     timeframe: str = Query("medium", description="Timeframe: short (1-2w), medium (1m), long (3-6m)"),
     lookback_days: int = Query(90, ge=60, le=365, description="Days of historical data to analyze"),
@@ -670,7 +671,7 @@ async def get_portfolio_recommendations(
         GET /api/ml/bourse/portfolio-recommendations?user_id=jack&timeframe=medium&lookback_days=90
     """
     try:
-        logger.info(f"Portfolio recommendations requested (user={user_id}, source={source}, timeframe={timeframe})")
+        logger.info(f"Portfolio recommendations requested (user={user}, source={source}, timeframe={timeframe})")
 
         # Log cash amount if provided
         if cash_amount and cash_amount > 0:
@@ -691,7 +692,7 @@ async def get_portfolio_recommendations(
                 positions_url += f"?file_key={file_key}"
             pos_response = await client.get(
                 positions_url,
-                headers={"X-User": user_id}
+                headers={"X-User": user}
             )
             pos_response.raise_for_status()
             positions_data = pos_response.json()
@@ -763,7 +764,7 @@ async def get_portfolio_recommendations(
 
 @router.get("/api/bourse/opportunities")
 async def get_market_opportunities(
-    user_id: str = Query(..., description="User ID"),
+    user: str = Depends(get_active_user),
     horizon: str = Query("medium", description="Time horizon: short (1-3M), medium (6-12M), long (2-3Y)"),
     file_key: Optional[str] = Query(None, description="Saxo CSV file key"),
     min_gap_pct: float = Query(5.0, ge=0.0, le=50.0, description="Minimum gap percentage to consider")
@@ -781,7 +782,7 @@ async def get_market_opportunities(
         GET /api/bourse/opportunities?user_id=jack&horizon=medium&min_gap_pct=5.0
     """
     try:
-        logger.info(f"🔍 Market opportunities requested (user={user_id}, horizon={horizon})")
+        logger.info(f"🔍 Market opportunities requested (user={user}, horizon={horizon})")
 
         # Validate horizon
         if horizon not in ["short", "medium", "long"]:
@@ -798,7 +799,7 @@ async def get_market_opportunities(
                 positions_url += f"?file_key={file_key}"
             pos_response = await client.get(
                 positions_url,
-                headers={"X-User": user_id}
+                headers={"X-User": user}
             )
             pos_response.raise_for_status()
             positions_data = pos_response.json()

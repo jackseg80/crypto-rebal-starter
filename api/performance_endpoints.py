@@ -12,6 +12,7 @@ import time
 from hashlib import sha256
 import json
 
+from api.deps import get_active_user
 from services.performance_optimizer import performance_optimizer
 from api.dependencies.dev_guards import require_dev_mode
 
@@ -279,7 +280,7 @@ async def precompute_matrices(
 async def get_performance_summary(
     request: Request,
     anchor: str = Query(default="prev_close", description="Point de référence temporel (prev_close, midnight, session)"),
-    user_id: str = Query(default="demo", description="User ID"),
+    user: str = Depends(get_active_user),
     source: str = Query(default="cointracking", description="Data source")
 ):
     """
@@ -302,7 +303,7 @@ async def get_performance_summary(
         # Récupérer les données actuelles du portfolio
         balances = await get_unified_filtered_balances(
             source=source,
-            user_id=user_id
+            user_id=user
         )
 
         # Calculer métriques actuelles
@@ -321,7 +322,7 @@ async def get_performance_summary(
         # Calculer la performance vs anchor point
         perf_metrics = portfolio_analytics.calculate_performance_metrics(
             current_data=current_metrics,
-            user_id=user_id,
+            user_id=user,
             source=source,
             anchor=portfolio_anchor,
             window="24h"
@@ -338,7 +339,7 @@ async def get_performance_summary(
             absolute_change_usd = 0.0
             percent_change = 0.0
             base_snapshot_at = None
-            logger.warning(f"No historical data for P&L calculation (user={user_id}, source={source}, anchor={anchor})")
+            logger.warning(f"No historical data for P&L calculation (user={user}, source={source}, anchor={anchor})")
 
         # Structure de réponse compatible avec les tests
         response_data = {

@@ -317,7 +317,7 @@ echo $RUN_SCHEDULER  # Should be "1"
 
 # Set and restart
 export RUN_SCHEDULER=1
-uvicorn api.main:app --reload
+uvicorn api.main:app
 ```
 
 ---

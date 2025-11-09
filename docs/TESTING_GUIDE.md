@@ -213,7 +213,7 @@ if response.status_code == 503:
 
 ```bash
 # 1. Démarrer le serveur dev
-python -m uvicorn api.main:app --reload --port 8080
+python -m uvicorn api.main:app --port 8080
 
 # 2. Ouvrir dans le navigateur
 http://localhost:8080/tests/html_debug/test_risk_modules_v2.html

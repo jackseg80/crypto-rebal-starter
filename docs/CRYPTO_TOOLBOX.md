@@ -244,7 +244,7 @@ Supported comparison operators:
 ### Local Testing
 ```bash
 # Start dev server
-uvicorn api.main:app --reload --port 8080
+uvicorn api.main:app --port 8080
 
 # Test endpoint
 curl http://localhost:8080/api/crypto-toolbox

@@ -431,7 +431,7 @@ prudent_mode=True, mode=Slow [ALERT_REDUCTION(-3.0%)]
 **Monitorer CAP_FLOW en temps réel** :
 ```bash
 # Windows
-python -m uvicorn api.main:app --reload | findstr "CAP_FLOW"
+python -m uvicorn api.main:app | findstr "CAP_FLOW"
 
 # PowerShell
 Get-Content logs | Select-String "CAP_FLOW"

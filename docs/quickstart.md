@@ -33,7 +33,7 @@ Windows (PowerShell):
 
 Linux/macOS:
 ```bash
-uvicorn api.main:app --reload --port 8080
+uvicorn api.main:app --port 8080
 ```
 
 Windows (PowerShell):

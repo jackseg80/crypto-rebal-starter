@@ -104,7 +104,7 @@ async def debug_ctapi():
 
 
 @router.get("/api-keys")
-async def debug_api_keys(debug_token: Optional[str] = Query(None), user_id: str = Query("demo")):
+async def debug_api_keys(debug_token: Optional[str] = Query(None), user: str = Depends(get_active_user)):
     """
     Expose les clés API pour auto-configuration (DEBUG ONLY).
 
@@ -122,14 +122,14 @@ async def debug_api_keys(debug_token: Optional[str] = Query(None), user_id: str 
     # Lire depuis secrets.json (recommandé) avec fallback .env
     from services.user_secrets import get_coingecko_api_key
 
-    cg_key = get_coingecko_api_key(user_id) or os.getenv("COINGECKO_API_KEY", "")
+    cg_key = get_coingecko_api_key(user) or os.getenv("COINGECKO_API_KEY", "")
 
     return {
         "coingecko_api_key": cg_key[:8] + "..." if cg_key else "",
         "cointracking_api_key": os.getenv("COINTRACKING_API_KEY", "")[:8] + "...",
         "cointracking_api_secret": "***masked***",
         "fred_api_key": os.getenv("FRED_API_KEY", "")[:8] + "...",
-        "_note": "CoinGecko key loaded from secrets.json (user: {})".format(user_id)
+        "_note": "CoinGecko key loaded from secrets.json (user: {})".format(user)
     }
 
 

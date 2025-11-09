@@ -4,7 +4,7 @@
 ```bash
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn api.main:app --reload --port 8080
+uvicorn api.main:app --port 8080
 ```
 
 ## Conventions

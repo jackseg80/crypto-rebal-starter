@@ -122,7 +122,7 @@ DEBUG:    connectors.saxo_import:Skipping summary row: Actions (95)
    .venv\Scripts\Activate.ps1
 
    # Lancer le serveur
-   python -m uvicorn api.main:app --reload --port 8080
+   python -m uvicorn api.main:app --port 8080
    ```
 
 3. Réimportez le CSV (Étape 3)

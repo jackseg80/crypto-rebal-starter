@@ -90,7 +90,7 @@
 ### Fonctionnels
 ```bash
 # 1. Démarrer le serveur
-python -m uvicorn api.main:app --reload --port 8080
+python -m uvicorn api.main:app --port 8080
 
 # 2. Tester risk-dashboard.html
 # URL: http://localhost:8080/static/risk-dashboard.html

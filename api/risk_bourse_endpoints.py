@@ -845,7 +845,7 @@ async def get_margin_monitoring(
 
 @router.get("/alerts")
 async def get_risk_alerts(
-    user_id: str = Query("demo", description="User ID for multi-tenant support"),
+    user: str = Depends(get_active_user),
     file_key: Optional[str] = Query(None, description="Saxo file key for multi-file support"),
     use_cache: bool = Query(True, description="Use cached alerts if available"),
     redis: Optional[Any] = Depends(get_redis_client)
@@ -869,19 +869,19 @@ async def get_risk_alerts(
     - Filters out acknowledged alerts by default
     """
     try:
-        logger.info(f"[alerts] Generating alerts for user={user_id}, file_key={file_key}")
+        logger.info(f"[alerts] Generating alerts for user={user}, file_key={file_key}")
 
         # Initialize persistence service
         persistence = AlertsPersistenceService(redis_client=redis)
 
         # Try to get cached alerts first
         if use_cache:
-            cached_alerts = persistence.get_current_alerts(user_id=user_id, include_acknowledged=False)
+            cached_alerts = persistence.get_current_alerts(user_id=user, include_acknowledged=False)
             if cached_alerts:
-                logger.info(f"[alerts] Returning cached alerts for user={user_id}")
+                logger.info(f"[alerts] Returning cached alerts for user={user}")
                 return {
                     "ok": True,
-                    "user_id": user_id,
+                    "user_id": user,
                     **cached_alerts
                 }
 
@@ -893,9 +893,9 @@ async def get_risk_alerts(
 
         # Get positions
         if file_key:
-            portfolios = list_portfolios_overview(user_id=user_id, file_key=file_key)
+            portfolios = list_portfolios_overview(user_id=user, file_key=file_key)
         else:
-            portfolios = list_portfolios_overview(user_id=user_id)
+            portfolios = list_portfolios_overview(user_id=user)
 
         if not portfolios:
             return {
@@ -908,7 +908,7 @@ async def get_risk_alerts(
             }
 
         portfolio_id = portfolios[0].get("portfolio_id")
-        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user_id, file_key=file_key)
+        portfolio_data = get_portfolio_detail(portfolio_id=portfolio_id, user_id=user, file_key=file_key)
         positions = portfolio_data.get("positions", [])
 
         if not positions:
@@ -970,17 +970,17 @@ async def get_risk_alerts(
 
         # Save alerts to Redis with TTL
         persistence_result = persistence.save_alerts(
-            user_id=user_id,
+            user_id=user,
             alerts=alerts,
             ttl=7 * 24 * 60 * 60  # 7 days
         )
 
         if persistence_result.get('persisted'):
-            logger.info(f"[alerts] Saved {persistence_result.get('count')} alerts to Redis for user={user_id}")
+            logger.info(f"[alerts] Saved {persistence_result.get('count')} alerts to Redis for user={user}")
 
         return {
             "ok": True,
-            "user_id": user_id,
+            "user_id": user,
             "persisted": persistence_result.get('persisted', False),
             **alerts
         }
@@ -995,7 +995,7 @@ async def get_risk_alerts(
 @router.post("/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(
     alert_id: str,
-    user_id: str = Query("demo", description="User ID for multi-tenant support"),
+    user: str = Depends(get_active_user),
     redis: Optional[Any] = Depends(get_redis_client)
 ):
     """
@@ -1013,13 +1013,13 @@ async def acknowledge_alert(
         POST /api/risk/bourse/alerts/abc123/acknowledge?user_id=jack
     """
     try:
-        logger.info(f"[alerts] Acknowledging alert {alert_id} for user={user_id}")
+        logger.info(f"[alerts] Acknowledging alert {alert_id} for user={user}")
 
         # Initialize persistence service
         persistence = AlertsPersistenceService(redis_client=redis)
 
         # Acknowledge the alert
-        result = persistence.acknowledge_alert(user_id=user_id, alert_id=alert_id)
+        result = persistence.acknowledge_alert(user_id=user, alert_id=alert_id)
 
         if not result.get('acknowledged'):
             reason = result.get('reason', 'unknown')
@@ -1034,7 +1034,7 @@ async def acknowledge_alert(
 
         return {
             "ok": True,
-            "user_id": user_id,
+            "user_id": user,
             **result
         }
 
@@ -1047,7 +1047,7 @@ async def acknowledge_alert(
 
 @router.get("/alerts/history")
 async def get_alerts_history(
-    user_id: str = Query("demo", description="User ID for multi-tenant support"),
+    user: str = Depends(get_active_user),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of alerts to return"),
     days_back: int = Query(7, ge=1, le=30, description="Number of days to look back"),
     redis: Optional[Any] = Depends(get_redis_client)
@@ -1068,14 +1068,14 @@ async def get_alerts_history(
         GET /api/risk/bourse/alerts/history?user_id=jack&limit=20&days_back=7
     """
     try:
-        logger.info(f"[alerts] Fetching history for user={user_id}, limit={limit}, days_back={days_back}")
+        logger.info(f"[alerts] Fetching history for user={user}, limit={limit}, days_back={days_back}")
 
         # Initialize persistence service
         persistence = AlertsPersistenceService(redis_client=redis)
 
         # Get historical alerts
         alerts = persistence.get_historical_alerts(
-            user_id=user_id,
+            user_id=user,
             limit=limit,
             days_back=days_back
         )
@@ -1087,7 +1087,7 @@ async def get_alerts_history(
 
         return {
             "ok": True,
-            "user_id": user_id,
+            "user_id": user,
             "critical": critical,
             "warnings": warnings,
             "info": info,

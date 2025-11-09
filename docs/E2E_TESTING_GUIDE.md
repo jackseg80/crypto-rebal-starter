@@ -365,7 +365,7 @@ jobs:
 **Solution** :
 ```bash
 # Lancer manuellement dans un terminal séparé
-python -m uvicorn api.main:app --reload --port 8080
+python -m uvicorn api.main:app --port 8080
 
 # Puis dans un autre terminal
 npm run test:e2e

@@ -219,7 +219,7 @@ cd crypto-rebal-starter
 pip install -r requirements.txt
 
 # Lancer le serveur principal
-uvicorn api.main:app --reload --port 8080
+uvicorn api.main:app --port 8080
 
 # [Optionnel] Serveur d'indicateurs avancés
 python crypto_toolbox_api.py  # Port 8001
@@ -1754,7 +1754,7 @@ POST /api/backtesting/run
 **Solution implémentée** :
 ```bash
 # ✅ CTRL+C fonctionne maintenant parfaitement
-uvicorn api.main:app --reload --port 8080
+uvicorn api.main:app --port 8080
 # Press CTRL+C -> arrêt propre en ~2s
 ```
 
@@ -1774,7 +1774,7 @@ python -c "from api.main import app; print(f'Routes: {len(app.router.routes)}')"
 # Attendu: 177 routes (90 API + 87 système)
 
 # Redémarrer le serveur si < 150 routes
-uvicorn api.main:app --reload --port 8080
+uvicorn api.main:app --port 8080
 ```
 
 **Endpoints critiques à tester** :

@@ -6,7 +6,7 @@
 
 ### Prérequis
 - Python 3.8+
-- FastAPI server démarré : `uvicorn api.main:app --reload --port 8080`
+- FastAPI server démarré : `uvicorn api.main:app --port 8080`
 - Dépendances installées : `pip install -r requirements.txt`
 
 ### Test Automatisé Complet
@@ -76,7 +76,7 @@ python tests/manual/test_config_hot_reload.py
 ### Scenario 1: Cycle Complet d'Alerte
 ```bash
 # 1. Démarrer serveur
-uvicorn api.main:app --reload --port 8080
+uvicorn api.main:app --port 8080
 
 # 2. Vérifier santé
 curl http://localhost:8080/api/alerts/health
@@ -162,7 +162,7 @@ curl http://localhost:8080/api/governance/state
 netstat -an | findstr 8000
 
 # Redémarrer serveur
-uvicorn api.main:app --reload --port 8080 --log-level debug
+uvicorn api.main:app --port 8080 --log-level debug
 ```
 
 ### Config Hot-Reload Échec

@@ -1,7 +1,7 @@
 # Dette Technique - Suivi et Roadmap
 
-> **Dernière mise à jour** : 10 octobre 2025 (soir - session technical debt)
-> **Statut global** : 🟢 Excellent progrès (8 items actifs, 5 items résolus aujourd'hui)
+> **Dernière mise à jour** : 3 novembre 2025 (nettoyage fichiers obsolètes)
+> **Statut global** : 🟢 Excellent progrès (8 items actifs, nettoyage majeur effectué)
 
 Ce document centralise les TODO, FIXME et items de dette technique identifiés dans le codebase, avec priorités et plan de résolution.
 
@@ -78,19 +78,12 @@ Ces items sont des fonctionnalités futures, pas des bugs. Backlog product.
 **Justification** : Backtesting avancé = Phase 4
 **Action recommandée** : Spécifier requirements avant implémentation
 
-### Métriques Réelles
+### ✅ InteractiveDashboard.js - SUPPRIMÉ (Nov 2025)
 
-#### `static/components/InteractiveDashboard.js` (4 TODO)
-```javascript
-// TODO: Implémenter calcul basé sur historique prix réel
-// TODO: Implémenter calcul de métriques de risque basées sur données réelles
-// TODO: Implémenter calculs basés sur données historiques réelles
-// TODO: Calculer métriques réelles basées sur historique
-```
-
-**Statut** : Enhancement
-**Justification** : InteractiveDashboard est déprécié, remplacé par dashboards modernes
-**Action recommandée** : **Supprimer** InteractiveDashboard.js si non utilisé
+#### `static/components/InteractiveDashboard.js` (4 TODO) ✅ DONE
+**Statut** : Supprimé le 3 novembre 2025
+**Justification** : Déprécié, remplacé par dashboards modernes, aucune dépendance trouvée
+**Résultat** : -1229 lignes de code obsolète
 
 ---
 
@@ -234,7 +227,40 @@ showNotification('Configuration sources sauvegardée', 'success');
 
 ---
 
-## ✅ DONE - Archives Nettoyées (7 items)
+## ✅ DONE - Nettoyage Majeur Nov 2025 (6 items)
+
+**Date nettoyage** : 3 novembre 2025
+
+### Fichiers supprimés :
+
+1. **`static/components/InteractiveDashboard.js`** (1229 lignes)
+   - Composant déprécié, remplacé par dashboards modernes
+   - Aucune dépendance trouvée dans le codebase
+   - 4 TODOs supprimés
+
+2. **`services/risk_management_backup.py`** (2159 lignes)
+   - Fichier backup obsolète
+   - Aucun import dans le codebase
+
+3. **`archive/backtest_2025_10/`** (12 fichiers)
+   - Archive backtest Stop Loss d'octobre 2025
+   - Résultats documentés dans `docs/STOP_LOSS_BACKTEST_RESULTS.md`
+   - Dossier `archive/` complètement supprimé (vide)
+
+4. **`tests/integration/test_multi_tenant_isolation.py`** (64 lignes)
+   - 4 tests vides (tous avec `pass`)
+   - Aucun test implémenté
+
+5. **`tests/integration/test_risk_bourse_endpoint.py`** - Nettoyé
+   - 5 tests vides supprimés
+   - 2 tests implémentés conservés
+   - Réduit de 87 → 44 lignes
+
+**Impact total** : -3500+ lignes de code obsolète, -9 TODOs
+
+---
+
+## ✅ DONE - Archives Nettoyées Oct 2025 (7 items)
 
 **Date nettoyage** : 10 octobre 2025
 
@@ -279,17 +305,20 @@ Fichiers supprimés :
 
 ## 📏 Métriques
 
-### Réduction Dette (Oct 2025)
+### Réduction Dette (Oct-Nov 2025)
 
-| Métrique | Avant | Après | Delta |
-|----------|-------|-------|-------|
-| TODO/FIXME total | 26 | 8 | -18 ✅ |
-| Fichiers backup | 7 | 0 | -7 ✅ |
-| Taille backups | 400 KB | 0 KB | -100% ✅ |
-| Items HIGH priority | 2 | ✅ 0 | -2 ✅ |
-| Items MEDIUM priority | 4 | ✅ 1 | -3 ✅ |
+| Métrique | Oct 2025 | Nov 2025 | Delta |
+|----------|----------|----------|-------|
+| TODO/FIXME total | 26 → 8 | 8 → ~5 | -21 ✅✅ |
+| Fichiers backup | 7 → 0 | 0 | -7 ✅ |
+| Taille backups | 400 KB → 0 KB | 0 KB | -100% ✅ |
+| Fichiers obsolètes | - | -5 fichiers | -3500+ lignes ✅✅ |
+| Tests vides | - | -9 tests | -151 lignes ✅ |
+| Items HIGH priority | 2 → 0 | ✅ 0 | -2 ✅ |
+| Items MEDIUM priority | 4 → 1 | ✅ 1 | -3 ✅ |
 | Migration Risk Dashboard | 4 TODO | ✅ DONE | -4 ✅ |
 | Technical Debt Oct 2025 | 3 TODO | ✅ DONE | -3 ✅ |
+| **Nettoyage Nov 2025** | - | **✅ DONE** | **-3650+ lignes** ✅✅
 
 ### Tendance
 

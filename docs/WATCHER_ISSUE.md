@@ -65,7 +65,7 @@ pkill -f "uvicorn.*--reload"
 # 3. Faire les modifications
 
 # 4. Redémarrer
-uvicorn api.main:app --reload
+uvicorn api.main:app
 ```
 
 ### Option B: Exclure fichiers des watchers

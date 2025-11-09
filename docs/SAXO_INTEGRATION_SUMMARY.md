@@ -238,7 +238,7 @@ pytest tests/integration/test_risk_bourse_endpoint.py -v
 ### 1. Lancer le serveur
 ```bash
 .venv\Scripts\Activate.ps1
-python -m uvicorn api.main:app --reload --port 8080
+python -m uvicorn api.main:app --port 8080
 ```
 
 ### 2. Tests unitaires

@@ -571,8 +571,7 @@ async def get_risk_dashboard(
     min_usd: float = Query(1.0, description="Seuil minimum en USD"),
     price_history_days: int = Query(30, ge=10, le=365, description="Fenêtre d'historique pour métriques (jours)"),
     lookback_days: int = Query(30, ge=10, le=365, description="Fenêtre pour corrélations (jours)"),
-    user_id: Optional[str] = Query(None, description="User ID (optionnel, prioritaire sur X-User header)"),
-    user_header: str = Depends(get_active_user),
+    user: str = Depends(get_active_user),
     # 🆕 Risk Version (Phase 5 - V2 Active)
     risk_version: str = Query("v2_active", description="Version Risk Score: legacy | v2_shadow | v2_active"),
     # 🆕 Dual Window System parameters
@@ -590,15 +589,12 @@ async def get_risk_dashboard(
     try:
         start_time = datetime.now()
 
-        # Déterminer user effectif : Query param prioritaire, sinon header
-        effective_user = user_id or user_header
-
         # Check cache (TTL: 30 min = 1800 seconds, optimized per CACHE_TTL_OPTIMIZATION.md)
         # 🔧 FIX: Include _csv_hint in cache key to invalidate when CSV changes (Oct 2025)
         csv_hint_part = f":{_csv_hint}" if _csv_hint else ""
-        cache_key = f"risk_dashboard:{effective_user}:{source}:{min_usd}:{risk_version}{csv_hint_part}"
+        cache_key = f"risk_dashboard:{user}:{source}:{min_usd}:{risk_version}{csv_hint_part}"
 
-        logger.info(f"🔍 Risk dashboard request: user={effective_user}, source={source}, csv_hint={_csv_hint}, cache_key={cache_key}")
+        logger.info(f"🔍 Risk dashboard request: user={user}, source={source}, csv_hint={_csv_hint}, cache_key={cache_key}")
 
         cached_result = cache_get(_risk_cache, cache_key, 1800)
         if cached_result:
@@ -609,7 +605,7 @@ async def get_risk_dashboard(
 
         # Récupération unifiée des balances (supporte stub | cointracking | cointracking_api)
         from api.unified_data import get_unified_filtered_balances
-        unified = await get_unified_filtered_balances(source=source, min_usd=min_usd, user_id=effective_user)
+        unified = await get_unified_filtered_balances(source=source, min_usd=min_usd, user_id=user)
         balances = unified.get("items", [])
         source_used = unified.get("source_used", source)
         

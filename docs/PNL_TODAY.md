@@ -260,7 +260,7 @@ curl -X POST "http://localhost:8080/portfolio/snapshot?source=cointracking&user_
 
 ### CSV charge mauvaises données
 **Cause:** Serveur uvicorn non redémarré après changement fichiers
-**Solution:** Redémarrer serveur: `uvicorn api.main:app --reload --port 8080`
+**Solution:** Redémarrer serveur: `uvicorn api.main:app --port 8080`
 
 ### "No historical data available"
 **Cause:** Aucun snapshot pour cette combinaison (user_id, source)

@@ -21,6 +21,7 @@ from pathlib import Path
 
 # Import services pour données réelles
 from services.portfolio import portfolio_analytics
+from api.deps import get_active_user
 
 logger = logging.getLogger(__name__)
 
@@ -233,14 +234,14 @@ def get_mock_portfolio_data():
 @router.get("/metrics")
 async def get_portfolio_metrics(
     source: str = Query("cointracking", description="Source de données (cointracking, cointracking_api, etc.)"),
-    user_id: str = Query("demo", description="ID utilisateur pour isolation multi-tenant")
+    user: str = Depends(get_active_user)
 ):
     """
     Obtenir les métriques actuelles du portefeuille
 
     Args:
         source: Source de données (cointracking, cointracking_api, saxobank, etc.)
-        user_id: ID utilisateur (demo, jack, donato, etc.)
+        user: ID utilisateur (demo, jack, donato, etc.)
 
     Returns:
         Métriques complètes du portfolio avec allocations et déviations
@@ -251,8 +252,8 @@ async def get_portfolio_metrics(
             logger.info("Using MOCK data for portfolio metrics (USE_MOCK_MONITORING=true)")
             portfolio_data = get_mock_portfolio_data()
         else:
-            logger.info(f"Using REAL data for portfolio metrics (user={user_id}, source={source})")
-            portfolio_data = await get_real_portfolio_data(source=source, user_id=user_id)
+            logger.info(f"Using REAL data for portfolio metrics (user={user}, source={source})")
+            portfolio_data = await get_real_portfolio_data(source=source, user_id=user)
 
         # Calculer les déviations maximales
         if portfolio_data["assets"]:
@@ -284,13 +285,13 @@ async def get_portfolio_metrics(
         return JSONResponse(response)
 
     except Exception as e:
-        logger.error(f"Error getting portfolio metrics for user={user_id}, source={source}: {e}")
+        logger.error(f"Error getting portfolio metrics for user={user}, source={source}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/alerts")
 async def get_portfolio_alerts(
     source: str = Query("cointracking", description="Source de données"),
-    user_id: str = Query("demo", description="ID utilisateur"),
+    user: str = Depends(get_active_user),
     active_only: bool = Query(True, description="Retourner seulement les alertes actives"),
     limit: int = Query(20, ge=1, le=100, description="Nombre maximum d'alertes")
 ):
@@ -299,7 +300,7 @@ async def get_portfolio_alerts(
 
     Args:
         source: Source de données
-        user_id: ID utilisateur
+        user: ID utilisateur
         active_only: Retourner seulement les alertes actives
         limit: Nombre maximum d'alertes à retourner
 
@@ -311,7 +312,7 @@ async def get_portfolio_alerts(
         if USE_MOCK_MONITORING:
             portfolio_data = get_mock_portfolio_data()
         else:
-            portfolio_data = await get_real_portfolio_data(source=source, user_id=user_id)
+            portfolio_data = await get_real_portfolio_data(source=source, user_id=user)
 
         alerts = []
         now = datetime.now(timezone.utc)
@@ -322,7 +323,7 @@ async def get_portfolio_alerts(
             if deviation > 5:  # Seuil de 5% pour générer une alerte
                 alert_type = "critical" if deviation > 10 else "warning"
                 alerts.append({
-                    "id": f"deviation-{asset_name.lower()}-{user_id}",
+                    "id": f"deviation-{asset_name.lower()}-{user}",
                     "type": alert_type,
                     "category": "allocation_deviation",
                     "title": f"Déviation d'allocation - {asset_name}",
@@ -333,35 +334,35 @@ async def get_portfolio_alerts(
                     "target_allocation": asset_data["target_allocation"],
                     "timestamp": (now - timedelta(minutes=15)).isoformat(),
                     "resolved": False,
-                    "user_id": user_id,
+                    "user_id": user,
                     "source": source
                 })
 
         # Alerte de performance si baisse significative
         if portfolio_data["change_24h"] < -10:
             alerts.append({
-                "id": f"performance-decline-{user_id}",
+                "id": f"performance-decline-{user}",
                 "type": "warning",
                 "category": "performance",
                 "title": "Baisse de performance significative",
                 "message": f"Le portefeuille a baissé de {abs(portfolio_data['change_24h']):.1f}% dans les dernières 24h",
                 "timestamp": (now - timedelta(hours=1)).isoformat(),
                 "resolved": False,
-                "user_id": user_id,
+                "user_id": user,
                 "source": source
             })
 
         # Alerte de hausse exceptionnelle
         if portfolio_data["change_24h"] > 15:
             alerts.append({
-                "id": f"performance-surge-{user_id}",
+                "id": f"performance-surge-{user}",
                 "type": "info",
                 "category": "performance",
                 "title": "Hausse de performance exceptionnelle",
                 "message": f"Le portefeuille a progressé de {portfolio_data['change_24h']:.1f}% dans les dernières 24h",
                 "timestamp": (now - timedelta(minutes=30)).isoformat(),
                 "resolved": False,
-                "user_id": user_id,
+                "user_id": user,
                 "source": source
             })
 
@@ -377,7 +378,7 @@ async def get_portfolio_alerts(
             "alerts": alerts,
             "last_updated": now.isoformat(),
             "total_active": len([a for a in alerts if not a.get("resolved", False)]),
-            "user_id": user_id,
+            "user_id": user,
             "source": source
         }
         save_json_file(ALERTS_FILE, alerts_data)
@@ -390,7 +391,7 @@ async def get_portfolio_alerts(
         })
 
     except Exception as e:
-        logger.error(f"Error getting portfolio alerts for user={user_id}, source={source}: {e}")
+        logger.error(f"Error getting portfolio alerts for user={user}, source={source}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/rebalance-history")
@@ -471,7 +472,7 @@ async def get_rebalance_history(
 @router.get("/performance")
 async def get_performance_analytics(
     source: str = Query("cointracking", description="Source de données"),
-    user_id: str = Query("demo", description="ID utilisateur"),
+    user: str = Depends(get_active_user),
     period_days: int = Query(30, ge=1, le=365, description="Période d'analyse en jours")
 ):
     """
@@ -479,7 +480,7 @@ async def get_performance_analytics(
 
     Args:
         source: Source de données
-        user_id: ID utilisateur
+        user: ID utilisateur
         period_days: Nombre de jours d'historique à analyser
 
     Returns:
@@ -489,7 +490,7 @@ async def get_performance_analytics(
         now = datetime.now(timezone.utc)
 
         # Charger l'historique réel du portfolio
-        historical_data = portfolio_analytics._load_historical_data(user_id=user_id, source=source)
+        historical_data = portfolio_analytics._load_historical_data(user_id=user, source=source)
 
         if not historical_data:
             # Pas de données historiques disponibles
@@ -504,7 +505,7 @@ async def get_performance_analytics(
                     "worst_day": 0.0
                 },
                 "period_days": period_days,
-                "message": f"Pas de données historiques disponibles pour user={user_id}, source={source}",
+                "message": f"Pas de données historiques disponibles pour user={user}, source={source}",
                 "timestamp": now.isoformat()
             })
 
@@ -618,7 +619,7 @@ async def get_performance_analytics(
         })
 
     except Exception as e:
-        logger.error(f"Error getting performance analytics for user={user_id}, source={source}: {e}")
+        logger.error(f"Error getting performance analytics for user={user}, source={source}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # REMOVED: Duplicate alert resolution endpoint - use /api/alerts/resolve/{alert_id} instead
@@ -723,14 +724,14 @@ async def get_strategy_performance(
 @router.get("/dashboard-summary")
 async def get_dashboard_summary(
     source: str = Query("cointracking", description="Source de données"),
-    user_id: str = Query("demo", description="ID utilisateur")
+    user: str = Depends(get_active_user)
 ):
     """
     Résumé complet pour le dashboard de monitoring
 
     Args:
         source: Source de données
-        user_id: ID utilisateur
+        user: ID utilisateur
 
     Returns:
         Vue agrégée du statut global, portfolio, alertes, rebalancing
@@ -740,14 +741,14 @@ async def get_dashboard_summary(
         if USE_MOCK_MONITORING:
             portfolio_data = get_mock_portfolio_data()
         else:
-            portfolio_data = await get_real_portfolio_data(source=source, user_id=user_id)
+            portfolio_data = await get_real_portfolio_data(source=source, user_id=user)
 
         # Alertes actives pour cet utilisateur
         alerts_data = load_json_file(ALERTS_FILE, {"alerts": []})
         active_alerts = [
             a for a in alerts_data.get("alerts", [])
             if not a.get("resolved", False)
-            and a.get("user_id") == user_id
+            and a.get("user_id") == user
             and a.get("source") == source
         ]
 
@@ -801,7 +802,7 @@ async def get_dashboard_summary(
             "system": {
                 "monitoring_active": True,
                 "data_source": source,
-                "user_id": user_id,
+                "user_id": user,
                 "last_check": datetime.now(timezone.utc).isoformat(),
                 "performance_available": perf_available
             },
@@ -809,5 +810,5 @@ async def get_dashboard_summary(
         })
 
     except Exception as e:
-        logger.error(f"Error getting dashboard summary for user={user_id}, source={source}: {e}")
+        logger.error(f"Error getting dashboard summary for user={user}, source={source}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -241,7 +241,7 @@ logger.info(
 **Usage** :
 ```bash
 # Lancer serveur et grep logs
-.venv\Scripts\python.exe -m uvicorn api.main:app --reload | findstr CAP_FLOW
+.venv\Scripts\python.exe -m uvicorn api.main:app | findstr CAP_FLOW
 ```
 
 ---

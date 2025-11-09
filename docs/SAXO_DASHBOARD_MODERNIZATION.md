@@ -163,7 +163,7 @@ async def no_cache_dev_middleware(request: Request, call_next):
 
 ### Test Manuel
 
-1. Démarrer le serveur : `uvicorn api.main:app --reload --port 8080`
+1. Démarrer le serveur : `uvicorn api.main:app --port 8080`
 2. Ouvrir `http://localhost:8080/static/saxo-dashboard.html`
 3. Vérifier :
    - ✅ Bannière "Source active" affiche la source correcte

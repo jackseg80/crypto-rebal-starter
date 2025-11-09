@@ -367,7 +367,7 @@ pytest tests/integration/test_multi_tenant_isolation.py -v
 ```markdown
 <!-- ❌ AVANT -->
 ```bash
-uvicorn api.main:app --reload --port 8080
+uvicorn api.main:app --port 8080
 ```
 
 <!-- ✅ APRÈS -->
@@ -392,7 +392,7 @@ python -m uvicorn api.main:app --port 8080
 grep -rn '\-\-reload' docs/ --include="*.md"
 
 # Remplacer (dry-run first)
-find docs/ -name "*.md" -exec sed -i 's/--reload --port/--port/g' {} +
+find docs/ -name "*.md" -exec sed -i 's/--port/--port/g' {} +
 
 # Ajouter warning avant chaque commande uvicorn
 ```
