@@ -1182,16 +1182,16 @@ async def get_risk_dashboard(
         groups_hash = hashlib.md5(",".join(sorted(exposure_by_group.keys())).encode()).hexdigest()[:8]
 
         dashboard_data["meta"] = {
-            "user_id": effective_user,
+            "user_id": user,
             "source_id": source_used,
             "taxonomy_version": taxonomy_version,
             "taxonomy_hash": groups_hash,
             "generated_at": datetime.now().isoformat(),
-            "correlation_id": f"risk-{effective_user}-{int(datetime.now().timestamp())}"
+            "correlation_id": f"risk-{user}-{int(datetime.now().timestamp())}"
         }
 
         # Log metadata for traceability
-        logger.info(f"🏷️ Risk dashboard metadata: user={effective_user}, source={source_used}, taxonomy={taxonomy_version}:{groups_hash}")
+        logger.info(f"🏷️ Risk dashboard metadata: user={user}, source={source_used}, taxonomy={taxonomy_version}:{groups_hash}")
 
         # 🆕 DEBUG: Log risk_version_info avant retour
         sanitized_dashboard = _clean_for_json(dashboard_data)
