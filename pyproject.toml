@@ -1,0 +1,71 @@
+[tool.pytest.ini_options]
+# Test paths
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Async support
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# Coverage options
+addopts = [
+    "--cov=services",
+    "--cov=api",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-report=term-missing",
+    "--cov-fail-under=50",  # Baseline: 50% (objectif audit: 55%+)
+    "-v",
+    "--tb=short",
+]
+
+# Ignore patterns
+norecursedirs = [
+    ".git",
+    ".venv",
+    "venv",
+    "archive",
+    "data",
+    "logs",
+    "htmlcov",
+    "__pycache__",
+]
+
+# Markers (custom test markers)
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+# Warnings
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smartfolio"
+version = "2.0.0"
+description = "SmartFolio - Crypto & Bourse Portfolio Management"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "httpx>=0.28.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+]
