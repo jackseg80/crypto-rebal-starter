@@ -75,4 +75,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Run as single worker for Playwright compatibility
 # RUN_SCHEDULER controlled via environment variable (default: 1 for production)
 # CRYPTO_TOOLBOX_NEW=1 enables Playwright-based scraping
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT} --workers ${WORKERS}"]
+# --forwarded-allow-ips '*' allows LAN access (dev mode)
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT} --workers ${WORKERS} --forwarded-allow-ips '*'"]

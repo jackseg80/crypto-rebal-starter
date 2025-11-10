@@ -69,6 +69,9 @@ services:
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
+      # Uvicorn Network Settings (allow LAN access)
+      FORWARDED_ALLOW_IPS: "*"  # Allow access from any IP (dev mode)
+
       # Security (optional, for dev/debug)
       DEBUG_TOKEN: ${DEBUG_TOKEN:-}
       ADMIN_KEY: ${ADMIN_KEY:-}
