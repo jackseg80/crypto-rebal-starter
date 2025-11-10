@@ -44,3 +44,4 @@ selenium>=4.35.0  # E2E browser testing
 # Note: These are optional for basic usage
 # structlog>=23.0.0  # Structured logging
 prometheus-fastapi-instrumentator>=6.1.0
+psutil>=5.9.0  # System resource monitoring (CPU, RAM usage)
