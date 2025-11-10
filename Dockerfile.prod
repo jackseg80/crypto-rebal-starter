@@ -53,9 +53,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers (only Chromium to save ~200MB vs all browsers)
+# Install Playwright and browsers (only Chromium to save ~200MB vs all browsers)
 # This layer is expensive (~300MB), cached unless requirements change
-RUN playwright install chromium --with-deps
+RUN pip install playwright && playwright install chromium --with-deps
 
 # Copy application code (frequently changes, so last layer)
 COPY . .
