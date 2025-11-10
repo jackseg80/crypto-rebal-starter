@@ -49,8 +49,8 @@ services:
       - "${PORT:-8080}:${PORT:-8080}"  # LAN accessible
     environment:
       # Core settings
-      DEBUG: ${DEBUG:-false}
-      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DEBUG: ${DEBUG:-true}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
       PORT: ${PORT:-8080}
       HOST: 0.0.0.0  # Must be 0.0.0.0 for container networking
 
