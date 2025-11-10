@@ -288,8 +288,16 @@ class BalanceService:
     async def _legacy_api_mode(self, user_id: str = "demo") -> Dict[str, Any]:
         """Legacy API mode for backward compatibility."""
         from api.services.cointracking_helpers import load_ctapi_exchanges, pick_primary_location_for_symbol
+        from api.services.data_router import UserDataRouter
 
         try:
+            # Load API credentials for user
+            project_root = str(self.base_dir)
+            data_router = UserDataRouter(project_root, user_id)
+            credentials = data_router.get_api_credentials()
+            api_key = credentials.get("api_key")
+            api_secret = credentials.get("api_secret")
+
             # 1) Load snapshot by exchange via CT-API
             snap = await load_ctapi_exchanges(min_usd=0.0)
             detailed = snap.get("detailed_holdings") or {}
@@ -299,7 +307,8 @@ class BalanceService:
                 api_bal = await ct_file.get_current_balances("cointracking_api")
             else:
                 from connectors.cointracking_api import get_current_balances as _ctapi_bal
-                api_bal = await _ctapi_bal()
+                # Pass credentials explicitly
+                api_bal = await _ctapi_bal(api_key=api_key, api_secret=api_secret)
             items = api_bal.get("items") or []
 
             # 3) For EACH coin, set location = primary exchange (max value_usd)
