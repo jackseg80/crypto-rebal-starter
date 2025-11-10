@@ -14,6 +14,9 @@
 
 import { interpretCCS } from './signals-engine.js';
 
+// Guard against concurrent chart creation attempts
+let chartCreationInProgress = false;
+
 // ====== Bitcoin Historical Data Fetcher ======
 /**
  * Fetch Bitcoin historical price data from multiple sources with fallback
@@ -130,11 +133,20 @@ export async function fetchBitcoinHistoricalData() {
  * @returns {Promise<Chart|null>} Chart instance or null on error
  */
 export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
+  // Guard: prevent concurrent creation attempts
+  if (chartCreationInProgress) {
+    debugLogger.debug('⏸️ Chart creation already in progress, skipping duplicate call');
+    return window.bitcoinCycleChart || null;
+  }
+
   const canvas = document.getElementById(canvasId);
   if (!canvas) {
     debugLogger.error('Canvas not found:', canvasId);
     return null;
   }
+
+  // Set flag to prevent concurrent creation
+  chartCreationInProgress = true;
 
   // Check cache first (unless forcing refresh)
   if (!forceRefresh) {
@@ -157,6 +169,7 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
       try {
         window.bitcoinCycleChart = new Chart(canvas, cachedChart.chartConfig);
         console.debug('✅ Chart recreated from cache');
+        chartCreationInProgress = false;
         return window.bitcoinCycleChart;
       } catch (error) {
         debugLogger.warn('Failed to use cached chart, falling back to fresh creation:', error);
@@ -718,6 +731,7 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
       debugLogger.warn('Failed to cache chart config:', cacheError);
     }
 
+    chartCreationInProgress = false;
     return window.bitcoinCycleChart;
 
   } catch (error) {
@@ -737,6 +751,7 @@ export async function createBitcoinCycleChart(canvasId, forceRefresh = false) {
       debugLogger.warn('⚠️ Cannot show error message: container not found');
     }
 
+    chartCreationInProgress = false;
     return null;
   }
 }
@@ -984,6 +999,7 @@ export async function loadOnChainIndicators() {
 // ====== Cycles Content Renderers ======
 /**
  * Cached version of renderCyclesContent - checks cache before rendering
+ * ✅ FIX: Waits for store hydration before rendering
  */
 export async function renderCyclesContent(forceRefresh = false) {
   const container = document.getElementById('cycles-content');
@@ -993,7 +1009,25 @@ export async function renderCyclesContent(forceRefresh = false) {
     return;
   }
 
-  const state = window.store.snapshot();
+  // ✅ FIX: Wait for store hydration if not yet ready
+  const state = window.store?.snapshot();
+  const isHydrated = state?._hydrated === true || state?.ccs?.score != null;
+
+  if (!isHydrated && !forceRefresh) {
+    debugLogger.debug('⏳ Store not yet hydrated, waiting for riskStoreReady event...');
+    container.innerHTML = '<div class="loading">🔄 Loading cycles data...</div>';
+
+    // Set up one-time listener for hydration completion
+    const handleStoreReady = async () => {
+      debugLogger.debug('✅ Store hydrated, rendering cycles content');
+      await renderCyclesContent(false); // Retry rendering
+      window.removeEventListener('riskStoreReady', handleStoreReady);
+    };
+
+    window.addEventListener('riskStoreReady', handleStoreReady, { once: true });
+    return;
+  }
+
   const currentHash = generateCycleDataHash(state);
 
   // Short-circuit: if nothing changed and DOM already has the chart, skip any DOM work
