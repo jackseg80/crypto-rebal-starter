@@ -1,0 +1,128 @@
+# Docker Compose - Production configuration for SmartFolio
+# Target: Ubuntu 24.04.2 LTS on NUC with Docker
+# Features: Redis cache/streaming, auto-start, healthchecks, optimized volumes
+
+version: '3.8'
+
+services:
+  # Redis service - Cache & streaming backend
+  redis:
+    image: redis:7-alpine
+    container_name: smartfolio-redis
+    restart: always
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data  # Named volume for persistence
+    networks:
+      - smartfolio-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # SmartFolio API service
+  smartfolio:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        PORT: ${PORT:-8080}
+        WORKERS: 1
+    container_name: smartfolio-api
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"  # LAN accessible
+    environment:
+      # Core settings
+      DEBUG: ${DEBUG:-false}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      PORT: ${PORT:-8080}
+      HOST: 0.0.0.0  # Must be 0.0.0.0 for container networking
+
+      # Redis connection (use service name as hostname)
+      REDIS_URL: redis://redis:6379/0
+
+      # Feature flags
+      RUN_SCHEDULER: ${RUN_SCHEDULER:-1}
+      CRYPTO_TOOLBOX_NEW: 1
+      RISK_SCORE_V2_ENABLED: ${RISK_SCORE_V2_ENABLED:-true}
+
+      # Rate limiting
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-60}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # Security (optional, for dev/debug)
+      DEBUG_TOKEN: ${DEBUG_TOKEN:-}
+      ADMIN_KEY: ${ADMIN_KEY:-}
+
+      # Data sources
+      ALLOW_STUB_SOURCES: ${ALLOW_STUB_SOURCES:-false}
+      COMPUTE_ON_STUB_SOURCES: ${COMPUTE_ON_STUB_SOURCES:-false}
+
+      # CORS (dev only)
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+
+    volumes:
+      # Only mount data and logs directories (not entire project)
+      # This prevents issues with venv/, __pycache__, etc.
+      - ./data:/app/data:rw              # User data, portfolios, cache
+      - ./logs:/app/logs:rw              # Application logs
+      # Note: Code is baked into image (not mounted) for production
+      # To update code: rebuild image with --build flag
+
+    networks:
+      - smartfolio-net
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8080}/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s  # Playwright needs time to initialize
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Optional: Resource limits (recommended for stability)
+    # Adjust based on NUC usage patterns
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2.0'      # Max 2 cores
+    #       memory: 4G       # Max 4GB RAM
+    #     reservations:
+    #       cpus: '0.5'      # Min 0.5 core
+    #       memory: 512M     # Min 512MB RAM
+
+# Named volume for Redis persistence
+volumes:
+  redis_data:
+    driver: local
+    name: smartfolio-redis-data
+
+# Internal network for service communication
+networks:
+  smartfolio-net:
+    driver: bridge
+    name: smartfolio-network

@@ -1,0 +1,78 @@
+# Multi-stage Dockerfile for SmartFolio - Production optimized
+# Target: Ubuntu 24.04.2 LTS on NUC with Docker
+# Python 3.11 for stability (all deps tested)
+
+FROM python:3.11-slim
+
+# Build arguments for configuration
+ARG PORT=8080
+ARG WORKERS=1
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    PORT=${PORT} \
+    WORKERS=${WORKERS}
+
+# Install system dependencies for Playwright + curl for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Playwright browser dependencies
+    wget \
+    ca-certificates \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libwayland-client0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    xdg-utils \
+    # Healthcheck dependency
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+WORKDIR /app
+
+# Install Python dependencies first (better layer caching)
+# This layer is cached unless requirements.txt changes
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Playwright browsers (only Chromium to save ~200MB vs all browsers)
+# This layer is expensive (~300MB), cached unless requirements change
+RUN playwright install chromium --with-deps
+
+# Copy application code (frequently changes, so last layer)
+COPY . .
+
+# Create directories for volumes (owned by app user)
+RUN mkdir -p /app/data /app/logs && \
+    chmod 755 /app/data /app/logs
+
+# Expose port (configurable via ARG)
+EXPOSE ${PORT}
+
+# Healthcheck - verify API responds on /docs endpoint
+# Interval: 30s, Timeout: 10s, Start period: 60s (Playwright slow start), Retries: 3
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/docs || exit 1
+
+# Run as single worker for Playwright compatibility
+# RUN_SCHEDULER controlled via environment variable (default: 1 for production)
+# CRYPTO_TOOLBOX_NEW=1 enables Playwright-based scraping
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT} --workers ${WORKERS}"]
