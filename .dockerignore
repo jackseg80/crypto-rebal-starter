@@ -45,7 +45,7 @@ README.md
 # Deployment files
 docker/
 deploy/
-scripts/
+# scripts/  # KEEP scripts/ - needed for init_price_history.py and other utilities
 .dockerignore
 Dockerfile
 

@@ -133,14 +133,14 @@ static/core/unified-insights-v2.js # Phase Engine
 ### Structure User
 ```
 data/users/{user_id}/
+  config.json      # Config utilisateur (clés API CoinTracking, CoinGecko, etc.)
   cointracking/
     data/         # Tous les CSV (versionnés automatiquement)
     api_cache/    # Cache API
   saxobank/
     data/         # Tous les CSV (versionnés automatiquement)
   config/
-    config.json   # Config utilisateur
-    sources.json  # Configuration modules
+    sources.json  # Configuration modules sources
 ```
 
 ### P&L Today
