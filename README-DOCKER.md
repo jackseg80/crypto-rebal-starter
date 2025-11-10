@@ -57,7 +57,7 @@ Guide complet de migration depuis Windows vers Ubuntu 24.04.2 LTS avec Docker.
 
 - **`Dockerfile.prod`** : Image optimisée avec healthcheck, Python 3.11
 - **`docker-compose.prod.yml`** : Stack complète (Redis + API + volumes + auto-start)
-- **`.env.docker`** : Template configuration Docker-ready
+- **`.env.docker.example`** : Template configuration Docker-ready
 
 ### Avantages Docker
 
@@ -104,7 +104,7 @@ docker ps                 # Doit fonctionner sans erreur
 # Vérifier que les 3 fichiers existent
 ls Dockerfile.prod
 ls docker-compose.prod.yml
-ls .env.docker
+ls .env.docker.example
 ```
 
 ### Étape 1.2 : Test de build local (OPTIONNEL mais recommandé)
@@ -124,7 +124,7 @@ docker-compose -f docker-compose.prod.yml build
 
 ```powershell
 # Ajouter les nouveaux fichiers Docker
-git add Dockerfile.prod docker-compose.prod.yml .env.docker README-DOCKER.md
+git add Dockerfile.prod docker-compose.prod.yml .env.docker.example README-DOCKER.md
 git commit -m "feat(docker): add production Docker setup for Linux NUC
 
 - Dockerfile.prod with healthcheck and optimizations
@@ -158,7 +158,7 @@ cd smartfolio
 git clone <votre-repo-url> .
 
 # Vérifier que les fichiers Docker sont présents
-ls -la Dockerfile.prod docker-compose.prod.yml .env.docker
+ls -la Dockerfile.prod docker-compose.prod.yml .env.docker.example
 ```
 
 ### Étape 2.2 : Transférer données utilisateurs
@@ -193,7 +193,7 @@ ls -R data/users/
 cd /opt/smartfolio
 
 # Copier template
-cp .env.docker .env
+cp .env.docker.example .env
 
 # Optionnel : éditer si besoin de personnaliser
 nano .env
