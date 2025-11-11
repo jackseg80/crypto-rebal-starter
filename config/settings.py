@@ -218,7 +218,7 @@ class Settings(BaseSettings):
         else:
             # En dev, ajouter localhost par défaut
             origins = self.security.cors_origins.copy()
-            dev_origins = ["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:8080"]
+            dev_origins = ["http://localhost:3000", "http://localhost:8000", "http://127.0.0.1:8000"]
             for origin in dev_origins:
                 if origin not in origins:
                     origins.append(origin)

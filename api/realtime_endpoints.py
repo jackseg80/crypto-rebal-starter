@@ -351,7 +351,7 @@ async def get_demo_page():
                 const clientId = document.getElementById('clientId').value;
                 const subscriptions = document.getElementById('subscriptions').value;
                 
-                const wsUrl = `ws://localhost:8080/api/realtime/ws?client_id=${clientId}&subscriptions=${subscriptions}`;
+                const wsUrl = `ws://localhost:8000/api/realtime/ws?client_id=${clientId}&subscriptions=${subscriptions}`;
                 
                 ws = new WebSocket(wsUrl);
                 

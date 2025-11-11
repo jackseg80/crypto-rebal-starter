@@ -48,7 +48,7 @@ class UserDataRouter:
             self.settings = {
                 "data_source": "csv",
                 "csv_glob": "csv/*.csv",
-                "api_base_url": "http://localhost:8080",
+                "api_base_url": "http://localhost:8000",
                 "display_currency": "USD",
                 "min_usd_threshold": 1.0
             }

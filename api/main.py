@@ -248,10 +248,8 @@ async def generic_exception_handler(request: Request, exc: Exception):
 # Pour fichiers HTML locaux, utiliser un serveur HTTP local (ex: python -m http.server)
 default_origins = [
     "http://localhost:3000",
-    "http://localhost:8080",
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-    "http://127.0.0.1:8080",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 app.add_middleware(
     CORSMiddleware,

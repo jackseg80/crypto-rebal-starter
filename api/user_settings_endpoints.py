@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/users", tags=["User Settings"])
 class UserSettings(BaseModel):
     """Modèle pour les settings utilisateur"""
     data_source: str = "csv"
-    api_base_url: str = "http://localhost:8080"
+    api_base_url: str = "http://localhost:8000"
     display_currency: str = "USD"
     min_usd_threshold: float = 1.0
     csv_glob: str = "csv/*.csv"

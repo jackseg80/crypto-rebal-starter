@@ -320,7 +320,7 @@ async def job_api_warmers():
             f"/api/risk/dashboard?source=cointracking&user_id={warmup_user}",
         ]
 
-        base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
+        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             for endpoint in endpoints:
@@ -363,7 +363,7 @@ async def job_crypto_toolbox_refresh():
         import httpx
 
         # Call the FastAPI crypto-toolbox endpoint with force refresh
-        base_url = os.getenv("API_BASE_URL", "http://localhost:8080")
+        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
         url = f"{base_url}/api/crypto-toolbox?force=true"
 
         async with httpx.AsyncClient(timeout=30.0) as client:
