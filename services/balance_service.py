@@ -297,6 +297,7 @@ class BalanceService:
             credentials = data_router.get_api_credentials()
             api_key = credentials.get("api_key")
             api_secret = credentials.get("api_secret")
+            logger.info(f"🔑 DEBUG: api_key='{api_key[:10] if api_key else None}...', api_secret='{api_secret[:10] if api_secret else None}...', len_key={len(api_key) if api_key else 0}, len_secret={len(api_secret) if api_secret else 0}")
 
             # 1) Load snapshot by exchange via CT-API
             snap = await load_ctapi_exchanges(min_usd=0.0, api_key=api_key, api_secret=api_secret)

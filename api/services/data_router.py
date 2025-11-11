@@ -40,6 +40,9 @@ class UserDataRouter:
         """Charge les settings utilisateur depuis config.json"""
         try:
             self.settings = self.user_fs.read_json("config.json")
+            logger.info(f"🔧 DEBUG: Loaded settings for user {self.user_id}, keys = {list(self.settings.keys())[:10]}")
+            logger.info(f"🔑 DEBUG: 'cointracking_api_key' in settings = {'cointracking_api_key' in self.settings}")
+            logger.info(f"🔑 DEBUG: 'cointracking_api_secret' in settings = {'cointracking_api_secret' in self.settings}")
         except (FileNotFoundError, ValueError):
             # Settings par défaut si pas de fichier
             self.settings = {
@@ -61,6 +64,7 @@ class UserDataRouter:
             "api_key": self.settings.get("cointracking_api_key", ""),
             "api_secret": self.settings.get("cointracking_api_secret", "")
         }
+        logger.info(f"🔑 DEBUG: api_credentials loaded, len_key={len(self.api_credentials.get('api_key', ''))}, len_secret={len(self.api_credentials.get('api_secret', ''))}")
 
     def get_csv_files(self, file_type: str = "balance") -> List[str]:
         """
