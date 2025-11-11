@@ -6,7 +6,7 @@ Handles exchange classification, location normalization, and CT-API integration.
 """
 
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ def pick_primary_location_for_symbol(symbol: str, detailed_holdings: dict) -> st
     return best_loc
 
 
-async def load_ctapi_exchanges(min_usd: float = 0.0) -> dict:
+async def load_ctapi_exchanges(min_usd: float = 0.0, api_key: Optional[str] = None, api_secret: Optional[str] = None) -> dict:
     """
     Fetch balance data grouped by exchange via CoinTracking API.
 
@@ -87,6 +87,8 @@ async def load_ctapi_exchanges(min_usd: float = 0.0) -> dict:
 
     Args:
         min_usd: Minimum USD threshold to filter assets and exchanges (default: 0.0)
+        api_key: CoinTracking API key (optional, will use default if not provided)
+        api_secret: CoinTracking API secret (optional, will use default if not provided)
 
     Returns:
         Dict with keys:
@@ -121,7 +123,7 @@ async def load_ctapi_exchanges(min_usd: float = 0.0) -> dict:
             logger.error("CoinTracking API module not available")
             return {"exchanges": [], "detailed_holdings": {}}
 
-    payload = await ct_api.get_balances_by_exchange_via_api()
+    payload = await ct_api.get_balances_by_exchange_via_api(api_key=api_key, api_secret=api_secret)
     exchanges = payload.get("exchanges") or []
     detailed = payload.get("detailed_holdings") or {}
 

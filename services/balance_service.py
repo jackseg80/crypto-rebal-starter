@@ -299,7 +299,7 @@ class BalanceService:
             api_secret = credentials.get("api_secret")
 
             # 1) Load snapshot by exchange via CT-API
-            snap = await load_ctapi_exchanges(min_usd=0.0)
+            snap = await load_ctapi_exchanges(min_usd=0.0, api_key=api_key, api_secret=api_secret)
             detailed = snap.get("detailed_holdings") or {}
 
             # 2) Per-coin view via CT-API
