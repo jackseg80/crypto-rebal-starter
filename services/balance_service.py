@@ -133,6 +133,7 @@ class BalanceService:
             credentials = data_router.get_api_credentials()
             api_key = credentials.get("api_key")
             api_secret = credentials.get("api_secret")
+            logger.info(f"🔑 DEBUG [_try_api_mode]: api_key='{api_key[:10] if api_key else None}...', len_key={len(api_key) if api_key else 0}, len_secret={len(api_secret) if api_secret else 0}")
 
             if not (api_key and api_secret):
                 logger.warning(f"No CoinTracking API credentials configured for user {user_id}")
@@ -157,6 +158,9 @@ class BalanceService:
                 logger.debug(f"API mode successful for user {user_id}: {len(items)} items")
                 return {"source_used": "cointracking_api", "items": items}
 
+            except RuntimeError as e:
+                logger.error(f"CoinTracking API authentication error for user {user_id}: {e}")
+                return None
             except httpx.HTTPError as e:
                 logger.error(f"CoinTracking API HTTP error for user {user_id}: {e}")
                 return None
