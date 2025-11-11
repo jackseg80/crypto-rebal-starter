@@ -143,7 +143,9 @@ class BalanceService:
                 from connectors.cointracking_api import get_current_balances as _ctapi_bal
 
                 # Pass API keys directly to connector
+                logger.info(f"🔄 DEBUG [_try_api_mode]: Calling CoinTracking API for user {user_id}...")
                 api_result = await _ctapi_bal(api_key=api_key, api_secret=api_secret)
+                logger.info(f"✅ DEBUG [_try_api_mode]: CoinTracking API returned {len(api_result.get('items', []))} items")
                 items = []
 
                 for r in api_result.get("items", []):
@@ -155,7 +157,7 @@ class BalanceService:
                         "location": r.get("location") or "CoinTracking",
                     })
 
-                logger.debug(f"API mode successful for user {user_id}: {len(items)} items")
+                logger.info(f"✅ API mode successful for user {user_id}: {len(items)} items")
                 return {"source_used": "cointracking_api", "items": items}
 
             except RuntimeError as e:
