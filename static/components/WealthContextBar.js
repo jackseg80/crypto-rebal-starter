@@ -421,10 +421,18 @@ class WealthContextBar {
         window.clearBalanceCache();
       }
 
-      // Vider localStorage cache
+      // Vider localStorage cache (AGGRESSIVE - vide TOUT pour changement fichier CSV)
       Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('cache:') || key.includes('risk_score') || key.includes('balance_')) {
+        if (key.startsWith('cache:') ||
+            key.includes('risk') ||
+            key.includes('balance') ||
+            key.includes('dashboard') ||
+            key.includes('portfolio') ||
+            key.includes('metrics') ||
+            key.includes('ccs') ||
+            key.includes('cycle')) {
           localStorage.removeItem(key);
+          debugLogger.debug(`🧹 Cleared cache: ${key}`);
         }
       });
 
@@ -451,22 +459,7 @@ class WealthContextBar {
       this.saveContext();
     }
 
-    // Émettre événement dataSourceChanged pour que les pages rechargent
-    if (sourceChanged || fileChanged) {
-      console.debug(`WealthContextBar: Emitting dataSourceChanged event (${oldSource} → ${effectiveNew})`);
-
-      // Event personnalisé pour recharger les données dans la même page
-      window.dispatchEvent(new CustomEvent('dataSourceChanged', {
-        detail: {
-          oldSource: oldSource,
-          newSource: effectiveNew,
-          oldFile: oldFile,
-          newFile: newFile
-        }
-      }));
-    }
-
-    // Sauvegarder dans le backend avec protection anti-rafale
+    // Sauvegarder dans le backend AVANT d'émettre l'événement (évite race condition)
     if (sourceChanged || fileChanged) {
       // Sauvegarder état AVANT modification pour rollback si échec
       const rollbackState = {
@@ -478,6 +471,7 @@ class WealthContextBar {
         contextAccount: this.context.account
       };
 
+      console.debug(`🔍 WealthContextBar: About to persist - csv_selected_file='${window.userSettings.csv_selected_file}', saxo_selected_file='${window.userSettings.saxo_selected_file}'`);
       const persistResult = await this.persistSettingsSafely(window.userSettings, source);
 
       if (!persistResult.ok && !persistResult.aborted) {
@@ -510,6 +504,21 @@ class WealthContextBar {
         }
 
         return; // Arrêter ici, pas de reload
+      }
+
+      // ✅ Si succès : Émettre événement dataSourceChanged APRÈS sauvegarde backend
+      if (persistResult.ok) {
+        console.debug(`WealthContextBar: Settings persisted, emitting dataSourceChanged event (${oldSource} → ${effectiveNew})`);
+
+        // Event personnalisé pour recharger les données dans la même page
+        window.dispatchEvent(new CustomEvent('dataSourceChanged', {
+          detail: {
+            oldSource: oldSource,
+            newSource: effectiveNew,
+            oldFile: oldFile,
+            newFile: newFile
+          }
+        }));
       }
 
       // Si succès ou aborté (nouvelle requête en cours)

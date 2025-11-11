@@ -572,7 +572,15 @@ const balanceCache = {
 
   clear(user = null) {
     if (user) {
-      if (this.data) delete this.data[user];
+      // 🔧 FIX: Clear all cache entries for this user (including different CSV files)
+      if (this.data) {
+        const prefix = `${user}:`;
+        Object.keys(this.data).forEach(key => {
+          if (key.startsWith(prefix) || key === user) {
+            delete this.data[key];
+          }
+        });
+      }
     } else {
       this.data = null;
     }
@@ -587,15 +595,19 @@ window.loadBalanceData = async function(forceRefresh = false) {
   const apiBaseUrl = globalConfig.get('api_base_url');
   const currentUser = localStorage.getItem('activeUser') || 'demo';
 
+  // 🔧 FIX: Include csv_selected_file in cache key for proper isolation
+  const csvFile = window.userSettings?.csv_selected_file || 'latest';
+  const cacheKey = `${currentUser}:${dataSource}:${csvFile}`;
+
   // Vérifier cache (sauf si refresh forcé)
-  if (!forceRefresh && balanceCache.isValid(currentUser)) {
-    console.debug(`🚀 Balance data loaded from cache (user: ${currentUser})`);
-    return { success: true, data: balanceCache.get(currentUser), source: 'cache', cached: true };
+  if (!forceRefresh && balanceCache.isValid(cacheKey)) {
+    console.debug(`🚀 Balance data loaded from cache (user: ${currentUser}, file: ${csvFile})`);
+    return { success: true, data: balanceCache.get(cacheKey), source: 'cache', cached: true };
   }
 
   // Cache miss ou refresh forcé - charger depuis API
   const timestamp = forceRefresh ? Date.now() : '';
-  console.debug(`🔍 Loading balance data using source: ${dataSource} (user: ${currentUser}, cache-bust: ${timestamp || 'none'})`);
+  console.debug(`🔍 Loading balance data using source: ${dataSource} (user: ${currentUser}, file: ${csvFile}, cache-bust: ${timestamp || 'none'})`);
 
   try {
     switch (dataSource) {
@@ -606,7 +618,7 @@ window.loadBalanceData = async function(forceRefresh = false) {
         if (forceRefresh) params._t = timestamp;
         const apiData = await globalConfig.apiRequest('/balances/current', { params });
         const result = { success: true, data: apiData, source: apiData?.source_used || 'cointracking_api' };
-        balanceCache.set(apiData, currentUser);
+        balanceCache.set(apiData, cacheKey);
         return result;
       }
 
@@ -621,7 +633,7 @@ window.loadBalanceData = async function(forceRefresh = false) {
         if (forceRefresh) params._t = timestamp;
         const stubData = await globalConfig.apiRequest('/balances/current', { params });
         const result = { success: true, data: stubData, source: stubData?.source_used || chosen };
-        balanceCache.set(stubData, currentUser);
+        balanceCache.set(stubData, cacheKey);
         return result;
       }
 
@@ -634,7 +646,7 @@ window.loadBalanceData = async function(forceRefresh = false) {
         if (forceRefresh) params._t = timestamp;
         const csvData = await globalConfig.apiRequest('/balances/current', { params });
         const result = { success: true, data: csvData, source: csvData?.source_used || dataSource };
-        balanceCache.set(csvData, currentUser);
+        balanceCache.set(csvData, cacheKey);
         return result;
       }
 
@@ -646,7 +658,7 @@ window.loadBalanceData = async function(forceRefresh = false) {
         if (forceRefresh) params._t = timestamp;
         const csvData = await globalConfig.apiRequest('/balances/current', { params });
         const result = { success: true, data: csvData, source: csvData?.source_used || 'cointracking' };
-        balanceCache.set(csvData, currentUser);
+        balanceCache.set(csvData, cacheKey);
         return result;
       }
     }

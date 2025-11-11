@@ -16,9 +16,15 @@ class BitcoinCycleChart {
   async init() {
     debugLogger.debug('🚀 BitcoinCycleChart init() called');
 
-    // Guard: prevent re-initialization
+    // Guard: prevent re-initialization using DOM attribute (more robust than instance property)
+    if (this.element.dataset.chartInitialized === 'true') {
+      debugLogger.debug('⚡ Chart already initialized (DOM guard), skipping re-initialization');
+      return;
+    }
+
+    // Also check instance property as secondary guard
     if (this.chartLoaded) {
-      console.debug('⚡ Chart already loaded, skipping re-initialization');
+      debugLogger.debug('⚡ Chart already loaded (instance guard), skipping re-initialization');
       return;
     }
 
@@ -65,6 +71,8 @@ class BitcoinCycleChart {
       }
 
       this.chartLoaded = true;
+      // Mark as initialized in DOM to prevent re-initialization from other instances
+      this.element.dataset.chartInitialized = 'true';
       debugLogger.debug('✅ Bitcoin Cycle Chart loaded successfully via lazy loading');
 
     } catch (error) {

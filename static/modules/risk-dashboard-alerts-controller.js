@@ -90,8 +90,10 @@
             // Load Risk Attribution
             await loadRiskAttribution();
           } else {
-            document.getElementById('var-analysis-content').innerHTML =
-              '<div class="warning">Advanced Risk Engine not available</div>';
+            const varContainer = document.getElementById('var-analysis-content');
+            if (varContainer) {
+              varContainer.innerHTML = '<div class="warning">Advanced Risk Engine not available</div>';
+            }
           }
         } catch (error) {
           debugLogger.error('Error loading Phase 3A data:', error);
@@ -205,7 +207,13 @@
           // Debug: log group names to verify API naming
           console.debug('📊 GRI groups from API:', Object.keys(exposureByGroup));
 
-          document.getElementById('gri-analysis-content').innerHTML = `
+          const griContainer = document.getElementById('gri-analysis-content');
+          if (!griContainer) {
+            debugLogger.warn('⚠️ GRI container not found in DOM, skipping render');
+            return;
+          }
+
+          griContainer.innerHTML = `
               <div class="gri-overview">
                 <div class="var-method">
                   <span class="method-label hinted" data-key="gri_index">
@@ -277,8 +285,10 @@
 
         } catch (error) {
           debugLogger.error('Error loading GRI Analysis:', error);
-          document.getElementById('gri-analysis-content').innerHTML =
-            '<div class="error">Failed to load GRI analysis from API</div>';
+          const griContainer = document.getElementById('gri-analysis-content');
+          if (griContainer) {
+            griContainer.innerHTML = '<div class="error">Failed to load GRI analysis from API</div>';
+          }
         }
       }
 
@@ -363,7 +373,13 @@
               </div>
             `).join('');
 
-          document.getElementById('stress-test-content').innerHTML = `
+          const stressContainer = document.getElementById('stress-test-content');
+          if (!stressContainer) {
+            debugLogger.warn('⚠️ Stress test container not found in DOM, skipping render');
+            return;
+          }
+
+          stressContainer.innerHTML = `
               <div class="stress-scenarios">
                 <div class="scenarios-header">
                   <p class="scenarios-description">
@@ -387,9 +403,10 @@
 
         } catch (error) {
           debugLogger.error('Error loading stress test scenarios:', error);
-          document.getElementById('stress-test-content').innerHTML = `
-              <div class="error">Erreur de chargement des scénarios de stress</div>
-            `;
+          const stressContainer = document.getElementById('stress-test-content');
+          if (stressContainer) {
+            stressContainer.innerHTML = '<div class="error">Erreur de chargement des scénarios de stress</div>';
+          }
         }
       }
 
@@ -417,7 +434,13 @@
       };
 
       async function loadMonteCarloResults() {
-        document.getElementById('monte-carlo-content').innerHTML = `
+        const monteCarloContainer = document.getElementById('monte-carlo-content');
+        if (!monteCarloContainer) {
+          debugLogger.warn('⚠️ Monte Carlo container not found in DOM, skipping render');
+          return;
+        }
+
+        monteCarloContainer.innerHTML = `
             <p style="font-size: 0.85rem; color: var(--theme-text-muted); margin-bottom: 1rem; font-style: italic;">
               Simulation de 10 000 scénarios aléatoires basée sur la distribution historique de rendements.
               Fournit une évaluation probabiliste du risque extrême.

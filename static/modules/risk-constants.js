@@ -28,6 +28,10 @@ export const CACHE_CONFIG = {
     key: 'risk_metrics_cache',
     ttl: 6 * 60 * 60 * 1000  // 6 heures
   },
+  RISK_DASHBOARD_BALANCE: {
+    key: 'risk-dashboard-balance',  // ✅ FIX: Prefix for balance cache (user/source appended at runtime)
+    ttl: 6 * 60 * 60 * 1000  // 6 heures
+  },
   CYCLE_CONTENT: {
     key: 'cycle_content_cache',
     ttl: 24 * 60 * 60 * 1000  // 24 heures HTML (macro)
