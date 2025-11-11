@@ -418,7 +418,23 @@ const storeActions = {
       const age = ts ? (Date.now() - ts) : Number.POSITIVE_INFINITY;
       const ttlMs = ttlMinutes * 60 * 1000;
       const current = getState().ui.apiStatus.backend || 'unknown';
-      const next = age === Number.POSITIVE_INFINITY ? current : (age > ttlMs ? 'stale' : 'healthy');
+
+      // FIX Nov 2025: If no timestamp available, don't downgrade healthy status
+      // Only change status if we have valid timestamp data
+      let next;
+      if (age === Number.POSITIVE_INFINITY) {
+        // No timestamp available - keep current status if it's healthy, otherwise mark as unknown
+        next = (current === 'healthy') ? 'healthy' : 'unknown';
+      } else {
+        // Valid timestamp - compute health based on age
+        next = (age > ttlMs) ? 'stale' : 'healthy';
+      }
+
+      // DEBUG: Log backend status decisions
+      if (typeof debugLogger !== 'undefined' && next !== current) {
+        debugLogger.debug(`🩺 Backend status: ${current} → ${next} (age: ${age === Number.POSITIVE_INFINITY ? '∞' : Math.round(age/1000) + 's'}, ttl: ${ttlMinutes}min)`);
+      }
+
       if (next !== current) this.update({ 'ui.apiStatus.backend': next });
     } catch { }
   },
