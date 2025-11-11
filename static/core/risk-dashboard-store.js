@@ -413,8 +413,8 @@ const storeActions = {
     try {
       const gov = getState().governance;
       // FIX Oct 2025: Use ml_signals_timestamp (root level) instead of ml_signals.timestamp
-      const ts = gov?.ml_signals_timestamp ? new Date(gov.ml_signals_timestamp).getTime() :
-                 (gov?.ml_signals?.timestamp ? new Date(gov.ml_signals.timestamp).getTime() : (gov?.last_sync || 0));
+      const rawTimestamp = gov?.ml_signals_timestamp || gov?.ml_signals?.timestamp || null;
+      const ts = rawTimestamp ? new Date(rawTimestamp).getTime() : (gov?.last_sync || 0);
       const age = ts ? (Date.now() - ts) : Number.POSITIVE_INFINITY;
       const ttlMs = ttlMinutes * 60 * 1000;
       const current = getState().ui.apiStatus.backend || 'unknown';
@@ -430,13 +430,19 @@ const storeActions = {
         next = (age > ttlMs) ? 'stale' : 'healthy';
       }
 
-      // DEBUG: Log backend status decisions
-      if (typeof debugLogger !== 'undefined' && next !== current) {
-        debugLogger.debug(`🩺 Backend status: ${current} → ${next} (age: ${age === Number.POSITIVE_INFINITY ? '∞' : Math.round(age/1000) + 's'}, ttl: ${ttlMinutes}min)`);
+      // DEBUG: Log backend status decisions (ENHANCED)
+      if (typeof debugLogger !== 'undefined') {
+        const ageDisplay = age === Number.POSITIVE_INFINITY ? '∞' : Math.round(age/1000) + 's';
+        const tsDisplay = ts ? new Date(ts).toISOString() : 'null';
+        debugLogger.debug(`🩺 Backend status: ${current} → ${next} (age: ${ageDisplay}, ttl: ${ttlMinutes}min, ts: ${tsDisplay}, raw: ${rawTimestamp})`);
       }
 
       if (next !== current) this.update({ 'ui.apiStatus.backend': next });
-    } catch { }
+    } catch (e) {
+      if (typeof debugLogger !== 'undefined') {
+        debugLogger.error('❌ Error in _updateBackendStatusFromGovernance:', e);
+      }
+    }
   },
 
   async approveDecision(decisionId, approved, reason = null) {
