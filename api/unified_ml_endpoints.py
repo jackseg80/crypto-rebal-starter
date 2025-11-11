@@ -502,39 +502,61 @@ async def verify_admin_access(x_admin_key: str = Header(None)):
     return True
 
 @router.get("/debug/pipeline-info")
-async def debug_pipeline_info(admin_verified: bool = Depends(verify_admin_access)):
-    """Endpoint de debug pour analyser les instances du pipeline manager"""
+async def debug_pipeline_info(x_admin_key: str = Header(None)):
+    """
+    Endpoint de debug pour analyser les instances du pipeline manager
+
+    Returns basic info for unauthenticated requests, detailed info for admin.
+    """
     try:
-        # Informations sur l'instance
-        pm_id = id(pipeline_manager)
-        pm_type = type(pipeline_manager).__name__
-        pm_module = pipeline_manager.__class__.__module__
-        
-        # Informations sur le cache
-        cache_size = len(pipeline_manager.model_cache.cache)
-        cache_keys = list(pipeline_manager.model_cache.cache.keys())
-        
-        # Statut complet
+        # Check if admin access is granted
+        is_admin = False
+        if x_admin_key:
+            expected_key = os.getenv("ADMIN_KEY")
+            if expected_key and x_admin_key == expected_key:
+                is_admin = True
+
+        # Statut complet (always available)
         full_status = pipeline_manager.get_pipeline_status()
-        
-        return {
-            "debug_info": {
+
+        # Basic info (available to everyone)
+        basic_info = {
+            "loaded_models_count": full_status.get('loaded_models_count', 0),
+            "loading_mode": full_status.get('loading_mode', 'unknown'),
+            "pipeline_initialized": full_status.get('pipeline_initialized', False),
+            "admin_access": is_admin
+        }
+
+        # Detailed info (admin only)
+        if is_admin:
+            pm_id = id(pipeline_manager)
+            pm_type = type(pipeline_manager).__name__
+            pm_module = pipeline_manager.__class__.__module__
+            cache_size = len(pipeline_manager.model_cache.cache)
+            cache_keys = list(pipeline_manager.model_cache.cache.keys())
+
+            basic_info.update({
                 "pipeline_manager_id": pm_id,
                 "pipeline_manager_type": pm_type,
                 "pipeline_manager_module": pm_module,
                 "cache_size": cache_size,
                 "cache_keys": cache_keys,
-                "full_status_keys": list(full_status.keys()),
-                "loaded_models_count_from_status": full_status.get('loaded_models_count'),
-                "loading_mode_from_status": full_status.get('loading_mode'),
-                "pipeline_initialized_from_status": full_status.get('pipeline_initialized')
-            },
+                "full_status_keys": list(full_status.keys())
+            })
+
+        return {
+            "debug_info": basic_info,
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except Exception as e:
+        logger.error(f"Error in pipeline-info endpoint: {e}")
         return {
-            "debug_info": {"error": str(e)},
+            "debug_info": {
+                "error": str(e),
+                "admin_access": False,
+                "pipeline_initialized": False
+            },
             "timestamp": datetime.now().isoformat()
         }
 

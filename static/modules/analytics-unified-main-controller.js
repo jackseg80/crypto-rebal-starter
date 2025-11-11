@@ -1148,8 +1148,13 @@ async function loadUnifiedData(force = false) {
     // Update risk metrics with dynamic data
     updateRiskMetrics();
 
+    // Mark backend as healthy after successful data load
+    store.set('ui.apiStatus.backend', 'healthy');
+
   } catch (e) {
     debugLogger.error('Unified loader fatal:', e);
+    // Mark backend as error on fatal load failure
+    store.set('ui.apiStatus.backend', 'error');
   }
 }
 // Track data source changes for cache invalidation
