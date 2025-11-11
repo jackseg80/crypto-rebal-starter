@@ -13,6 +13,38 @@
 
 import { proposeTargets, applyTargets, computePlan, getDecisionLog } from './targets-coordinator.js';
 
+// ====== Dev Environment Detection ======
+/**
+ * Detect if running in dev environment (localhost or LAN IPs)
+ * Used to auto-bypass cooldown for development convenience
+ * @returns {boolean} True if dev environment
+ */
+function isDevEnvironment() {
+  const hostname = window.location.hostname;
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('10.') ||
+    hostname.startsWith('172.16.') ||
+    hostname.startsWith('172.17.') ||
+    hostname.startsWith('172.18.') ||
+    hostname.startsWith('172.19.') ||
+    hostname.startsWith('172.20.') ||
+    hostname.startsWith('172.21.') ||
+    hostname.startsWith('172.22.') ||
+    hostname.startsWith('172.23.') ||
+    hostname.startsWith('172.24.') ||
+    hostname.startsWith('172.25.') ||
+    hostname.startsWith('172.26.') ||
+    hostname.startsWith('172.27.') ||
+    hostname.startsWith('172.28.') ||
+    hostname.startsWith('172.29.') ||
+    hostname.startsWith('172.30.') ||
+    hostname.startsWith('172.31.')
+  );
+}
+
 // ====== Portfolio Allocation Helper ======
 /**
  * Get current portfolio allocation by asset groups
@@ -112,6 +144,19 @@ export async function renderTargetsContent() {
   // Get updated state after potential score calculation
   const updatedState = window.store.snapshot();
 
+  // Check cooldown status
+  let cooldownStatus = null;
+  try {
+    const apiUrl = window.globalConfig ? window.globalConfig.getApiUrl('/execution/governance/cooldown-status') : '/execution/governance/cooldown-status';
+    const activeUser = localStorage.getItem('activeUser') || 'demo';
+    const response = await fetch(`${apiUrl}?user_id=${activeUser}`);
+    if (response.ok) {
+      cooldownStatus = await response.json();
+    }
+  } catch (error) {
+    debugLogger.warn('Could not fetch cooldown status:', error.message);
+  }
+
   // Propose different targeting strategies (now with updated scores)
   const macroProposal = proposeTargets('macro');
   const ccsProposal = proposeTargets('ccs');
@@ -132,29 +177,62 @@ export async function renderTargetsContent() {
   // Get real current portfolio allocation
   const currentAllocation = await getCurrentPortfolioAllocation();
 
+  // Determine if cooldown is active
+  const isCooldownActive = cooldownStatus && !cooldownStatus.can_publish;
+  const cooldownMessage = cooldownStatus?.message || '';
+  const cooldownHoursRemaining = cooldownStatus?.remaining_hours || 0;
+
+  // Check if we're in dev environment (auto-bypass)
+  const isDev = isDevEnvironment();
+  const hostname = window.location.hostname;
+
+  const buttonDisabled = isCooldownActive && !isDev ? 'disabled' : '';
+  const buttonTitle = isCooldownActive && !isDev ? `Cooldown active: ${cooldownHoursRemaining.toFixed(1)}h remaining` : '';
+
   container.innerHTML = `
     <div style="max-width: 1400px; margin: 0 auto; width: 100%;">
       <!-- Strategy Selection -->
       <div class="risk-card" style="margin-bottom: var(--space-lg);">
         <h3>🎯 Strategic Targeting</h3>
+
+        <!-- Cooldown Status Banner -->
+        ${isCooldownActive ? `
+          <div style="margin-bottom: var(--space-md); padding: var(--space-md); border-radius: var(--radius-md); background: ${isDev ? 'color-mix(in oklab, var(--info) 10%, transparent)' : 'color-mix(in oklab, var(--warning) 10%, transparent)'}; border: 1px solid ${isDev ? 'var(--info)' : 'var(--warning)'};">
+            <div style="display: flex; align-items: center; gap: var(--space-sm);">
+              <span style="font-size: 1.25rem;">${isDev ? 'ℹ️' : '⏳'}</span>
+              <div style="flex: 1;">
+                <div style="font-weight: 600; color: var(--theme-text); margin-bottom: 0.25rem;">
+                  ${isDev ? 'Cooldown Active (Dev Auto-Bypass Enabled)' : 'Plan Publication Cooldown Active'}
+                </div>
+                <div style="font-size: 0.875rem; color: var(--theme-text-muted);">
+                  ${isDev
+                    ? `Detected dev environment (${hostname}). Cooldown will be automatically bypassed when you click a strategy.`
+                    : `${cooldownMessage} - Next publication available in ${cooldownHoursRemaining.toFixed(1)} hours.`
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-sm); margin: var(--space-lg) 0;">
-          <button class="refresh-btn" onclick="applyStrategy('macro')" style="background: #6b7280;">
+          <button class="refresh-btn" onclick="applyStrategy('macro')" ${buttonDisabled} title="${buttonTitle}" style="background: #6b7280; ${buttonDisabled ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
             📊 Macro Only<br>
             <small>${macroProposal.strategy}</small>
           </button>
-          <button class="refresh-btn" onclick="applyStrategy('ccs')" style="background: #3b82f6;">
+          <button class="refresh-btn" onclick="applyStrategy('ccs')" ${buttonDisabled} title="${buttonTitle}" style="background: #3b82f6; ${buttonDisabled ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
             📈 CCS Based<br>
             <small>${ccsProposal.strategy}</small>
           </button>
-          <button class="refresh-btn" onclick="applyStrategy('cycle')" style="background: #f59e0b;">
+          <button class="refresh-btn" onclick="applyStrategy('cycle')" ${buttonDisabled} title="${buttonTitle}" style="background: #f59e0b; ${buttonDisabled ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
             🔄 Cycle Adjusted<br>
             <small>${cycleProposal.strategy}</small>
           </button>
-          <button class="refresh-btn" onclick="applyStrategy('blend')" style="background: #10b981;">
+          <button class="refresh-btn" onclick="applyStrategy('blend')" ${buttonDisabled} title="${buttonTitle}" style="background: #10b981; ${buttonDisabled ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
             ⚖️ Blended Strategy<br>
             <small>${blendedProposal.strategy}</small>
           </button>
-          <button class="refresh-btn" onclick="applyStrategy('smart')" style="background: linear-gradient(135deg, #8b5cf6, #06b6d4); color: white; font-weight: bold; border: 2px solid #8b5cf6;">
+          <button class="refresh-btn" onclick="applyStrategy('smart')" ${buttonDisabled} title="${buttonTitle}" style="background: linear-gradient(135deg, #8b5cf6, #06b6d4); color: white; font-weight: bold; border: 2px solid #8b5cf6; ${buttonDisabled ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
             🧠 SMART<br>
             <small style="font-size: 0.75rem;">${smartProposal.strategy}</small>
           </button>
@@ -543,8 +621,8 @@ window.applyStrategy = async function (mode) {
       const apiUrl = window.globalConfig ? window.globalConfig.getApiUrl('/execution/governance/propose') : '/execution/governance/propose';
       const activeUser = localStorage.getItem('activeUser') || 'demo';
 
-      // Auto-bypass cooldown in localhost for dev convenience
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      // Auto-bypass cooldown in dev environment (localhost + LAN IPs)
+      const isDev = isDevEnvironment();
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -555,7 +633,7 @@ window.applyStrategy = async function (mode) {
         body: JSON.stringify({
           targets: targets, // Already formatted for governance
           reason: `Strategic targets ${mode}: ${proposal.strategy}`,
-          force_override_cooldown: isLocalhost // Auto-bypass cooldown in dev
+          force_override_cooldown: isDev // Auto-bypass cooldown in dev
         })
       });
 
