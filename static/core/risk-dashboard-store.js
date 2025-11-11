@@ -409,7 +409,7 @@ const storeActions = {
   },
 
   // Compute backend health based on governance timestamps (TTL in minutes)
-  _updateBackendStatusFromGovernance(ttlMinutes = 30) {
+  _updateBackendStatusFromGovernance(ttlMinutes = 60) {
     try {
       const gov = getState().governance;
       // FIX Oct 2025: Use ml_signals_timestamp (root level) instead of ml_signals.timestamp
