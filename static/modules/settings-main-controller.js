@@ -853,7 +853,9 @@ async function autoDetectDebugToken() {
   for (let i = 0; i < commonTokens.length; i++) {
     const token = commonTokens[i];
     try {
-      const response = await fetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/debug/api-keys?debug_token=${token}`, {
+      // Utiliser fetch natif pour éviter les logs dans debug-logger.js (erreurs 403 attendues)
+      const nativeFetch = window.__origFetch || window.fetch;
+      const response = await nativeFetch(`${(window.userSettings || getDefaultSettings()).api_base_url}/debug/api-keys?debug_token=${token}`, {
         headers: { 'X-User': getActiveUser() }
       });
       if (response.ok) {
@@ -869,8 +871,9 @@ async function autoDetectDebugToken() {
         console.debug(`🚦 Rate limite atteinte, attendre avant prochaine tentative`);
         await new Promise(resolve => setTimeout(resolve, 2000)); // 2 secondes
       }
+      // 403 attendu : ne pas logger (tentative normale)
     } catch (e) {
-      // Continuer avec le token suivant
+      // Continuer avec le token suivant (erreurs réseau uniquement)
       console.debug(`Token ${token} échoué:`, e.message);
     }
 

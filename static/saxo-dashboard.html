@@ -4399,7 +4399,7 @@
                 tableContainer.innerHTML = '<div class="loading">Loading recommendations...</div>';
 
                 // Build URL with parameters
-                let recsUrl = `/api/ml/bourse/portfolio-recommendations?user_id=${activeUser}&timeframe=${timeframe}&lookback_days=90`;
+                let recsUrl = `/api/ml/bourse/portfolio-recommendations?timeframe=${timeframe}&lookback_days=90`;
                 if (currentFileKey) {
                     recsUrl += `&file_key=${encodeURIComponent(currentFileKey)}`;
                     debugLogger.debug(`🔍 Loading recommendations with file_key: ${currentFileKey}`);
@@ -4410,7 +4410,11 @@
                     debugLogger.debug(`💵 Including cash in recommendations: $${window.portfolioCash}`);
                 }
 
-                const response = await fetch(recsUrl);
+                const response = await fetch(recsUrl, {
+                    headers: {
+                        'X-User': activeUser
+                    }
+                });
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -4730,7 +4734,11 @@
                         recsUrl += `&cash_amount=${window.portfolioCash}`;
                     }
 
-                    const response = await fetch(recsUrl);
+                    const response = await fetch(recsUrl, {
+                    headers: {
+                        'X-User': activeUser
+                    }
+                });
                     if (!response.ok) throw new Error(`Failed to fetch ${tf.id} recommendations`);
 
                     const data = await response.json();

@@ -575,10 +575,25 @@ class WealthContextBar {
     }
 
     // Trouver la source correspondante
-    const source = window.availableSources.find(s => s.key === key && s.module === 'saxobank');
+    let source = window.availableSources.find(s => s.key === key && s.module === 'saxobank');
+
+    // Fallback : si pas trouvé, essayer une correspondance flexible (ignorer casse et normaliser underscores/tirets)
     if (!source) {
-      debugLogger.warn(`WealthContextBar: Saxo source not found for key=${key}`);
-      return;
+      const normalizedKey = key.toLowerCase().replace(/[_-]/g, '');
+      source = window.availableSources.find(s =>
+        s.module === 'saxobank' &&
+        s.key.toLowerCase().replace(/[_-]/g, '') === normalizedKey
+      );
+
+      if (source) {
+        debugLogger.info(`WealthContextBar: Matched Saxo source using flexible matching: ${source.key}`);
+      } else {
+        // Supprime le warning si l'option "all" est sélectionnée au démarrage
+        if (key !== 'all') {
+          debugLogger.warn(`WealthContextBar: Saxo source not found for key=${key}`);
+        }
+        return;
+      }
     }
 
     // Pour Bourse/Saxo, mettre à jour le contexte seulement (pas de globalConfig)
