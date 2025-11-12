@@ -5727,10 +5727,10 @@
                         url += `&file_key=${encodeURIComponent(currentFileKey)}`;
                     }
 
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`Failed to fetch ${horizon.id} opportunities`);
+                    const response = await safeFetch(globalConfig.getApiUrl(url));
+                    if (!response?.ok) throw new Error(`Failed to fetch ${horizon.id} opportunities`);
 
-                    const data = await response.json();
+                    const data = response.data || response;
                     const gaps = data.gaps || [];
                     const opportunities = data.opportunities || [];
                     const suggestedSales = data.suggested_sales || [];

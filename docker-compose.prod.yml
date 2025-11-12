@@ -38,7 +38,7 @@ services:
       context: .
       dockerfile: Dockerfile.prod
       args:
-        PORT: ${PORT:-8080}
+        PORT: ${PORT:-8000}
         WORKERS: 1
     container_name: smartfolio-api
     restart: always
@@ -46,12 +46,12 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "${PORT:-8080}:${PORT:-8080}"  # LAN accessible
+      - "${PORT:-8000}:${PORT:-8000}"  # LAN accessible
     environment:
       # Core settings
       DEBUG: ${DEBUG:-true}
       ENVIRONMENT: ${ENVIRONMENT:-development}
-      PORT: ${PORT:-8080}
+      PORT: ${PORT:-8000}
       HOST: 0.0.0.0  # Must be 0.0.0.0 for container networking
 
       # Redis connection (use service name as hostname)

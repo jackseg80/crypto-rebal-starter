@@ -1,0 +1,56 @@
+{
+  "malformed_requests": {
+    "empty_request": {
+      "status_code": 422,
+      "handled_gracefully": true
+    },
+    "invalid_structure": {
+      "status_code": 422,
+      "handled_gracefully": true
+    },
+    "wrong_types": {
+      "status_code": 422,
+      "handled_gracefully": true
+    }
+  },
+  "websocket_resilience": {
+    "stop_successful": true,
+    "start_successful": true,
+    "status_check_ok": true,
+    "full_cycle_ok": true
+  },
+  "load_performance": {
+    "total_requests": 5,
+    "errors": 0,
+    "success_rate": 100.0,
+    "avg_response_ms": 24.3,
+    "performance_acceptable": true
+  },
+  "error_recovery": {
+    "invalid_request_handled": true,
+    "recovery_successful": true,
+    "system_recovered": true
+  },
+  "api_availability": {
+    "phase3_status": {
+      "status_code": 200,
+      "available": true
+    },
+    "realtime_status": {
+      "status_code": 200,
+      "available": true
+    },
+    "websocket_connections": {
+      "status_code": 200,
+      "available": true
+    }
+  },
+  "summary": {
+    "overall_resilience_score": 100.0,
+    "malformed_requests_handled": "3/3",
+    "websocket_resilience": "PASS",
+    "load_performance": "PASS",
+    "error_recovery": "PASS",
+    "api_availability": "3/3"
+  }
+}
