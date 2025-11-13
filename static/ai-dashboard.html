@@ -1647,10 +1647,10 @@
 
                     try {
                         const detailedCards = [
-                            createDetailedCard('📊', 'Modèle de Volatilité - Détails', volatilityStatus, volatilityMetric, volatilitySource),
-                            createDetailedCard('🎯', 'Détection de Régime - Détails', regimeStatus, regimeMetric, regimeSource),
-                            createDetailedCard('🔗', 'Analyse Corrélations - Détails', correlationStatus, correlationMetric, correlationSource),
-                            createDetailedCard('😊', 'ML Sentiment - Détails', sentimentStatus, sentimentMetric, sentimentSource)
+                            createDetailedCard('📊', 'Modèle de Volatilité - Détails', volatilityStatus, volatilityMetric, volatilitySource, 'LSTM'),
+                            createDetailedCard('🎯', 'Détection de Régime - Détails', regimeStatus, regimeMetric, regimeSource, 'HMM'),
+                            createDetailedCard('🔗', 'Analyse Corrélations - Détails', correlationStatus, correlationMetric, correlationSource, 'Pearson'),
+                            createDetailedCard('😊', 'ML Sentiment - Détails', sentimentStatus, sentimentMetric, sentimentSource, 'F&G Index')
                         ];
                         debugLogger.debug('🃏 Cartes créées:', detailedCards.length);
 
@@ -1679,7 +1679,7 @@
         }
 
         // Créer une carte détaillée
-        function createDetailedCard(icon, title, info1, info2, info3) {
+        function createDetailedCard(icon, title, info1, info2, info3, modelType = 'LSTM') {
             const card = document.createElement('div');
             card.className = 'ml-card';
             card.innerHTML = `
@@ -1710,7 +1710,7 @@
                     </div>
                 </div>
                 <div class="card-actions">
-                    <button class="btn primary" onclick="showModelDetails('${info1}', '${title}')">📋 Détails</button>
+                    <button class="btn primary" onclick="showModelDetails('${modelType}', '${title}')">📋 Détails</button>
                 </div>
             `;
             return card;
